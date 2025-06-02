@@ -12,8 +12,8 @@ import type { RowDataPacket } from 'mysql2';
 // });
 
 const signInSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
+  user_Id: z.string().min(1, { message: "User ID is required." }),
+  password: z.string().min(1, { message: "Password is required." }),
 });
 
 // export async function signUpUserAction(values: z.infer<typeof signUpSchema>) {
@@ -58,31 +58,31 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>) {
       return { success: false, message: 'Invalid input.' };
     }
 
-    const { email, password } = validatedFields.data;
+    const { user_Id, password } = validatedFields.data;
     const connection = await getDbConnection();
 
     try {
       const [rows] = await connection.execute<RowDataPacket[]>(
-        'SELECT id, email, password FROM users WHERE email = ?',
-        [email]
+        'SELECT user_Id, password FROM Login WHERE user_Id = ?',
+        [user_Id]
       );
 
       if (rows.length === 0) {
-        return { success: false, message: 'Invalid email or password.' };
+        return { success: false, message: 'Invalid User ID or password.' };
       }
 
       const user = rows[0];
       const passwordMatch = await bcrypt.compare(password, user.password);
 
       if (!passwordMatch) {
-        return { success: false, message: 'Invalid email or password.' };
+        return { success: false, message: 'Invalid User ID or password.' };
       }
 
       // In a real app, you'd create a session/JWT here
       return {
         success: true,
         message: 'Sign in successful!',
-        user: { id: user.id, email: user.email },
+        user: { userId: user.user_Id }, // Changed from id and email
       };
     } catch (dbError) {
       console.error('Database error during sign in:', dbError);

@@ -22,8 +22,8 @@ import { signInUserAction } from '@/actions/auth';
 import { useState, useTransition } from 'react';
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(1, { message: "Password is required." }), // Min 1 for sign-in, actual length check is done by bcrypt
+  user_Id: z.string().min(1, { message: "User ID is required." }),
+  password: z.string().min(1, { message: "Password is required." }),
 });
 
 export default function SignInPage() {
@@ -34,7 +34,7 @@ export default function SignInPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: "",
+      user_Id: "",
       password: "",
     },
   });
@@ -73,12 +73,12 @@ export default function SignInPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="email"
+              name="user_Id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>User ID</FormLabel>
                   <FormControl>
-                    <Input placeholder="name@example.com" {...field} disabled={isPending} />
+                    <Input placeholder="your_user_id" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -112,3 +112,4 @@ export default function SignInPage() {
     </Card>
   );
 }
+

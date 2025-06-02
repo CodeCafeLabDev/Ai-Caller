@@ -4,8 +4,8 @@
 import mysql from 'mysql2/promise';
 
 // Database connection configuration
-// IMPORTANT: Store your actual credentials in a .env file at the root of your project.
-// Example .env file contents:
+// IMPORTANT: Store your actual credentials in a .env.local file at the root of your project.
+// Example .env.local file contents:
 // DB_HOST=your_db_host
 // DB_USER=your_db_user
 // DB_PASSWORD=your_db_password
@@ -81,26 +81,22 @@ export async function closeDbConnection(): Promise<void> {
 }
 
 /**
- * Creates the 'users' table if it doesn't already exist.
+ * Creates the 'Login' table if it doesn't already exist.
  */
-async function initializeUserTable(): Promise<void> {
+async function initializeLoginTable(): Promise<void> {
   const conn = await getDbConnection();
-  const createUserTableSQL = `
-    CREATE TABLE IF NOT EXISTS users (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password VARCHAR(255) NOT NULL,
-      contact_number VARCHAR(20) NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  const createLoginTableSQL = `
+    CREATE TABLE IF NOT EXISTS Login (
+      user_Id VARCHAR(255) PRIMARY KEY NOT NULL,
+      password VARCHAR(255) NOT NULL
     );
   `;
   try {
-    await conn.execute(createUserTableSQL);
-    console.log("Table 'users' initialized successfully or already exists.");
+    await conn.execute(createLoginTableSQL);
+    console.log("Table 'Login' initialized successfully or already exists.");
   } catch (error) {
-    console.error("Error creating 'users' table:", error);
-    throw new Error("Could not initialize 'users' table.");
+    console.error("Error creating 'Login' table:", error);
+    throw new Error("Could not initialize 'Login' table.");
   }
 }
 
@@ -110,7 +106,7 @@ async function initializeUserTable(): Promise<void> {
  */
 export async function initializeDatabase(): Promise<void> {
   try {
-    await initializeUserTable();
+    await initializeLoginTable();
     // Add calls to initialize other tables here if needed
     console.log("Database initialization complete.");
   } catch (error) {
@@ -131,3 +127,4 @@ export async function initializeDatabase(): Promise<void> {
 //     // process.exit(1); // Optional: exit if DB initialization is critical
 //   }
 // })();
+
