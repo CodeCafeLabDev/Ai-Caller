@@ -2,6 +2,7 @@
 'use server';
 
 import mysql from 'mysql2/promise';
+import bcrypt from 'bcryptjs';
 
 // Database connection configuration
 // IMPORTANT: Store your actual credentials in a .env.local file at the root of your project.
@@ -101,13 +102,57 @@ async function initializeLoginTable(): Promise<void> {
 }
 
 /**
- * Initializes all necessary database tables.
+ * Adds a sample user to the Login table if they do not already exist.
+ * Logs the credentials for testing.
+ */
+async function addSampleUserIfNotExists(): Promise<{ userId: string; plainPassword_DO_NOT_USE_IN_PROD: string } | null> {
+  const conn = await getDbConnection();
+  const sampleUserId = 'testUser';
+  const samplePlainPassword = 'password123'; // Store the plain password to return/log
+
+  try {
+    // Check if the user already exists
+    const [rows] = await conn.execute<mysql.RowDataPacket[]>(
+      'SELECT user_Id FROM Login WHERE user_Id = ?',
+      [sampleUserId]
+    );
+
+    if (rows.length > 0) {
+      console.log(`Sample user '${sampleUserId}' already exists.`);
+      // Optionally, you could return the credentials here too if needed for consistency
+      return { userId: sampleUserId, plainPassword_DO_NOT_USE_IN_PROD: samplePlainPassword };
+    }
+
+    // If user doesn't exist, hash the password and insert
+    const hashedPassword = await bcrypt.hash(samplePlainPassword, 10);
+    await conn.execute(
+      'INSERT INTO Login (user_Id, password) VALUES (?, ?)',
+      [sampleUserId, hashedPassword]
+    );
+    console.log(`Sample user '${sampleUserId}' added successfully.`);
+    return { userId: sampleUserId, plainPassword_DO_NOT_USE_IN_PROD: samplePlainPassword };
+  } catch (error) {
+    console.error(`Error adding or checking sample user '${sampleUserId}':`, error);
+    throw new Error('Could not add or check sample user.');
+  }
+}
+
+
+/**
+ * Initializes all necessary database tables and adds a sample user.
  * Call this function when your application starts or during a setup phase.
  */
 export async function initializeDatabase(): Promise<void> {
   try {
     await initializeLoginTable();
-    // Add calls to initialize other tables here if needed
+    const sampleUser = await addSampleUserIfNotExists();
+    
+    if (sampleUser) {
+      console.log("--- Sample User Credentials (for testing ONLY) ---");
+      console.log(`User ID: ${sampleUser.userId}`);
+      console.log(`Password: ${sampleUser.plainPassword_DO_NOT_USE_IN_PROD}`);
+      console.log("-------------------------------------------------");
+    }
     console.log("Database initialization complete.");
   } catch (error) {
     console.error("Error during database initialization:", error);
@@ -117,7 +162,10 @@ export async function initializeDatabase(): Promise<void> {
   }
 }
 
-// Example of how you might call initializeDatabase during app startup (e.g., in a global setup file or your main server file):
+// Example of how you might call initializeDatabase during app startup:
+// You would typically call this ONCE during your application's setup phase.
+// For example, in a script you run manually, or at the beginning of your server if appropriate.
+// 
 // (async () => {
 //   try {
 //     await initializeDatabase();
@@ -127,4 +175,3 @@ export async function initializeDatabase(): Promise<void> {
 //     // process.exit(1); // Optional: exit if DB initialization is critical
 //   }
 // })();
-
