@@ -19,9 +19,6 @@ export default function HomePage() {
           <Button asChild size="lg">
             <Link href="/signin">Sign In</Link>
           </Button>
-          <Button asChild variant="outline" size="lg">
-            <Link href="/signup">Sign Up</Link>
-          </Button>
         </div>
       </div>
       <footer className="absolute bottom-8 text-sm text-muted-foreground">
