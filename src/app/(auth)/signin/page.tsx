@@ -48,6 +48,7 @@ export default function SignInPage() {
           description: result.message,
         });
         // In a real app, you'd handle session management here
+        // For now, we assume a successful sign-in means navigation to dashboard
         router.push("/dashboard");
       } else {
         toast({
