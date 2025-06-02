@@ -80,17 +80,54 @@ export async function closeDbConnection(): Promise<void> {
   }
 }
 
-// Example usage (you can remove this or adapt it):
-// export async function getSampleData() {
-//   const conn = await getDbConnection();
+/**
+ * Creates the 'users' table if it doesn't already exist.
+ */
+async function initializeUserTable(): Promise<void> {
+  const conn = await getDbConnection();
+  const createUserTableSQL = `
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      contact_number VARCHAR(20) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    );
+  `;
+  try {
+    await conn.execute(createUserTableSQL);
+    console.log("Table 'users' initialized successfully or already exists.");
+  } catch (error) {
+    console.error("Error creating 'users' table:", error);
+    throw new Error("Could not initialize 'users' table.");
+  }
+}
+
+/**
+ * Initializes all necessary database tables.
+ * Call this function when your application starts or during a setup phase.
+ */
+export async function initializeDatabase(): Promise<void> {
+  try {
+    await initializeUserTable();
+    // Add calls to initialize other tables here if needed
+    console.log("Database initialization complete.");
+  } catch (error) {
+    console.error("Error during database initialization:", error);
+    // Depending on your error handling strategy, you might want to exit the process
+    // or throw the error to be caught by a higher-level handler.
+    throw error;
+  }
+}
+
+// Example of how you might call initializeDatabase during app startup (e.g., in a global setup file or your main server file):
+// (async () => {
 //   try {
-//     const [rows] = await conn.execute('SELECT 1 + 1 AS solution');
-//     return rows;
+//     await initializeDatabase();
+//     // Proceed with application startup
 //   } catch (error) {
-//     console.error('Error executing sample query:', error);
-//     // Depending on your error handling strategy, you might re-throw or return a specific error object
-//     throw error; 
+//     console.error('Failed to initialize database. Application might not work correctly.', error);
+//     // process.exit(1); // Optional: exit if DB initialization is critical
 //   }
-//   // For a single, persistent connection like this, you usually don't close it after every query.
-//   // You'd close it when the application shuts down or if using a connection pool, release it.
-// }
+// })();
