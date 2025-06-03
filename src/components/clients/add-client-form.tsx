@@ -111,7 +111,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 flex flex-col h-full">
-        <ScrollArea className="flex-1 min-h-0"> {/* Changed: Removed pr-4, added flex-1 and min-h-0 for better height management in flex container */}
+        <ScrollArea className="flex-1 min-h-0">
           <div className="space-y-6">
             <FormField
               control={form.control}
@@ -347,15 +347,17 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               )}
             />
           </div>
+          <div className="pt-6 mt-4"> {/* Moved button inside ScrollArea and adjusted spacing */}
+            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? "Adding Client..." : "Add Client"}
+            </Button>
+          </div>
         </ScrollArea>
-        <div className="pt-4 border-t mt-auto"> {/* Changed: Added mt-auto to push button to bottom if form is h-full */}
-           <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Adding Client..." : "Add Client"}
-          </Button>
-        </div>
       </form>
     </Form>
   );
 }
+
+    
 
     
