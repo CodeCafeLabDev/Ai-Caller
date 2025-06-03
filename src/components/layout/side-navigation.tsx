@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, List, FileSearch, UserCog } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, List, FileSearch, UserCog, UsersRound as ClientUsersIcon } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -54,6 +54,7 @@ const initialNavItems: NavItemType[] = [
     subItems: [
       { href: '/clients/list', label: 'All Clients List' },
       { href: '/clients/details-usage', label: 'Client Details & Usage' },
+      { href: '/clients/users', label: 'Client Users', icon: ClientUsersIcon },
       { href: '/clients/account-status', label: 'Account Status Management' },
     ],
   },
@@ -125,8 +126,8 @@ export function SideNavigation() {
                         asChild
                         isActive={pathname === subItem.href}
                       >
-                        <Link href={subItem.href}>
-                          {/* Optional: <subItem.icon className="h-3 w-3 mr-1" /> */}
+                        <Link href={subItem.href} className="flex items-center">
+                          {subItem.icon && <subItem.icon className="h-3 w-3 mr-1.5" />}
                           <span>{subItem.label}</span>
                         </Link>
                       </SidebarMenuSubButton>
