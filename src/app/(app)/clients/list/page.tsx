@@ -21,15 +21,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter, // Added DialogFooter
-  DialogClose // Added DialogClose
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"; // Changed from Dialog to Sheet
 import {
   Select,
   SelectContent,
@@ -54,7 +52,7 @@ import {
   FileText,
   Trash2,
 } from "lucide-react";
-import { AddClientForm } from "@/components/clients/add-client-form"; // Import the new form
+import { AddClientForm } from "@/components/clients/add-client-form";
 
 type Client = {
   id: string;
@@ -155,7 +153,7 @@ export default function AllClientsListPage() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planFilter, setPlanFilter] = React.useState("all");
   const [sortBy, setSortBy] = React.useState("joinedDateDesc");
-  const [isAddClientDialogOpen, setIsAddClientDialogOpen] = React.useState(false);
+  const [isAddClientSheetOpen, setIsAddClientSheetOpen] = React.useState(false); // Changed from Dialog to Sheet
 
   const filteredClients = mockClients.filter((client) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
@@ -187,10 +185,10 @@ export default function AllClientsListPage() {
   );
 
   const handleAddClientSuccess = () => {
-    setIsAddClientDialogOpen(false);
+    setIsAddClientSheetOpen(false); // Close the sheet
     // Here you would typically re-fetch client data
     // For now, we can just log it
-    console.log("Client added, dialog closed. Refresh data if needed.");
+    console.log("Client added, sheet closed. Refresh data if needed.");
   };
 
 
@@ -201,24 +199,23 @@ export default function AllClientsListPage() {
             <h1 className="text-3xl font-bold font-headline">All Clients</h1>
             <p className="text-muted-foreground">Manage and view all client accounts.</p>
         </div>
-        <Dialog open={isAddClientDialogOpen} onOpenChange={setIsAddClientDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="lg">
+        <Sheet open={isAddClientSheetOpen} onOpenChange={setIsAddClientSheetOpen}>
+          <SheetTrigger asChild>
+            <Button size="lg" onClick={() => setIsAddClientSheetOpen(true)}>
               <PlusCircle className="mr-2 h-5 w-5" />
               Add New Client
             </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Add New Client</DialogTitle>
-              <DialogDescription>
+          </SheetTrigger>
+          <SheetContent className="sm:max-w-[600px] w-full"> {/* Adjusted width for sheet */}
+            <SheetHeader>
+              <SheetTitle>Add New Client</SheetTitle>
+              <SheetDescription>
                 Fill in the details below to add a new client to the system.
-              </DialogDescription>
-            </DialogHeader>
+              </SheetDescription>
+            </SheetHeader>
             <AddClientForm onSuccess={handleAddClientSuccess} />
-            {/* DialogFooter and DialogClose can be part of AddClientForm if form actions are inside */}
-          </DialogContent>
-        </Dialog>
+          </SheetContent>
+        </Sheet>
       </div>
 
       <Card className="shadow-lg">
@@ -397,5 +394,3 @@ export default function AllClientsListPage() {
     </div>
   );
 }
-
-    
