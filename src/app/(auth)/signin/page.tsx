@@ -43,8 +43,8 @@ export default function SignInPage() {
     startTransition(() => {
       // Bypass authentication and directly navigate to dashboard
       toast({
-        title: "Entering Dashboard (Test Mode)",
-        description: "Login credentials bypassed for testing.",
+        title: "Entering Dashboard",
+        description: "Proceeding in test mode.",
       });
       router.push("/dashboard");
     });
@@ -55,7 +55,7 @@ export default function SignInPage() {
       <CardHeader>
         <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
         <CardDescription className="text-center">
-          Access your Voxaiomni account. (Test mode active)
+          Access your Voxaiomni account.
         </CardDescription>
       </CardHeader>
       <CardContent>
