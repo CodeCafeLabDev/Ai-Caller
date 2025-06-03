@@ -6,20 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Ban, CheckCircle, CalendarClock, Edit, Tag, Users, FileDown, PlayCircle } from "lucide-react";
+import { Ban, CheckCircle, CalendarClock, Edit, Tag, Users, FileDown, PlayCircle, ChevronsUpDown, Check } from "lucide-react";
 import { format } from "date-fns";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 // Mock client data for selection - in a real app, this would come from an API
 const mockClients = [
@@ -35,6 +30,7 @@ export default function AccountStatusManagementPage() {
   const [isTrial, setIsTrial] = React.useState(false);
   const [suspensionReason, setSuspensionReason] = React.useState("");
   const [logNotes, setLogNotes] = React.useState("");
+  const [clientComboboxOpen, setClientComboboxOpen] = React.useState(false);
 
   const selectedClient = mockClients.find(c => c.id === selectedClientId);
 
@@ -62,18 +58,50 @@ export default function AccountStatusManagementPage() {
           <CardDescription>Choose a client to manage their account status.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-            <SelectTrigger className="w-full md:w-1/2">
-              <SelectValue placeholder="Select a client..." />
-            </SelectTrigger>
-            <SelectContent>
-              {mockClients.map(client => (
-                <SelectItem key={client.id} value={client.id}>
-                  {client.name} (Current Status: {client.status})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={clientComboboxOpen} onOpenChange={setClientComboboxOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={clientComboboxOpen}
+                className="w-full md:w-1/2 justify-between"
+              >
+                {selectedClientId
+                  ? mockClients.find(client => client.id === selectedClientId)?.name
+                  : "Select a client..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-full md:w-[--radix-popover-trigger-width] p-0">
+              <Command>
+                <CommandInput placeholder="Search client..." />
+                <CommandList>
+                  <CommandEmpty>No client found.</CommandEmpty>
+                  <CommandGroup>
+                    {mockClients.map(client => (
+                      <CommandItem
+                        key={client.id}
+                        value={client.name}
+                        onSelect={(currentValue) => {
+                          const clientObj = mockClients.find(c => c.name.toLowerCase() === currentValue.toLowerCase());
+                          setSelectedClientId(clientObj ? clientObj.id : undefined);
+                          setClientComboboxOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedClientId === client.id ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {client.name} (Status: {client.status})
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </CardContent>
       </Card>
 

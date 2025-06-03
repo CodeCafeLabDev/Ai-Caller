@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -16,17 +17,14 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox"; // Added for autoSendLoginEmail
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const addClientFormSchema = z.object({
   companyName: z.string().min(2, { message: "Company name must be at least 2 characters." }),
@@ -38,8 +36,8 @@ const addClientFormSchema = z.object({
   assignedPlan: z.string({ required_error: "Please select a plan." }),
   apiAccess: z.boolean().default(false),
   trialMode: z.boolean().default(false),
-  trialDuration: z.coerce.number().optional(), // Added for trial duration
-  trialCallLimit: z.coerce.number().optional(), // Added for trial call limit
+  trialDuration: z.coerce.number().optional(), 
+  trialCallLimit: z.coerce.number().optional(), 
   adminPassword: z.string().min(8, { message: "Password must be at least 8 characters." }),
   confirmAdminPassword: z.string(),
   autoSendLoginEmail: z.boolean().default(true),
@@ -74,6 +72,7 @@ const availablePlans = ["Basic", "Premium", "Enterprise", "Trial"];
 
 export function AddClientForm({ onSuccess }: AddClientFormProps) {
   const { toast } = useToast();
+  const [planComboboxOpen, setPlanComboboxOpen] = React.useState(false);
   const form = useForm<AddClientFormValues>({
     resolver: zodResolver(addClientFormSchema),
     defaultValues: {
@@ -204,24 +203,62 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               control={form.control}
               name="assignedPlan"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="flex flex-col">
                   <FormLabel>Assign Plan</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a plan" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {availablePlans.map(plan => (
-                        <SelectItem key={plan} value={plan.toLowerCase()}>{plan}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={planComboboxOpen} onOpenChange={setPlanComboboxOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          className={cn(
+                            "w-full justify-between h-9 text-sm",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value
+                            ? availablePlans.find(plan => plan.toLowerCase() === field.value)
+                            : "Select a plan"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search plan..." />
+                        <CommandList>
+                          <CommandEmpty>No plan found.</CommandEmpty>
+                          <CommandGroup>
+                            {availablePlans.map(plan => (
+                              <CommandItem
+                                value={plan}
+                                key={plan}
+                                onSelect={() => {
+                                  form.setValue("assignedPlan", plan.toLowerCase());
+                                  setPlanComboboxOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    plan.toLowerCase() === field.value
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                                {plan}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
 
             <FormField
               control={form.control}
@@ -347,7 +384,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               )}
             />
           </div>
-          <div className="pt-4 px-2"> 
+          <div className="pt-4 px-2 mt-auto"> 
             <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Adding Client..." : "Add Client"}
             </Button>
