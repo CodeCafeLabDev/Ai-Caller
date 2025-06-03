@@ -55,7 +55,7 @@ export default function SignInPage() {
       <CardHeader>
         <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
         <CardDescription className="text-center">
-          (Test Mode - Credentials are not validated)
+          Access your Voxaiomni account. (Test mode active)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -88,7 +88,7 @@ export default function SignInPage() {
               )}
             />
             <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? "Proceeding..." : "Enter Dashboard (Test)"}
+              {isPending ? "Signing In..." : "Sign In"}
             </Button>
           </form>
         </Form>
@@ -96,3 +96,4 @@ export default function SignInPage() {
     </Card>
   );
 }
+
