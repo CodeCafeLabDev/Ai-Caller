@@ -49,7 +49,6 @@ import {
   Search,
   PlusCircle,
   ListFilter,
-  ChevronDown,
   MoreHorizontal,
   Eye,
   Edit2,
@@ -58,10 +57,12 @@ import {
   ArrowUpDown,
   FileText,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  FileDown, // Added FileDown icon
 } from "lucide-react";
 import { AddClientForm } from "@/components/clients/add-client-form";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast"; // Added for toast notifications
 
 type Client = {
   id: string;
@@ -180,6 +181,7 @@ const sortOptions = [
 
 
 export default function AllClientsListPage() {
+  const { toast } = useToast(); // Initialize toast
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planFilter, setPlanFilter] = React.useState("all");
@@ -221,7 +223,19 @@ export default function AllClientsListPage() {
 
   const handleAddClientSuccess = () => {
     setIsAddClientSheetOpen(false); 
-    console.log("Client added, sheet closed. Refresh data if needed.");
+    // Potentially refresh client list here in a real app
+    toast({ title: "Client Added", description: "The new client has been successfully added." });
+  };
+
+  const handleExport = (format: "csv" | "excel" | "pdf") => {
+    toast({
+      title: `Exporting as ${format.toUpperCase()} (Simulated)`,
+      description: `Preparing ${sortedClients.length} client records for export.`,
+    });
+    console.log(`Exporting ${format.toUpperCase()} data:`, sortedClients);
+    // In a real app, you would implement the actual export logic here.
+    // For CSV/Excel, you might use a library like 'xlsx' or generate CSV string.
+    // For PDF, you might use 'jspdf' or a server-side solution.
   };
 
 
@@ -254,149 +268,171 @@ export default function AllClientsListPage() {
       <Card className="shadow-lg">
         <CardHeader className="border-b p-4">
             <div className="flex flex-col md:flex-row items-center gap-4">
-            <div className="relative flex-grow w-full md:w-auto">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                type="search"
-                placeholder="Search by name, email, ID..."
-                className="pl-10 w-full bg-background"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
-            <div className="flex gap-2 flex-wrap w-full md:w-auto justify-between md:justify-start">
-                {/* Status Filter Combobox */}
-                <Popover open={statusComboboxOpen} onOpenChange={setStatusComboboxOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={statusComboboxOpen}
-                      className="w-full md:w-[180px] justify-between"
-                    >
-                      <ListFilter className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                      {statusOptions.find(s => s.value === statusFilter)?.label || "Filter by Status"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full md:w-[180px] p-0">
-                    <Command>
-                      <CommandInput placeholder="Search status..." />
-                      <CommandList>
-                        <CommandEmpty>No status found.</CommandEmpty>
-                        <CommandGroup>
-                          {statusOptions.map(option => (
-                            <CommandItem
-                              key={option.value}
-                              value={option.label}
-                              onSelect={() => {
-                                setStatusFilter(option.value);
-                                setStatusComboboxOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  statusFilter === option.value ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {option.label}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+              <div className="relative flex-grow w-full md:w-auto">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input
+                  type="search"
+                  placeholder="Search by name, email, ID..."
+                  className="pl-10 w-full bg-background"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+              </div>
+              <div className="flex gap-2 flex-wrap w-full md:w-auto justify-start items-center"> 
+                  {/* Status Filter Combobox */}
+                  <Popover open={statusComboboxOpen} onOpenChange={setStatusComboboxOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={statusComboboxOpen}
+                        className="w-full sm:w-auto md:w-[180px] justify-between"
+                      >
+                        <ListFilter className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                        {statusOptions.find(s => s.value === statusFilter)?.label || "Filter by Status"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search status..." />
+                        <CommandList>
+                          <CommandEmpty>No status found.</CommandEmpty>
+                          <CommandGroup>
+                            {statusOptions.map(option => (
+                              <CommandItem
+                                key={option.value}
+                                value={option.label}
+                                onSelect={() => {
+                                  setStatusFilter(option.value);
+                                  setStatusComboboxOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    statusFilter === option.value ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {option.label}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
 
-                {/* Plan Filter Combobox */}
-                <Popover open={planComboboxOpen} onOpenChange={setPlanComboboxOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={planComboboxOpen}
-                      className="w-full md:w-[180px] justify-between"
-                    >
-                      <FileText className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                      {planOptions.find(p => p.value === planFilter)?.label || "Filter by Plan"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full md:w-[180px] p-0">
-                    <Command>
-                      <CommandInput placeholder="Search plan..." />
-                      <CommandList>
-                        <CommandEmpty>No plan found.</CommandEmpty>
-                        <CommandGroup>
-                          {planOptions.map(option => (
-                            <CommandItem
-                              key={option.value}
-                              value={option.label}
-                              onSelect={() => {
-                                setPlanFilter(option.value);
-                                setPlanComboboxOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  planFilter === option.value ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {option.label}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                
-                {/* Sort By Combobox */}
-                <Popover open={sortComboboxOpen} onOpenChange={setSortComboboxOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={sortComboboxOpen}
-                      className="w-full md:w-[180px] justify-between"
-                    >
-                      <ArrowUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                      {sortOptions.find(s => s.value === sortBy)?.label || "Sort by"}
-                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full md:w-[180px] p-0">
-                    <Command>
-                      <CommandInput placeholder="Search sort option..." />
-                       <CommandList>
-                        <CommandEmpty>No sort option found.</CommandEmpty>
-                        <CommandGroup>
-                          {sortOptions.map(option => (
-                            <CommandItem
-                              key={option.value}
-                              value={option.label}
-                              onSelect={() => {
-                                setSortBy(option.value);
-                                setSortComboboxOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  sortBy === option.value ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {option.label}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-            </div>
+                  {/* Plan Filter Combobox */}
+                  <Popover open={planComboboxOpen} onOpenChange={setPlanComboboxOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={planComboboxOpen}
+                        className="w-full sm:w-auto md:w-[180px] justify-between"
+                      >
+                        <FileText className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                        {planOptions.find(p => p.value === planFilter)?.label || "Filter by Plan"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search plan..." />
+                        <CommandList>
+                          <CommandEmpty>No plan found.</CommandEmpty>
+                          <CommandGroup>
+                            {planOptions.map(option => (
+                              <CommandItem
+                                key={option.value}
+                                value={option.label}
+                                onSelect={() => {
+                                  setPlanFilter(option.value);
+                                  setPlanComboboxOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    planFilter === option.value ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {option.label}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  
+                  {/* Sort By Combobox */}
+                  <Popover open={sortComboboxOpen} onOpenChange={setSortComboboxOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={sortComboboxOpen}
+                        className="w-full sm:w-auto md:w-[180px] justify-between"
+                      >
+                        <ArrowUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                        {sortOptions.find(s => s.value === sortBy)?.label || "Sort by"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                      <Command>
+                        <CommandInput placeholder="Search sort option..." />
+                        <CommandList>
+                          <CommandEmpty>No sort option found.</CommandEmpty>
+                          <CommandGroup>
+                            {sortOptions.map(option => (
+                              <CommandItem
+                                key={option.value}
+                                value={option.label}
+                                onSelect={() => {
+                                  setSortBy(option.value);
+                                  setSortComboboxOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    sortBy === option.value ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {option.label}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Export Button */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-full sm:w-auto">
+                        <FileDown className="mr-2 h-4 w-4" /> Export
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Export Options</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleExport("csv")}>
+                        Export as CSV
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport("excel")}>
+                        Export as Excel (XLSX)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                        Export as PDF
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+              </div>
             </div>
         </CardHeader>
         <CardContent className="p-0">
