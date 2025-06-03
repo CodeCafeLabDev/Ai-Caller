@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link"; // Added Link
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -29,16 +29,22 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Search,
   PlusCircle,
@@ -51,8 +57,11 @@ import {
   UserCheck,
   ArrowUpDown,
   FileText,
+  Check,
+  ChevronsUpDown
 } from "lucide-react";
 import { AddClientForm } from "@/components/clients/add-client-form";
+import { cn } from "@/lib/utils";
 
 type Client = {
   id: string;
@@ -147,6 +156,28 @@ const statusVariants: Record<Client["status"], string> = {
   Trial: "bg-blue-100 text-blue-700 dark:bg-blue-700 dark:text-blue-100",
 };
 
+const statusOptions = [
+  { value: "all", label: "All Statuses" },
+  { value: "active", label: "Active" },
+  { value: "suspended", label: "Suspended" },
+  { value: "trial", label: "Trial" },
+];
+
+const planOptions = [
+  { value: "all", label: "All Plans" },
+  { value: "basic", label: "Basic" },
+  { value: "premium", label: "Premium" },
+  { value: "enterprise", label: "Enterprise" },
+  { value: "trial", label: "Trial" },
+];
+
+const sortOptions = [
+  { value: "joinedDateDesc", label: "Newest First" },
+  { value: "joinedDateAsc", label: "Oldest First" },
+  { value: "nameAsc", label: "Name (A-Z)" },
+  { value: "nameDesc", label: "Name (Z-A)" },
+];
+
 
 export default function AllClientsListPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -154,6 +185,10 @@ export default function AllClientsListPage() {
   const [planFilter, setPlanFilter] = React.useState("all");
   const [sortBy, setSortBy] = React.useState("joinedDateDesc");
   const [isAddClientSheetOpen, setIsAddClientSheetOpen] = React.useState(false);
+
+  const [statusComboboxOpen, setStatusComboboxOpen] = React.useState(false);
+  const [planComboboxOpen, setPlanComboboxOpen] = React.useState(false);
+  const [sortComboboxOpen, setSortComboboxOpen] = React.useState(false);
 
   const filteredClients = mockClients.filter((client) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
@@ -230,45 +265,137 @@ export default function AllClientsListPage() {
                 />
             </div>
             <div className="flex gap-2 flex-wrap w-full md:w-auto justify-between md:justify-start">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full md:w-[180px]">
-                    <ListFilter className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Filter by Status" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="suspended">Suspended</SelectItem>
-                    <SelectItem value="trial">Trial</SelectItem>
-                </SelectContent>
-                </Select>
+                {/* Status Filter Combobox */}
+                <Popover open={statusComboboxOpen} onOpenChange={setStatusComboboxOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={statusComboboxOpen}
+                      className="w-full md:w-[180px] justify-between"
+                    >
+                      <ListFilter className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                      {statusOptions.find(s => s.value === statusFilter)?.label || "Filter by Status"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full md:w-[180px] p-0">
+                    <Command>
+                      <CommandInput placeholder="Search status..." />
+                      <CommandList>
+                        <CommandEmpty>No status found.</CommandEmpty>
+                        <CommandGroup>
+                          {statusOptions.map(option => (
+                            <CommandItem
+                              key={option.value}
+                              value={option.label}
+                              onSelect={() => {
+                                setStatusFilter(option.value);
+                                setStatusComboboxOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  statusFilter === option.value ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {option.label}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
 
-                <Select value={planFilter} onValueChange={setPlanFilter}>
-                <SelectTrigger className="w-full md:w-[180px]">
-                    <FileText className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Filter by Plan" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Plans</SelectItem>
-                    <SelectItem value="basic">Basic</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                    <SelectItem value="enterprise">Enterprise</SelectItem>
-                    <SelectItem value="trial">Trial</SelectItem>
-                </SelectContent>
-                </Select>
-
-                <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-full md:w-[180px]">
-                    <ArrowUpDown className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="joinedDateDesc">Newest First</SelectItem>
-                    <SelectItem value="joinedDateAsc">Oldest First</SelectItem>
-                    <SelectItem value="nameAsc">Name (A-Z)</SelectItem>
-                    <SelectItem value="nameDesc">Name (Z-A)</SelectItem>
-                </SelectContent>
-                </Select>
+                {/* Plan Filter Combobox */}
+                <Popover open={planComboboxOpen} onOpenChange={setPlanComboboxOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={planComboboxOpen}
+                      className="w-full md:w-[180px] justify-between"
+                    >
+                      <FileText className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                      {planOptions.find(p => p.value === planFilter)?.label || "Filter by Plan"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full md:w-[180px] p-0">
+                    <Command>
+                      <CommandInput placeholder="Search plan..." />
+                      <CommandList>
+                        <CommandEmpty>No plan found.</CommandEmpty>
+                        <CommandGroup>
+                          {planOptions.map(option => (
+                            <CommandItem
+                              key={option.value}
+                              value={option.label}
+                              onSelect={() => {
+                                setPlanFilter(option.value);
+                                setPlanComboboxOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  planFilter === option.value ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {option.label}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                
+                {/* Sort By Combobox */}
+                <Popover open={sortComboboxOpen} onOpenChange={setSortComboboxOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={sortComboboxOpen}
+                      className="w-full md:w-[180px] justify-between"
+                    >
+                      <ArrowUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                      {sortOptions.find(s => s.value === sortBy)?.label || "Sort by"}
+                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full md:w-[180px] p-0">
+                    <Command>
+                      <CommandInput placeholder="Search sort option..." />
+                       <CommandList>
+                        <CommandEmpty>No sort option found.</CommandEmpty>
+                        <CommandGroup>
+                          {sortOptions.map(option => (
+                            <CommandItem
+                              key={option.value}
+                              value={option.label}
+                              onSelect={() => {
+                                setSortBy(option.value);
+                                setSortComboboxOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  sortBy === option.value ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {option.label}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
             </div>
             </div>
         </CardHeader>
@@ -393,4 +520,3 @@ export default function AllClientsListPage() {
     </div>
   );
 }
-
