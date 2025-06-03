@@ -21,15 +21,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetFooter,
+  SheetClose
+} from "@/components/ui/sheet"; // Changed from Dialog to Sheet
 import {
   Select,
   SelectContent,
@@ -108,7 +108,7 @@ export default function ClientUsersPage() {
   const { toast } = useToast();
   const [users, setUsers] = React.useState<ClientUser[]>(mockUsers);
   const [roleFilter, setRoleFilter] = React.useState<UserRole | "all">("all");
-  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = React.useState(false);
+  const [isAddUserSheetOpen, setIsAddUserSheetOpen] = React.useState(false); // Changed from isAddUserDialogOpen
 
   const form = useForm<AddUserFormValues>({
     resolver: zodResolver(addUserFormSchema),
@@ -138,7 +138,7 @@ export default function ClientUsersPage() {
     const newUser: ClientUser = {
       id: `usr_${Date.now()}`,
       ...data,
-      lastLogin: undefined, // Or set to current date if needed
+      lastLogin: undefined, 
     };
     setUsers(prev => [newUser, ...prev]);
     toast({
@@ -146,7 +146,7 @@ export default function ClientUsersPage() {
       description: `${data.fullName} has been added successfully.`,
     });
     form.reset();
-    setIsAddUserDialogOpen(false);
+    setIsAddUserSheetOpen(false); // Close the sheet
   };
 
   const filteredUsers = users.filter(user => 
@@ -160,24 +160,24 @@ export default function ClientUsersPage() {
           <h1 className="text-3xl font-bold font-headline">Client Users Management</h1>
           <p className="text-muted-foreground">Manage user accounts within client organizations.</p>
         </div>
-        <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="lg">
+        <Sheet open={isAddUserSheetOpen} onOpenChange={setIsAddUserSheetOpen}> {/* Changed from Dialog */}
+          <SheetTrigger asChild>
+            <Button size="lg" onClick={() => setIsAddUserSheetOpen(true)}>
               <PlusCircle className="mr-2 h-5 w-5" />
               Add New User
             </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Add New User</DialogTitle>
-              <DialogDescription>
+          </SheetTrigger>
+          <SheetContent className="sm:max-w-md w-full"> {/* Adjusted width for sheet */}
+            <SheetHeader>
+              <SheetTitle>Add New User</SheetTitle>
+              <SheetDescription>
                 Fill in the details to create a new user account.
-              </DialogDescription>
-            </DialogHeader>
+              </SheetDescription>
+            </SheetHeader>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onAddUserSubmit)} className="space-y-4 py-4">
-                <ScrollArea className="h-[60vh] pr-4">
-                    <div className="space-y-4">
+              <form onSubmit={form.handleSubmit(onAddUserSubmit)} className="flex flex-col h-full">
+                <ScrollArea className="flex-grow p-0.5 pr-6"> {/* Adjusted padding for scrollarea */}
+                    <div className="space-y-4 py-4">
                         <FormField
                         control={form.control}
                         name="fullName"
@@ -263,18 +263,18 @@ export default function ClientUsersPage() {
                         />
                     </div>
                 </ScrollArea>
-                <DialogFooter className="pt-4 border-t">
-                  <DialogClose asChild>
+                <SheetFooter className="pt-4 mt-auto border-t"> {/* mt-auto to push footer down */}
+                  <SheetClose asChild>
                       <Button type="button" variant="outline">Cancel</Button>
-                  </DialogClose>
+                  </SheetClose>
                   <Button type="submit" disabled={form.formState.isSubmitting}>
                     {form.formState.isSubmitting ? "Adding User..." : "Add User"}
                   </Button>
-                </DialogFooter>
+                </SheetFooter>
               </form>
             </Form>
-          </DialogContent>
-        </Dialog>
+          </SheetContent>
+        </Sheet>
       </div>
 
       <div className="flex items-center gap-4 p-4 border rounded-lg shadow-sm bg-card">
@@ -366,8 +366,7 @@ export default function ClientUsersPage() {
           </TableBody>
         </Table>
       </ScrollArea>
-       {/* Placeholder for pagination if needed */}
-       {filteredUsers.length > 10 && ( // Example condition to show pagination
+       {filteredUsers.length > 10 && ( 
         <div className="flex items-center justify-end space-x-2 py-4">
           <Button variant="outline" size="sm">Previous</Button>
           <Button variant="outline" size="sm">Next</Button>
@@ -376,6 +375,4 @@ export default function ClientUsersPage() {
     </div>
   );
 }
-
-
     
