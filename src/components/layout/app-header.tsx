@@ -1,10 +1,11 @@
 
 "use client";
 
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon } from 'lucide-react';
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon, UserCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -115,7 +116,12 @@ export function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
         
-        {/* User avatar/dropdown is currently in SideNavigation footer. Can be moved here if design requires. */}
+        <Button variant="ghost" size="icon" className="rounded-full shrink-0" asChild>
+          <Link href="/profile" aria-label="User Profile">
+            <UserCircle className="h-5 w-5" />
+            <span className="sr-only">User Profile</span>
+          </Link>
+        </Button>
       </div>
     </header>
   );
