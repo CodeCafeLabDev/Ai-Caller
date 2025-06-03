@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, List, FileSearch, UserCog, UsersRound as ClientUsersIcon } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, List, FileSearch, UserCog } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
-import React, { useState } from 'react'; // Added useState
+import React, { useState } from 'react';
 
 // Define types for navigation items
 type SubNavItem = {
@@ -54,7 +54,6 @@ const initialNavItems: NavItemType[] = [
     subItems: [
       { href: '/clients/list', label: 'All Clients List' },
       { href: '/clients/details-usage', label: 'Client Details & Usage' },
-      { href: '/clients/users', label: 'Client Users', icon: ClientUsersIcon },
       { href: '/clients/account-status', label: 'Account Status Management' },
     ],
   },
