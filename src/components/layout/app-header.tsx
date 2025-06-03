@@ -4,7 +4,7 @@
 import { usePathname } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, Plus, FilePlus2 } from 'lucide-react'; // Added Plus, FilePlus2
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -38,18 +38,6 @@ export function AppHeader() {
             Dashboard
           </h2>
         )}
-        {/* Quick Actions Button Group */}
-        <div className="hidden md:flex items-center gap-2 ml-2">
-            <Button variant="outline" size="sm" className="hover:scale-105 transition-transform duration-150 ease-in-out">
-                <Plus className="h-4 w-4 mr-1" /> Add Client
-            </Button>
-            <Button variant="outline" size="sm" className="hover:scale-105 transition-transform duration-150 ease-in-out">
-                <Plus className="h-4 w-4 mr-1" /> New Plan
-            </Button>
-            <Button variant="outline" size="sm" className="hover:scale-105 transition-transform duration-150 ease-in-out">
-                <FilePlus2 className="h-4 w-4 mr-1" /> Create Template
-            </Button>
-        </div>
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
