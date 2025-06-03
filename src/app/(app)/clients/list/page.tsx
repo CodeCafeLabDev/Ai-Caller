@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link"; // Added Link
 import {
   Table,
   TableBody,
@@ -204,7 +205,7 @@ export default function AllClientsListPage() {
               Add New Client
             </Button>
           </SheetTrigger>
-          <SheetContent className="sm:max-w-sm w-full flex flex-col">
+          <SheetContent className="sm:max-w-sm w-full flex flex-col" side="right">
             <SheetHeader>
               <SheetTitle>Add New Client</SheetTitle>
               <SheetDescription>
@@ -331,8 +332,10 @@ export default function AllClientsListPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>
-                            <Eye className="mr-2 h-4 w-4" /> View
+                        <DropdownMenuItem asChild>
+                            <Link href={`/clients/details-usage?clientId=${client.id}`}>
+                                <Eye className="mr-2 h-4 w-4" /> View
+                            </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem>
                             <Edit2 className="mr-2 h-4 w-4" /> Edit

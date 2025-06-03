@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/input"; // Keep for potential future use
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { UserCircle, BarChart3, FileBadge, NotebookText, Edit3, Phone, Mail, CalendarDays, Briefcase, Building, UsersRound } from "lucide-react";
-import Image from "next/image";
+import Image from "next/image"; // Keep if any other images might be used
 import {
   Dialog,
   DialogContent,
@@ -24,9 +24,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ClientUsersManagement } from "@/components/clients/client-users-management"; // New import
+import { ClientUsersManagement } from "@/components/clients/client-users-management";
 
-// Mock client data for demonstration
+// Mock client data for demonstration - ensure all fields from requirements are here
 const mockClient = {
   id: "1",
   name: "Innovate Corp",
@@ -67,6 +67,17 @@ export default function ClientDetailsUsagePage() {
   const [newNote, setNewNote] = React.useState("");
   const [isClientUsersDialogOpen, setIsClientUsersDialogOpen] = React.useState(false);
 
+  // In a real app, you'd use useSearchParams to get clientId and fetch data
+  // const searchParams = useSearchParams();
+  // const clientId = searchParams.get('clientId');
+  // React.useEffect(() => {
+  //   if (clientId) {
+  //     // Fetch client data based on clientId
+  //     // For now, we continue using mockClient
+  //   }
+  // }, [clientId]);
+
+
   const handleStatusChange = (checked: boolean) => {
     setClientStatus(checked);
     toast({
@@ -87,6 +98,10 @@ export default function ClientDetailsUsagePage() {
     mockClient.internalNotes.push({ id: `note${Date.now()}`, user: "Current User", date: new Date().toISOString().split('T')[0], text: newNote });
     setNewNote("");
   };
+
+  const handleChangePlan = () => {
+    toast({title: "Change Plan Clicked", description: "Plan change functionality to be implemented."})
+  }
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -249,7 +264,7 @@ export default function ClientDetailsUsagePage() {
               <div>
                 <strong>Billing Cycle:</strong> {mockClient.billingCycle}
               </div>
-              <Button className="mt-2">
+              <Button className="mt-2" onClick={handleChangePlan}>
                 <Edit3 className="mr-2 h-4 w-4" /> Change Plan
               </Button>
             </CardContent>
