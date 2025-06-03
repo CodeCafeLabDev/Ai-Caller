@@ -291,19 +291,21 @@ export default function AllClientsListPage() {
                 {paginatedClients.map((client) => (
                 <TableRow key={client.id}>
                     <TableCell>
-                    <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10">
-                        <AvatarImage src={client.avatarUrl} alt={client.name} data-ai-hint="company logo" />
-                        <AvatarFallback>
-                            {client.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .toUpperCase()}
-                        </AvatarFallback>
-                        </Avatar>
-                        <div className="font-medium">{client.name}</div>
-                    </div>
+                      <Link href={`/clients/details-usage?clientId=${client.id}`} className="hover:underline">
+                        <div className="flex items-center gap-3">
+                            <Avatar className="h-10 w-10">
+                            <AvatarImage src={client.avatarUrl} alt={client.name} data-ai-hint="company logo" />
+                            <AvatarFallback>
+                                {client.name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")
+                                .toUpperCase()}
+                            </AvatarFallback>
+                            </Avatar>
+                            <div className="font-medium">{client.name}</div>
+                        </div>
+                      </Link>
                     </TableCell>
                     <TableCell>{client.contactPerson}</TableCell>
                     <TableCell>
