@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, List, FileSearch, UserCog } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -12,6 +12,9 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from '@/components/ui/sidebar';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
@@ -25,10 +28,35 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/hooks/use-toast';
+import React, { useState } from 'react'; // Added useState
 
-const navItems = [
+// Define types for navigation items
+type SubNavItem = {
+  href: string;
+  label: string;
+  icon?: React.ElementType; // Optional: Icon for sub-items
+};
+
+type NavItemType = {
+  href?: string; // Undefined if it's a parent of a submenu
+  basePath?: string; // For matching active state of parent
+  label: string;
+  icon: React.ElementType;
+  subItems?: SubNavItem[];
+};
+
+const initialNavItems: NavItemType[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/clients', label: 'Clients', icon: Users },
+  {
+    label: 'Clients',
+    icon: Users,
+    basePath: '/clients',
+    subItems: [
+      { href: '/clients/list', label: 'All Clients List' },
+      { href: '/clients/details-usage', label: 'Client Details & Usage' },
+      { href: '/clients/account-status', label: 'Account Status Management' },
+    ],
+  },
   { href: '/plans-billing', label: 'Plans & Billing', icon: CreditCard },
   { href: '/campaigns', label: 'Campaigns', icon: Megaphone },
   { href: '/ai-templates', label: 'AI Templates', icon: Bot },
@@ -44,9 +72,13 @@ export function SideNavigation() {
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
+  const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({});
+
+  const toggleSubmenu = (label: string) => {
+    setOpenSubmenus(prev => ({ ...prev, [label]: !prev[label] }));
+  };
 
   const handleLogout = () => {
-    // Simulate logout
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
@@ -61,19 +93,47 @@ export function SideNavigation() {
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
-          {navItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
+          {initialNavItems.map((item) => (
+            <SidebarMenuItem key={item.label}>
               <SidebarMenuButton
-                asChild
-                isActive={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))}
+                asChild={!item.subItems} // Only use asChild if it's a direct link
+                onClick={item.subItems ? () => toggleSubmenu(item.label) : undefined}
+                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))) : false)}
                 tooltip={{ children: item.label, className: "bg-popover text-popover-foreground border-border" }}
                 className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
               >
-                <Link href={item.href}>
-                  <item.icon />
-                  <span>{item.label}</span>
-                </Link>
+                {item.subItems ? (
+                  // Content for parent item that toggles submenu
+                  <>
+                    <item.icon />
+                    <span>{item.label}</span>
+                    {openSubmenus[item.label] ? <ChevronDown className="ml-auto h-4 w-4 shrink-0" /> : <ChevronRight className="ml-auto h-4 w-4 shrink-0" />}
+                  </>
+                ) : (
+                  // Content for direct link item
+                  <Link href={item.href || '#'}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                  </Link>
+                )}
               </SidebarMenuButton>
+              {item.subItems && openSubmenus[item.label] && (
+                <SidebarMenuSub>
+                  {item.subItems.map((subItem) => (
+                    <SidebarMenuSubItem key={subItem.href}>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname === subItem.href}
+                      >
+                        <Link href={subItem.href}>
+                          {/* Optional: <subItem.icon className="h-3 w-3 mr-1" /> */}
+                          <span>{subItem.label}</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  ))}
+                </SidebarMenuSub>
+              )}
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
