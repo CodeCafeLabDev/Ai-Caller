@@ -67,7 +67,8 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold font-headline">Dashboard</h1>
-        <p className="text-muted-foreground">Manage your AI calling system</p>
+        {/* The paragraph below has been removed as its content is moved to the app header */}
+        {/* <p className="text-muted-foreground">Manage your AI calling system</p> */}
       </div>
 
       <div>
