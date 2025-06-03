@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -33,6 +33,10 @@ const navItems = [
   { href: '/campaigns', label: 'Campaigns', icon: Megaphone },
   { href: '/ai-templates', label: 'AI Templates', icon: Bot },
   { href: '/reports-analytics', label: 'Reports & Analytics', icon: BarChartBig },
+  { href: '/developer-tools', label: 'Developer Tools', icon: TerminalSquare },
+  { href: '/test-lab', label: 'Test Lab', icon: FlaskConical },
+  { href: '/alerts-logs', label: 'Alerts & Logs', icon: ShieldAlert },
+  { href: '/system-settings', label: 'System Settings', icon: Settings },
   { href: '/profile', label: 'Profile', icon: UserCircle },
 ];
 
