@@ -92,3 +92,13 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  @keyframes subtle-pulse-glow {
+    0%, 100% { opacity: 0.75; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+  .animate-subtle-pulse-glow {
+    animation: subtle-pulse-glow 2s infinite ease-in-out;
+  }
+}

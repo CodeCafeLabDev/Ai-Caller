@@ -4,7 +4,7 @@
 import { usePathname } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone } from 'lucide-react'; // Added Megaphone
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 
-// Updated notificationItems to include icons
 const notificationItems = [
   { text: "Failed call reports", icon: AlertCircle, count: 0 },
   { text: "New client signups", icon: Users, count: 2 },
@@ -54,7 +53,7 @@ export function AppHeader() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full shrink-0 relative">
-              <Bell className="h-5 w-5" />
+              <Bell className={`h-5 w-5 ${totalNotifications > 0 ? 'animate-subtle-pulse-glow' : ''}`} />
               <span className="sr-only">Toggle notifications</span>
               {totalNotifications > 0 && (
                  <span className="absolute top-0 right-0 flex h-2 w-2">
