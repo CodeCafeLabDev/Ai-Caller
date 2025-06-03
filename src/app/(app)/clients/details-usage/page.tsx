@@ -6,7 +6,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input"; // Keep for potential future use
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -14,17 +13,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, BarChart3, FileBadge, NotebookText, Edit3, Phone, Mail, CalendarDays, Briefcase, Building, UsersRound } from "lucide-react";
+import { UserCircle, BarChart3, FileBadge, NotebookText, Edit3, Phone, Mail, CalendarDays, Briefcase, Building } from "lucide-react";
 import Image from "next/image"; // Keep if any other images might be used
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { ClientUsersManagement } from "@/components/clients/client-users-management";
 
 // Mock client data for demonstration - ensure all fields from requirements are here
 const mockClient = {
@@ -65,7 +55,6 @@ export default function ClientDetailsUsagePage() {
   const { toast } = useToast();
   const [clientStatus, setClientStatus] = React.useState(mockClient.status === "Active");
   const [newNote, setNewNote] = React.useState("");
-  const [isClientUsersDialogOpen, setIsClientUsersDialogOpen] = React.useState(false);
 
   // In a real app, you'd use useSearchParams to get clientId and fetch data
   // const searchParams = useSearchParams();
@@ -122,22 +111,6 @@ export default function ClientDetailsUsagePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Dialog open={isClientUsersDialogOpen} onOpenChange={setIsClientUsersDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="lg">
-                <UsersRound className="mr-2 h-4 w-4" /> Client Users
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
-              <DialogHeader>
-                <DialogTitle>Manage Users for {mockClient.name}</DialogTitle>
-                <DialogDescription>
-                  Add, edit, or remove users associated with this client.
-                </DialogDescription>
-              </DialogHeader>
-              <ClientUsersManagement clientName={mockClient.name} clientId={mockClient.id} />
-            </DialogContent>
-          </Dialog>
           <Button variant="outline" size="lg">
             <Edit3 className="mr-2 h-4 w-4" /> Edit Client
           </Button>
@@ -313,5 +286,3 @@ export default function ClientDetailsUsagePage() {
     </div>
   );
 }
-
-    
