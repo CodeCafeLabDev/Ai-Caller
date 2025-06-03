@@ -72,7 +72,7 @@ export default function DashboardPage() {
 
       <div>
         <h2 className="text-2xl font-semibold font-headline mb-1">Dashboard Overview</h2>
-        <p className="text-muted-foreground mb-6">Real-time insights into your AI calling system performance</p>
+        <p className="text-muted-foreground mb-6">Manage your AI calling system</p>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {statCardsData.map((card) => {
             const IconComponent = card.icon;
