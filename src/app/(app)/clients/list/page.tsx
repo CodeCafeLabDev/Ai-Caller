@@ -27,7 +27,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "@/components/ui/sheet"; // Changed from Dialog to Sheet
+} from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -153,7 +153,7 @@ export default function AllClientsListPage() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planFilter, setPlanFilter] = React.useState("all");
   const [sortBy, setSortBy] = React.useState("joinedDateDesc");
-  const [isAddClientSheetOpen, setIsAddClientSheetOpen] = React.useState(false); // Changed from Dialog to Sheet
+  const [isAddClientSheetOpen, setIsAddClientSheetOpen] = React.useState(false);
 
   const filteredClients = mockClients.filter((client) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
@@ -185,9 +185,7 @@ export default function AllClientsListPage() {
   );
 
   const handleAddClientSuccess = () => {
-    setIsAddClientSheetOpen(false); // Close the sheet
-    // Here you would typically re-fetch client data
-    // For now, we can just log it
+    setIsAddClientSheetOpen(false); 
     console.log("Client added, sheet closed. Refresh data if needed.");
   };
 
@@ -206,7 +204,7 @@ export default function AllClientsListPage() {
               Add New Client
             </Button>
           </SheetTrigger>
-          <SheetContent className="sm:max-w-[600px] w-full"> {/* Adjusted width for sheet */}
+          <SheetContent className="sm:max-w-lg w-full"> {/* Adjusted width to sm:max-w-lg */}
             <SheetHeader>
               <SheetTitle>Add New Client</SheetTitle>
               <SheetDescription>
