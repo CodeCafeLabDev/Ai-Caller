@@ -1,8 +1,9 @@
+
 "use client";
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -27,6 +28,11 @@ import { useToast } from '@/hooks/use-toast';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/clients', label: 'Clients', icon: Users },
+  { href: '/plans-billing', label: 'Plans & Billing', icon: CreditCard },
+  { href: '/campaigns', label: 'Campaigns', icon: Megaphone },
+  { href: '/ai-templates', label: 'AI Templates', icon: Bot },
+  { href: '/reports-analytics', label: 'Reports & Analytics', icon: BarChartBig },
   { href: '/profile', label: 'Profile', icon: UserCircle },
 ];
 
