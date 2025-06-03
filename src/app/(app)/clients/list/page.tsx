@@ -51,7 +51,6 @@ import {
   UserCheck,
   ArrowUpDown,
   FileText,
-  Trash2,
 } from "lucide-react";
 import { AddClientForm } from "@/components/clients/add-client-form";
 
@@ -353,9 +352,6 @@ export default function AllClientsListPage() {
                             <UserCheck className="mr-2 h-4 w-4" /> Activate
                             </DropdownMenuItem>
                         )}
-                         <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                        </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                     </TableCell>
