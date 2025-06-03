@@ -55,7 +55,7 @@ export default function SignInPage() {
       <CardHeader>
         <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
         <CardDescription className="text-center">
-          (Test Mode - Credentials Bypassed)
+          (Test Mode - Credentials are not validated)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -66,9 +66,9 @@ export default function SignInPage() {
               name="user_Id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>User ID (Test Mode - Not Used)</FormLabel>
+                  <FormLabel>User ID</FormLabel>
                   <FormControl>
-                    <Input placeholder="test_user_id" {...field} disabled={isPending} />
+                    <Input placeholder="e.g., your_username" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -79,9 +79,9 @@ export default function SignInPage() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password (Test Mode - Not Used)</FormLabel>
+                  <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} disabled={isPending} />
+                    <Input type="password" placeholder="e.g., your_password" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
