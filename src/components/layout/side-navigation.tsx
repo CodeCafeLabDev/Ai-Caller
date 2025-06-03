@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -53,7 +52,6 @@ const initialNavItems: NavItemType[] = [
     basePath: '/clients',
     subItems: [
       { href: '/clients/list', label: 'All Clients List' },
-      { href: '/clients/details-usage', label: 'Client Details & Usage' },
       { href: '/clients/account-status', label: 'Account Status Management' },
     ],
   },
