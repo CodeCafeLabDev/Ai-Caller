@@ -4,7 +4,7 @@
 import { usePathname } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone } from 'lucide-react';
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone } from 'lucide-react'; // Added Megaphone
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 
+// Updated notificationItems to include icons
 const notificationItems = [
   { text: "Failed call reports", icon: AlertCircle, count: 0 },
   { text: "New client signups", icon: Users, count: 2 },
@@ -26,6 +27,8 @@ const notificationItems = [
 export function AppHeader() {
   const pathname = usePathname();
   const isDashboard = pathname === '/dashboard';
+
+  const totalNotifications = notificationItems.reduce((sum, item) => sum + item.count, 0);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 md:px-6 shadow-sm">
@@ -53,7 +56,7 @@ export function AppHeader() {
             <Button variant="ghost" size="icon" className="rounded-full shrink-0 relative">
               <Bell className="h-5 w-5" />
               <span className="sr-only">Toggle notifications</span>
-              {notificationItems.some(item => item.count > 0) && (
+              {totalNotifications > 0 && (
                  <span className="absolute top-0 right-0 flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
@@ -64,18 +67,22 @@ export function AppHeader() {
           <DropdownMenuContent align="end" className="w-80">
             <DropdownMenuLabel>Notifications</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {notificationItems.map((item, index) => (
-              <DropdownMenuItem key={index} className="flex justify-between items-center">
-                <div className="flex items-center">
-                  <item.icon className="mr-2 h-4 w-4 text-muted-foreground" />
-                  <span>{item.text}</span>
-                </div>
-                {item.count > 0 && (
-                  <Badge variant="destructive" className="ml-auto">{item.count}</Badge>
-                )}
-              </DropdownMenuItem>
-            ))}
-            {notificationItems.length === 0 && (
+            {notificationItems.length > 0 ? (
+              notificationItems.map((item, index) => {
+                const IconComponent = item.icon;
+                return (
+                  <DropdownMenuItem key={index} className="flex justify-between items-center cursor-pointer">
+                    <div className="flex items-center">
+                      <IconComponent className="mr-2 h-4 w-4 text-muted-foreground" />
+                      <span>{item.text}</span>
+                    </div>
+                    {item.count > 0 && (
+                      <Badge variant="destructive" className="ml-auto">{item.count}</Badge>
+                    )}
+                  </DropdownMenuItem>
+                );
+              })
+            ) : (
                 <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>
             )}
           </DropdownMenuContent>
