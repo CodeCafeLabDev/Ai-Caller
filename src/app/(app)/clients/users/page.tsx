@@ -37,6 +37,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -51,13 +64,16 @@ import {
   UserCog,
   ShieldQuestion,
   Phone,
-  Users, // For client selection icon
+  Users, 
+  Check, 
+  ChevronsUpDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { cn } from "@/lib/utils";
 
 type UserRole = "Admin" | "Agent" | "Analyst" | "Viewer";
 type UserStatus = "Active" | "Suspended" | "Pending";
@@ -70,7 +86,7 @@ type ClientUser = {
   role: UserRole;
   status: UserStatus;
   lastLogin?: string;
-  clientId?: string; // Added to associate user with a client
+  clientId?: string; 
 };
 
 const mockUsers: ClientUser[] = [
@@ -88,6 +104,8 @@ const mockClientsForSelection = [
   { id: "client_1", name: "Innovate Corp" },
   { id: "client_2", name: "Solutions Ltd" },
   { id: "client_3", name: "Tech Ventures" },
+  { id: "client_4", name: "Global Connect" },
+  { id: "client_5", name: "Synergy Systems" },
 ];
 
 const roleColors: Record<UserRole, string> = {
@@ -118,6 +136,8 @@ export default function ClientUsersPage() {
   const [users, setUsers] = React.useState<ClientUser[]>(mockUsers);
   const [roleFilter, setRoleFilter] = React.useState<UserRole | "all">("all");
   const [isAddUserSheetOpen, setIsAddUserSheetOpen] = React.useState(false);
+  const [clientComboboxOpen, setClientComboboxOpen] = React.useState(false);
+
 
   const form = useForm<AddUserFormValues>({
     resolver: zodResolver(addUserFormSchema),
@@ -192,21 +212,59 @@ export default function ClientUsersPage() {
                           control={form.control}
                           name="clientId"
                           render={({ field }) => (
-                            <FormItem>
+                            <FormItem className="flex flex-col">
                               <FormLabel>Assign to Client</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <Users className="mr-2 h-4 w-4 text-muted-foreground" />
-                                    <SelectValue placeholder="Select a client" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {mockClientsForSelection.map(client => (
-                                    <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Popover open={clientComboboxOpen} onOpenChange={setClientComboboxOpen}>
+                                <PopoverTrigger asChild>
+                                  <FormControl>
+                                    <Button
+                                      variant="outline"
+                                      role="combobox"
+                                      className={cn(
+                                        "w-full justify-between",
+                                        !field.value && "text-muted-foreground"
+                                      )}
+                                    >
+                                      {field.value
+                                        ? mockClientsForSelection.find(
+                                            (client) => client.id === field.value
+                                          )?.name
+                                        : "Select a client"}
+                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                  </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                  <Command>
+                                    <CommandInput placeholder="Search client..." />
+                                    <CommandList>
+                                      <CommandEmpty>No client found.</CommandEmpty>
+                                      <CommandGroup>
+                                        {mockClientsForSelection.map((client) => (
+                                          <CommandItem
+                                            value={client.name}
+                                            key={client.id}
+                                            onSelect={() => {
+                                              form.setValue("clientId", client.id);
+                                              setClientComboboxOpen(false);
+                                            }}
+                                          >
+                                            <Check
+                                              className={cn(
+                                                "mr-2 h-4 w-4",
+                                                client.id === field.value
+                                                  ? "opacity-100"
+                                                  : "opacity-0"
+                                              )}
+                                            />
+                                            {client.name}
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -408,7 +466,3 @@ export default function ClientUsersPage() {
     </div>
   );
 }
-
-    
-
-    
