@@ -4,8 +4,24 @@
 import { usePathname } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell } from 'lucide-react';
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+
+const notificationItems = [
+  { text: "Failed call reports", icon: AlertCircle, count: 0 },
+  { text: "New client signups", icon: Users, count: 2 },
+  { text: "Payment failures", icon: CreditCard, count: 0 },
+  { text: "Campaign limit alerts", icon: Megaphone, count: 1 },
+];
 
 export function AppHeader() {
   const pathname = usePathname();
@@ -31,10 +47,40 @@ export function AppHeader() {
             className="pl-8 w-full bg-muted"
           />
         </form>
-        <Button variant="ghost" size="icon" className="rounded-full shrink-0">
-          <Bell className="h-5 w-5" />
-          <span className="sr-only">Toggle notifications</span>
-        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full shrink-0 relative">
+              <Bell className="h-5 w-5" />
+              <span className="sr-only">Toggle notifications</span>
+              {notificationItems.some(item => item.count > 0) && (
+                 <span className="absolute top-0 right-0 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                 </span>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80">
+            <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {notificationItems.map((item, index) => (
+              <DropdownMenuItem key={index} className="flex justify-between items-center">
+                <div className="flex items-center">
+                  <item.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span>{item.text}</span>
+                </div>
+                {item.count > 0 && (
+                  <Badge variant="destructive" className="ml-auto">{item.count}</Badge>
+                )}
+              </DropdownMenuItem>
+            ))}
+            {notificationItems.length === 0 && (
+                <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
         {/* User avatar/dropdown is currently in SideNavigation footer. Can be moved here if design requires. */}
       </div>
     </header>
