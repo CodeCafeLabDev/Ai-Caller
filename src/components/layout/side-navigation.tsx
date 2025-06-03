@@ -1,8 +1,9 @@
+
 "use client";
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, List, FileSearch, UserCog } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -53,6 +54,7 @@ const initialNavItems: NavItemType[] = [
     subItems: [
       { href: '/clients/list', label: 'All Clients List' },
       { href: '/clients/account-status', label: 'Account Status Management' },
+      { href: '/clients/users', label: 'Client Users', icon: UserCog },
     ],
   },
   { href: '/plans-billing', label: 'Plans & Billing', icon: CreditCard },
