@@ -4,7 +4,7 @@
 import { usePathname } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone } from 'lucide-react';
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -49,6 +49,10 @@ export function AppHeader() {
             className="pl-8 w-full bg-muted"
           />
         </form>
+
+        <Button variant="ghost" size="icon" className="rounded-full shrink-0" aria-label="Quick Actions">
+          <PlusCircle className="h-5 w-5" />
+        </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
