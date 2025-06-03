@@ -204,7 +204,7 @@ export default function AllClientsListPage() {
               Add New Client
             </Button>
           </SheetTrigger>
-          <SheetContent className="sm:max-w-md w-full">
+          <SheetContent className="sm:max-w-sm w-full"> {/* Changed from sm:max-w-md */}
             <SheetHeader>
               <SheetTitle>Add New Client</SheetTitle>
               <SheetDescription>
@@ -392,3 +392,4 @@ export default function AllClientsListPage() {
     </div>
   );
 }
+
