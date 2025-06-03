@@ -204,7 +204,7 @@ export default function AllClientsListPage() {
               Add New Client
             </Button>
           </SheetTrigger>
-          <SheetContent className="sm:max-w-lg w-full"> {/* Adjusted width to sm:max-w-lg */}
+          <SheetContent className="sm:max-w-md w-full">
             <SheetHeader>
               <SheetTitle>Add New Client</SheetTitle>
               <SheetDescription>
