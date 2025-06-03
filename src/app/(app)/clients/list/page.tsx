@@ -194,7 +194,7 @@ export default function AllClientsListPage() {
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div>
-            <h1 className="text-3xl font-bold font-headline">All Clients</h1>
+            <h1 className="text-3xl font-bold font-headline">Manage Clients</h1>
             <p className="text-muted-foreground">Manage and view all client accounts.</p>
         </div>
         <Sheet open={isAddClientSheetOpen} onOpenChange={setIsAddClientSheetOpen}>
