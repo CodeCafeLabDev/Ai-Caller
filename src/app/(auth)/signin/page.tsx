@@ -43,15 +43,15 @@ export default function SignInPage() {
     startTransition(() => {
       // Bypass authentication and directly navigate to dashboard
       toast({
-        title: "Entering Dashboard",
-        description: "Proceeding in test mode.",
+        title: "Proceeding to Dashboard",
+        description: "Bypassing login for test purposes.",
       });
       router.push("/dashboard");
     });
   }
 
   return (
-    <Card className="w-full max-w-md shadow-xl">
+    <Card className="w-full max-w-md shadow-xl mx-auto">
       <CardHeader>
         <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
         <CardDescription className="text-center">
@@ -96,4 +96,3 @@ export default function SignInPage() {
     </Card>
   );
 }
-
