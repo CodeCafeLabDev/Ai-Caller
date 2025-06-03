@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -52,8 +52,8 @@ const initialNavItems: NavItemType[] = [
     icon: Users,
     basePath: '/clients',
     subItems: [
-      { href: '/clients/list', label: 'All Clients List' },
-      { href: '/clients/account-status', label: 'Account Status Management' },
+      { href: '/clients/list', label: 'All Clients List', icon: ClipboardList },
+      { href: '/clients/account-status', label: 'Account Status Management', icon: ShieldCheck },
       { href: '/clients/users', label: 'Client Users', icon: UserCog },
     ],
   },
@@ -72,7 +72,14 @@ export function SideNavigation() {
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
-  const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({});
+  const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>(() => {
+    // Initialize openSubmenus based on current path
+    const activeParent = initialNavItems.find(item => item.basePath && pathname.startsWith(item.basePath));
+    if (activeParent) {
+      return { [activeParent.label]: true };
+    }
+    return {};
+  });
 
   const toggleSubmenu = (label: string) => {
     setOpenSubmenus(prev => ({ ...prev, [label]: !prev[label] }));
@@ -124,9 +131,10 @@ export function SideNavigation() {
                       <SidebarMenuSubButton
                         asChild
                         isActive={pathname === subItem.href}
+                         className="text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary/80 data-[active=true]:text-sidebar-primary-foreground"
                       >
                         <Link href={subItem.href} className="flex items-center">
-                          {subItem.icon && <subItem.icon className="h-3 w-3 mr-1.5" />}
+                          {subItem.icon && <subItem.icon className="h-3.5 w-3.5 mr-2 shrink-0" />}
                           <span>{subItem.label}</span>
                         </Link>
                       </SidebarMenuSubButton>
