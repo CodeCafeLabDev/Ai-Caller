@@ -17,7 +17,7 @@ export function AppHeader() {
         <SidebarTrigger className="md:hidden shrink-0" />
         {isDashboard && (
           <h2 className="text-lg font-medium text-foreground truncate hidden md:block">
-            Manage your AI calling system
+            Dashboard
           </h2>
         )}
       </div>
