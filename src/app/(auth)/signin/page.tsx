@@ -18,12 +18,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { signInUserAction } from '@/actions/auth';
+// import { signInUserAction } from '@/actions/auth'; // No longer needed for bypassed auth
 import { useState, useTransition } from 'react';
 
 const formSchema = z.object({
-  user_Id: z.string().min(1, { message: "User ID is required." }),
-  password: z.string().min(1, { message: "Password is required." }),
+  user_Id: z.string().optional(), // Fields are optional as they are not processed
+  password: z.string().optional(),
 });
 
 export default function SignInPage() {
@@ -40,23 +40,13 @@ export default function SignInPage() {
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    startTransition(async () => {
-      const result = await signInUserAction(values);
-      if (result.success) {
-        toast({
-          title: "Sign In Successful",
-          description: result.message,
-        });
-        // In a real app, you'd handle session management here
-        // For now, we assume a successful sign-in means navigation to dashboard
-        router.push("/dashboard");
-      } else {
-        toast({
-          title: "Sign In Failed",
-          description: result.message,
-          variant: "destructive",
-        });
-      }
+    startTransition(() => {
+      // Bypass authentication and directly navigate to dashboard
+      toast({
+        title: "Entering Dashboard (Test Mode)",
+        description: "Login credentials bypassed for testing.",
+      });
+      router.push("/dashboard");
     });
   }
 
@@ -65,7 +55,7 @@ export default function SignInPage() {
       <CardHeader>
         <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
         <CardDescription className="text-center">
-          Welcome back! Access your Voxaiomni account.
+          (Test Mode - Credentials Bypassed)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -76,9 +66,9 @@ export default function SignInPage() {
               name="user_Id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>User ID</FormLabel>
+                  <FormLabel>User ID (Test Mode - Not Used)</FormLabel>
                   <FormControl>
-                    <Input placeholder="your_user_id" {...field} disabled={isPending} />
+                    <Input placeholder="test_user_id" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -89,7 +79,7 @@ export default function SignInPage() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>Password (Test Mode - Not Used)</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} disabled={isPending} />
                   </FormControl>
@@ -98,18 +88,11 @@ export default function SignInPage() {
               )}
             />
             <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? "Signing In..." : "Sign In"}
+              {isPending ? "Proceeding..." : "Enter Dashboard (Test)"}
             </Button>
           </form>
         </Form>
-        {/* <p className="mt-6 text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
-          <Link href="/signup" className="font-medium text-primary hover:underline">
-            Sign Up
-          </Link>
-        </p> */}
       </CardContent>
     </Card>
   );
 }
-
