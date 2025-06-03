@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, BarChart3, FileBadge, NotebookText, Edit3, Phone, Mail, CalendarDays, Briefcase, Building } from "lucide-react";
+import { UserCircle, BarChart3, FileBadge, NotebookText, Edit3, Phone, Mail, CalendarDays, Briefcase, Building, UsersRound } from "lucide-react";
 import Image from "next/image";
 
 // Mock client data for demonstration
@@ -78,6 +78,14 @@ export default function ClientDetailsUsagePage() {
     setNewNote("");
   };
 
+  const handleClientUsersClick = () => {
+    toast({
+      title: "Client Users Clicked",
+      description: "Navigate to client users management page (simulated).",
+    });
+    // Future: router.push(`/clients/${mockClient.id}/users`);
+  };
+
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -96,9 +104,14 @@ export default function ClientDetailsUsagePage() {
             </p>
           </div>
         </div>
-        <Button variant="outline" size="lg">
-          <Edit3 className="mr-2 h-4 w-4" /> Edit Client
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="lg" onClick={handleClientUsersClick}>
+            <UsersRound className="mr-2 h-4 w-4" /> Client Users
+          </Button>
+          <Button variant="outline" size="lg">
+            <Edit3 className="mr-2 h-4 w-4" /> Edit Client
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
@@ -270,5 +283,4 @@ export default function ClientDetailsUsagePage() {
     </div>
   );
 }
-
     
