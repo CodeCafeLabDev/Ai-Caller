@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon, UserCircle, LogOut } from 'lucide-react';
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon, UserCircle, LogOut, Languages } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -45,6 +45,14 @@ export function AppHeader() {
       description: "You have been successfully logged out.",
     });
     router.push('/signin');
+  };
+
+  const handleLanguageSelect = (language: string) => {
+    console.log(`Language selected: ${language}`);
+    toast({
+      title: "Language Selected",
+      description: `${language} selected. (Localization not yet implemented)`,
+    });
   };
 
   return (
@@ -127,6 +135,25 @@ export function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
         
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full shrink-0" aria-label="Select Language">
+              <Languages className="h-5 w-5" />
+              <span className="sr-only">Select Language</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuLabel>Select Language</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleLanguageSelect('English')} className="cursor-pointer">
+              English
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleLanguageSelect('Hindi')} className="cursor-pointer">
+              हिन्दी (Hindi)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full shrink-0" aria-label="User Profile">
