@@ -51,6 +51,7 @@ import {
   UserCog,
   ShieldQuestion,
   Phone,
+  Users, // For client selection icon
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -69,18 +70,25 @@ type ClientUser = {
   role: UserRole;
   status: UserStatus;
   lastLogin?: string;
+  clientId?: string; // Added to associate user with a client
 };
 
 const mockUsers: ClientUser[] = [
-  { id: "usr_1", fullName: "Alice Johnson", email: "alice@example.com", phone: "555-0101", role: "Admin", status: "Active", lastLogin: "2024-07-20" },
-  { id: "usr_2", fullName: "Bob Williams", email: "bob@example.com", phone: "555-0102", role: "Agent", status: "Active", lastLogin: "2024-07-19" },
-  { id: "usr_3", fullName: "Charlie Brown", email: "charlie@example.com", phone: "555-0103", role: "Analyst", status: "Suspended", lastLogin: "2024-06-15" },
-  { id: "usr_4", fullName: "Diana Miller", email: "diana@example.com", phone: "555-0104", role: "Viewer", status: "Pending" },
-  { id: "usr_5", fullName: "Edward Davis", email: "edward@example.com", phone: "555-0105", role: "Agent", status: "Active", lastLogin: "2024-07-21" },
+  { id: "usr_1", fullName: "Alice Johnson", email: "alice@example.com", phone: "555-0101", role: "Admin", status: "Active", lastLogin: "2024-07-20", clientId: "client_1" },
+  { id: "usr_2", fullName: "Bob Williams", email: "bob@example.com", phone: "555-0102", role: "Agent", status: "Active", lastLogin: "2024-07-19", clientId: "client_1" },
+  { id: "usr_3", fullName: "Charlie Brown", email: "charlie@example.com", phone: "555-0103", role: "Analyst", status: "Suspended", lastLogin: "2024-06-15", clientId: "client_2" },
+  { id: "usr_4", fullName: "Diana Miller", email: "diana@example.com", phone: "555-0104", role: "Viewer", status: "Pending", clientId: "client_3" },
+  { id: "usr_5", fullName: "Edward Davis", email: "edward@example.com", phone: "555-0105", role: "Agent", status: "Active", lastLogin: "2024-07-21", clientId: "client_2" },
 ];
 
 const roleOptions: UserRole[] = ["Admin", "Agent", "Analyst", "Viewer"];
 const statusOptions: UserStatus[] = ["Active", "Suspended", "Pending"];
+
+const mockClientsForSelection = [
+  { id: "client_1", name: "Innovate Corp" },
+  { id: "client_2", name: "Solutions Ltd" },
+  { id: "client_3", name: "Tech Ventures" },
+];
 
 const roleColors: Record<UserRole, string> = {
   Admin: "bg-purple-100 text-purple-700 dark:bg-purple-700 dark:text-purple-100",
@@ -96,6 +104,7 @@ const statusColors: Record<UserStatus, string> = {
 };
 
 const addUserFormSchema = z.object({
+  clientId: z.string({ required_error: "Please select a client." }),
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
   email: z.string().email({ message: "Invalid email address." }),
   phone: z.string().optional(),
@@ -113,6 +122,7 @@ export default function ClientUsersPage() {
   const form = useForm<AddUserFormValues>({
     resolver: zodResolver(addUserFormSchema),
     defaultValues: {
+      clientId: undefined,
       fullName: "",
       email: "",
       phone: "",
@@ -143,7 +153,7 @@ export default function ClientUsersPage() {
     setUsers(prev => [newUser, ...prev]);
     toast({
       title: "User Added (Simulated)",
-      description: `${data.fullName} has been added successfully.`,
+      description: `${data.fullName} for client ID ${data.clientId} has been added successfully.`,
     });
     form.reset();
     setIsAddUserSheetOpen(false);
@@ -176,8 +186,31 @@ export default function ClientUsersPage() {
             </SheetHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onAddUserSubmit)} className="flex flex-col h-full">
-                <ScrollArea className="flex-grow"> {/* Changed: Removed p-0.5 pr-6 */}
+                <ScrollArea className="flex-grow">
                     <div className="space-y-4 py-4">
+                        <FormField
+                          control={form.control}
+                          name="clientId"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Assign to Client</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <Users className="mr-2 h-4 w-4 text-muted-foreground" />
+                                    <SelectValue placeholder="Select a client" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {mockClientsForSelection.map(client => (
+                                    <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                         <FormField
                         control={form.control}
                         name="fullName"
