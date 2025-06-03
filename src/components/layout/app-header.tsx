@@ -2,10 +2,10 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon, UserCircle } from 'lucide-react';
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon, UserCircle, LogOut } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 const notificationItems = [
   { text: "Failed call reports", icon: AlertCircle, count: 0 },
@@ -32,9 +33,19 @@ const quickActionItems = [
 
 export function AppHeader() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { toast } = useToast();
   const isDashboard = pathname === '/dashboard';
 
   const totalNotifications = notificationItems.reduce((sum, item) => sum + item.count, 0);
+
+  const handleLogout = () => {
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    });
+    router.push('/signin');
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 md:px-6 shadow-sm">
@@ -116,12 +127,29 @@ export function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
         
-        <Button variant="ghost" size="icon" className="rounded-full shrink-0" asChild>
-          <Link href="/profile" aria-label="User Profile">
-            <UserCircle className="h-5 w-5" />
-            <span className="sr-only">User Profile</span>
-          </Link>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full shrink-0" aria-label="User Profile">
+              <UserCircle className="h-5 w-5" />
+              <span className="sr-only">User Profile Menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/profile" className="cursor-pointer">
+                <UserCircle className="mr-2 h-4 w-4" />
+                Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer">
+              <LogOut className="mr-2 h-4 w-4" />
+              Log out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
