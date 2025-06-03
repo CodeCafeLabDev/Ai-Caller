@@ -21,6 +21,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter, // Added DialogFooter
+  DialogClose // Added DialogClose
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -29,7 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"; // Assuming these are correctly imported from your project structure
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import {
   Search,
   PlusCircle,
@@ -42,8 +52,9 @@ import {
   UserCheck,
   ArrowUpDown,
   FileText,
-  Trash2, // Added Trash2 icon
+  Trash2,
 } from "lucide-react";
+import { AddClientForm } from "@/components/clients/add-client-form"; // Import the new form
 
 type Client = {
   id: string;
@@ -51,7 +62,7 @@ type Client = {
   contactPerson: string;
   email: string;
   phone: string;
-  clientId: string; // Kept for filtering logic, though not displayed in table
+  clientId: string;
   status: "Active" | "Suspended" | "Trial";
   plan: string;
   totalCallsMade: number;
@@ -144,13 +155,14 @@ export default function AllClientsListPage() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planFilter, setPlanFilter] = React.useState("all");
   const [sortBy, setSortBy] = React.useState("joinedDateDesc");
+  const [isAddClientDialogOpen, setIsAddClientDialogOpen] = React.useState(false);
 
   const filteredClients = mockClients.filter((client) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
     return (
       (client.name.toLowerCase().includes(lowerSearchTerm) ||
         client.email.toLowerCase().includes(lowerSearchTerm) ||
-        client.clientId.toLowerCase().includes(lowerSearchTerm) || // Keep clientId in search logic
+        client.clientId.toLowerCase().includes(lowerSearchTerm) || 
         client.contactPerson.toLowerCase().includes(lowerSearchTerm) ||
         client.phone.toLowerCase().includes(lowerSearchTerm)) &&
       (statusFilter === "all" || client.status.toLowerCase() === statusFilter) &&
@@ -163,7 +175,6 @@ export default function AllClientsListPage() {
     if (sortBy === "nameDesc") return b.name.localeCompare(a.name);
     if (sortBy === "joinedDateAsc") return new Date(a.joinedDate).getTime() - new Date(b.joinedDate).getTime();
     if (sortBy === "joinedDateDesc") return new Date(b.joinedDate).getTime() - new Date(a.joinedDate).getTime();
-    // Add more sort options as needed
     return 0;
   });
   
@@ -175,6 +186,13 @@ export default function AllClientsListPage() {
     currentPage * itemsPerPage
   );
 
+  const handleAddClientSuccess = () => {
+    setIsAddClientDialogOpen(false);
+    // Here you would typically re-fetch client data
+    // For now, we can just log it
+    console.log("Client added, dialog closed. Refresh data if needed.");
+  };
+
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -183,10 +201,24 @@ export default function AllClientsListPage() {
             <h1 className="text-3xl font-bold font-headline">All Clients</h1>
             <p className="text-muted-foreground">Manage and view all client accounts.</p>
         </div>
-        <Button size="lg">
-          <PlusCircle className="mr-2 h-5 w-5" />
-          Add New Client
-        </Button>
+        <Dialog open={isAddClientDialogOpen} onOpenChange={setIsAddClientDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="lg">
+              <PlusCircle className="mr-2 h-5 w-5" />
+              Add New Client
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Add New Client</DialogTitle>
+              <DialogDescription>
+                Fill in the details below to add a new client to the system.
+              </DialogDescription>
+            </DialogHeader>
+            <AddClientForm onSuccess={handleAddClientSuccess} />
+            {/* DialogFooter and DialogClose can be part of AddClientForm if form actions are inside */}
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card className="shadow-lg">
@@ -365,17 +397,5 @@ export default function AllClientsListPage() {
     </div>
   );
 }
-
-// Helper components Card, CardHeader, CardContent, CardFooter are assumed to be correctly imported 
-// from "@/components/ui/card" or similar, as per the original file structure.
-// If they were defined locally in the previous version, they are no longer needed here.
-// For this exercise, I am assuming they are globally available via imports.
-// If not, they would need to be re-added or properly imported.
-
-// Example:
-// import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-// The original file had local definitions which I am removing for brevity as they are standard ShadCN components.
-// If these local definitions are crucial for some reason, please let me know.
-    
 
     
