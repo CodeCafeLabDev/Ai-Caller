@@ -16,6 +16,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { UserCircle, BarChart3, FileBadge, NotebookText, Edit3, Phone, Mail, CalendarDays, Briefcase, Building, UsersRound } from "lucide-react";
 import Image from "next/image";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ClientUsersManagement } from "@/components/clients/client-users-management"; // New import
 
 // Mock client data for demonstration
 const mockClient = {
@@ -56,6 +65,7 @@ export default function ClientDetailsUsagePage() {
   const { toast } = useToast();
   const [clientStatus, setClientStatus] = React.useState(mockClient.status === "Active");
   const [newNote, setNewNote] = React.useState("");
+  const [isClientUsersDialogOpen, setIsClientUsersDialogOpen] = React.useState(false);
 
   const handleStatusChange = (checked: boolean) => {
     setClientStatus(checked);
@@ -78,14 +88,6 @@ export default function ClientDetailsUsagePage() {
     setNewNote("");
   };
 
-  const handleClientUsersClick = () => {
-    toast({
-      title: "Client Users Clicked",
-      description: "Navigate to client users management page (simulated).",
-    });
-    // Future: router.push(`/clients/${mockClient.id}/users`);
-  };
-
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -105,9 +107,22 @@ export default function ClientDetailsUsagePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="lg" onClick={handleClientUsersClick}>
-            <UsersRound className="mr-2 h-4 w-4" /> Client Users
-          </Button>
+          <Dialog open={isClientUsersDialogOpen} onOpenChange={setIsClientUsersDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="lg">
+                <UsersRound className="mr-2 h-4 w-4" /> Client Users
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
+              <DialogHeader>
+                <DialogTitle>Manage Users for {mockClient.name}</DialogTitle>
+                <DialogDescription>
+                  Add, edit, or remove users associated with this client.
+                </DialogDescription>
+              </DialogHeader>
+              <ClientUsersManagement clientName={mockClient.name} clientId={mockClient.id} />
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" size="lg">
             <Edit3 className="mr-2 h-4 w-4" /> Edit Client
           </Button>
@@ -245,8 +260,8 @@ export default function ClientDetailsUsagePage() {
           <Card>
             <CardHeader><CardTitle>Internal Notes</CardTitle></CardHeader>
             <CardContent>
-              <Textarea 
-                placeholder="Add internal notes about this client..." 
+              <Textarea
+                placeholder="Add internal notes about this client..."
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 className="min-h-[100px]"
@@ -283,4 +298,5 @@ export default function ClientDetailsUsagePage() {
     </div>
   );
 }
+
     
