@@ -112,7 +112,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-0 flex flex-col flex-1 min-h-0">
         <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-6">
+          <div className="space-y-6 px-2">
             <FormField
               control={form.control}
               name="companyName"
@@ -347,7 +347,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               )}
             />
           </div>
-          <div className="pt-6"> 
+          <div className="pt-6 px-2"> 
             <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Adding Client..." : "Add Client"}
             </Button>
@@ -357,3 +357,6 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
     </Form>
   );
 }
+
+
+    

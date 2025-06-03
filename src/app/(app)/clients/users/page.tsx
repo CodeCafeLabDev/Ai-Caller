@@ -187,7 +187,7 @@ export default function ClientUsersPage() {
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onAddUserSubmit)} className="flex flex-col h-full">
                 <ScrollArea className="flex-grow">
-                    <div className="space-y-4 py-4">
+                    <div className="space-y-4 py-4 px-2">
                         <FormField
                           control={form.control}
                           name="clientId"
@@ -408,5 +408,7 @@ export default function ClientUsersPage() {
     </div>
   );
 }
+
+    
 
     
