@@ -4,7 +4,7 @@
 import { usePathname } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle } from 'lucide-react';
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -21,6 +21,12 @@ const notificationItems = [
   { text: "New client signups", icon: Users, count: 2 },
   { text: "Payment failures", icon: CreditCard, count: 0 },
   { text: "Campaign limit alerts", icon: Megaphone, count: 1 },
+];
+
+const quickActionItems = [
+  { text: "Add Client", icon: UserPlus, action: () => console.log("Add Client clicked") },
+  { text: "New Plan", icon: FilePlus, action: () => console.log("New Plan clicked") },
+  { text: "Create Template", icon: FileTextIcon, action: () => console.log("Create Template clicked") },
 ];
 
 export function AppHeader() {
@@ -50,9 +56,27 @@ export function AppHeader() {
           />
         </form>
 
-        <Button variant="ghost" size="icon" className="rounded-full shrink-0" aria-label="Quick Actions">
-          <PlusCircle className="h-5 w-5" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full shrink-0" aria-label="Quick Actions">
+              <PlusCircle className="h-5 w-5" />
+              <span className="sr-only">Quick Actions</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Quick Actions</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {quickActionItems.map((item, index) => {
+              const IconComponent = item.icon;
+              return (
+                <DropdownMenuItem key={index} onClick={item.action} className="cursor-pointer">
+                  <IconComponent className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span>{item.text}</span>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
