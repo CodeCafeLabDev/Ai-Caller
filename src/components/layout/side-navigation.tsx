@@ -52,7 +52,7 @@ const initialNavItems: NavItemType[] = [
     icon: Users,
     basePath: '/clients',
     subItems: [
-      { href: '/clients/list', label: 'All Clients List', icon: ClipboardList },
+      { href: '/clients/list', label: 'Manage Clients', icon: ClipboardList },
       { href: '/clients/account-status', label: 'Account Status Management', icon: ShieldCheck },
       { href: '/clients/users', label: 'Client Users', icon: UserCog },
     ],
