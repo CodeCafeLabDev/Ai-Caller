@@ -29,7 +29,7 @@ import {
   SheetTrigger,
   SheetFooter,
   SheetClose
-} from "@/components/ui/sheet"; // Changed from Dialog to Sheet
+} from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -108,7 +108,7 @@ export default function ClientUsersPage() {
   const { toast } = useToast();
   const [users, setUsers] = React.useState<ClientUser[]>(mockUsers);
   const [roleFilter, setRoleFilter] = React.useState<UserRole | "all">("all");
-  const [isAddUserSheetOpen, setIsAddUserSheetOpen] = React.useState(false); // Changed from isAddUserDialogOpen
+  const [isAddUserSheetOpen, setIsAddUserSheetOpen] = React.useState(false);
 
   const form = useForm<AddUserFormValues>({
     resolver: zodResolver(addUserFormSchema),
@@ -146,7 +146,7 @@ export default function ClientUsersPage() {
       description: `${data.fullName} has been added successfully.`,
     });
     form.reset();
-    setIsAddUserSheetOpen(false); // Close the sheet
+    setIsAddUserSheetOpen(false);
   };
 
   const filteredUsers = users.filter(user => 
@@ -160,14 +160,14 @@ export default function ClientUsersPage() {
           <h1 className="text-3xl font-bold font-headline">Client Users Management</h1>
           <p className="text-muted-foreground">Manage user accounts within client organizations.</p>
         </div>
-        <Sheet open={isAddUserSheetOpen} onOpenChange={setIsAddUserSheetOpen}> {/* Changed from Dialog */}
+        <Sheet open={isAddUserSheetOpen} onOpenChange={setIsAddUserSheetOpen}>
           <SheetTrigger asChild>
             <Button size="lg" onClick={() => setIsAddUserSheetOpen(true)}>
               <PlusCircle className="mr-2 h-5 w-5" />
               Add New User
             </Button>
           </SheetTrigger>
-          <SheetContent className="sm:max-w-md w-full"> {/* Adjusted width for sheet */}
+          <SheetContent className="sm:max-w-md w-full">
             <SheetHeader>
               <SheetTitle>Add New User</SheetTitle>
               <SheetDescription>
@@ -176,7 +176,7 @@ export default function ClientUsersPage() {
             </SheetHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onAddUserSubmit)} className="flex flex-col h-full">
-                <ScrollArea className="flex-grow p-0.5 pr-6"> {/* Adjusted padding for scrollarea */}
+                <ScrollArea className="flex-grow"> {/* Changed: Removed p-0.5 pr-6 */}
                     <div className="space-y-4 py-4">
                         <FormField
                         control={form.control}
@@ -263,7 +263,7 @@ export default function ClientUsersPage() {
                         />
                     </div>
                 </ScrollArea>
-                <SheetFooter className="pt-4 mt-auto border-t"> {/* mt-auto to push footer down */}
+                <SheetFooter className="pt-4 mt-auto border-t">
                   <SheetClose asChild>
                       <Button type="button" variant="outline">Cancel</Button>
                   </SheetClose>
@@ -375,4 +375,5 @@ export default function ClientUsersPage() {
     </div>
   );
 }
+
     
