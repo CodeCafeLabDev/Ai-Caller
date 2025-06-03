@@ -110,9 +110,9 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-0 flex flex-col flex-1 min-h-0">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
         <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-6 px-2">
+          <div className="space-y-4 px-2">
             <FormField
               control={form.control}
               name="companyName"
@@ -120,7 +120,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormItem>
                   <FormLabel>Company Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Innovate Corp" {...field} />
+                    <Input placeholder="Innovate Corp" {...field} className="h-9 text-sm" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -134,7 +134,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormItem>
                   <FormLabel>Company Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="contact@innovatecorp.com" {...field} />
+                    <Input type="email" placeholder="contact@innovatecorp.com" {...field} className="h-9 text-sm" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -148,7 +148,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormItem>
                   <FormLabel>Phone Number</FormLabel>
                   <FormControl>
-                    <Input type="tel" placeholder="555-0101" {...field} />
+                    <Input type="tel" placeholder="555-0101" {...field} className="h-9 text-sm" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -176,7 +176,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormItem>
                   <FormLabel>Contact Person Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Alice Wonderland" {...field} />
+                    <Input placeholder="Alice Wonderland" {...field} className="h-9 text-sm" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -190,7 +190,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormItem>
                   <FormLabel>Domain/Subdomain (Optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="innovate.voxaiomni.com" {...field} />
+                    <Input placeholder="innovate.voxaiomni.com" {...field} className="h-9 text-sm" />
                   </FormControl>
                   <FormDescription>
                     Relevant for multi-tenant setups.
@@ -274,7 +274,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                     <FormItem>
                       <FormLabel>Trial Duration (Days)</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="e.g., 14" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                        <Input type="number" placeholder="e.g., 14" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} className="h-9 text-sm" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -287,7 +287,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                     <FormItem>
                       <FormLabel>Trial Call Limit</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="e.g., 100" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                        <Input type="number" placeholder="e.g., 100" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} className="h-9 text-sm" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -303,7 +303,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormItem>
                   <FormLabel>Admin Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} className="h-9 text-sm" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -317,7 +317,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
                 <FormItem>
                   <FormLabel>Confirm Admin Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} className="h-9 text-sm" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -347,7 +347,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               )}
             />
           </div>
-          <div className="pt-6 px-2"> 
+          <div className="pt-4 px-2"> 
             <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Adding Client..." : "Add Client"}
             </Button>
@@ -357,6 +357,3 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
     </Form>
   );
 }
-
-
-    
