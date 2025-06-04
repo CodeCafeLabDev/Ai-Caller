@@ -1,5 +1,7 @@
+
 "use client";
 
+import * as React from "react"; // Added React import
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Megaphone, PlusCircle, ListFilter, BarChart3, MoreHorizontal, Play, Pause, Edit } from "lucide-react";
@@ -29,6 +31,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { AddClientCampaignForm } from "@/components/client-admin/campaigns/add-client-campaign-form"; // Import the new form
+import { useToast } from "@/hooks/use-toast"; // Import useToast
 
 // Mock data for client campaigns
 const mockClientCampaigns = [
@@ -45,6 +57,21 @@ const statusVariants = {
 
 
 export default function ClientCampaignsPage() {
+  const { toast } = useToast(); // Initialize useToast
+  const [isAddCampaignSheetOpen, setIsAddCampaignSheetOpen] = React.useState(false);
+
+  const handleCampaignAction = (action: string, campaignName: string) => {
+     toast({ title: `Action: ${action}`, description: `Performed on campaign "${campaignName}" (Simulated)` });
+  };
+
+  const handleAddCampaignSuccess = (data: any) => {
+    // In a real app, you'd likely refresh the campaign list or add the new campaign to state
+    console.log("New campaign submitted by client:", data);
+    setIsAddCampaignSheetOpen(false);
+    // Potentially update mockClientCampaigns or re-fetch
+  };
+
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -54,9 +81,25 @@ export default function ClientCampaignsPage() {
           </h1>
           <p className="text-muted-foreground">Manage and monitor your calling campaigns.</p>
         </div>
-        <Button size="lg" onClick={() => alert("Navigate to create campaign page (for client)")}>
-          <PlusCircle className="mr-2 h-5 w-5" /> Create New Campaign
-        </Button>
+        <Sheet open={isAddCampaignSheetOpen} onOpenChange={setIsAddCampaignSheetOpen}>
+          <SheetTrigger asChild>
+            <Button size="lg" onClick={() => setIsAddCampaignSheetOpen(true)}>
+              <PlusCircle className="mr-2 h-5 w-5" /> Create New Campaign
+            </Button>
+          </SheetTrigger>
+          <SheetContent className="sm:max-w-lg w-full flex flex-col" side="right">
+            <SheetHeader>
+              <SheetTitle>Create New Campaign</SheetTitle>
+              <SheetDescription>
+                Fill in the details to request a new calling campaign setup.
+              </SheetDescription>
+            </SheetHeader>
+            <AddClientCampaignForm 
+              onSuccess={handleAddCampaignSuccess} 
+              onCancel={() => setIsAddCampaignSheetOpen(false)}
+            />
+          </SheetContent>
+        </Sheet>
       </div>
 
       <Card>
@@ -110,13 +153,13 @@ export default function ClientCampaignsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => alert(`View details for ${campaign.name}`)}>
+                        <DropdownMenuItem onClick={() => handleCampaignAction("View Stats", campaign.name)}>
                           <BarChart3 className="mr-2 h-4 w-4" /> View Stats
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => alert(`Edit ${campaign.name}`)}>
+                        <DropdownMenuItem onClick={() => handleCampaignAction("Edit", campaign.name)}>
                           <Edit className="mr-2 h-4 w-4" /> Edit Campaign
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => alert(campaign.status === 'Active' ? `Pause ${campaign.name}` : `Resume ${campaign.name}`)}>
+                        <DropdownMenuItem onClick={() => handleCampaignAction(campaign.status === 'Active' ? "Pause" : "Resume", campaign.name)}>
                           {campaign.status === 'Active' ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                           {campaign.status === 'Active' ? "Pause" : "Resume"}
                         </DropdownMenuItem>
@@ -127,6 +170,7 @@ export default function ClientCampaignsPage() {
               ))}
             </TableBody>
           </Table>
+           {mockClientCampaigns.length === 0 && <p className="p-4 text-center text-muted-foreground">No campaigns found.</p>}
         </CardContent>
       </Card>
     </div>
