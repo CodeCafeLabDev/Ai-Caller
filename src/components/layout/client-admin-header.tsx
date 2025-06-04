@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { UserCircle, LogOut, Bell } from 'lucide-react';
+import { UserCircle, LogOut, Bell, Search } from 'lucide-react'; // Added Search
+import { Input } from '@/components/ui/input'; // Added Input
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +50,16 @@ export function ClientAdminHeader() {
         <h2 className="text-lg font-medium text-foreground hidden sm:block">
           {mockClientData.name} Portal
         </h2>
+
+        {/* Search Bar Added Here */}
+        <form className="relative ml-auto flex-1 sm:flex-initial max-w-xs hidden md:block">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search within panel..."
+            className="pl-8 w-full bg-muted h-9"
+          />
+        </form>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
