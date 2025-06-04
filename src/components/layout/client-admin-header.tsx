@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { UserCircle, LogOut, Bell, Search } from 'lucide-react'; // Added Search
-import { Input } from '@/components/ui/input'; // Added Input
+import { UserCircle, LogOut, Bell, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,7 +48,7 @@ export function ClientAdminHeader() {
       
       <div className="flex items-center gap-2 md:gap-4">
         <h2 className="text-lg font-medium text-foreground hidden sm:block">
-          {mockClientData.name} Portal
+          Client Portal
         </h2>
 
         {/* Search Bar Added Here */}
