@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks, CheckSquare } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks, CheckSquare, FileText } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -121,7 +121,17 @@ const initialNavItems: NavItemType[] = [
       { href: '/test-lab/script-validation', label: 'Script Validation', icon: CheckSquare },
     ]
   },
-  { href: '/alerts-logs', label: 'Alerts & Logs', icon: ShieldAlert },
+  { 
+    label: 'Alerts & Logs', 
+    icon: ShieldAlert,
+    basePath: '/alerts-logs',
+    subItems: [
+      { href: '/alerts-logs/system-alerts', label: 'System Alerts', icon: ShieldAlert },
+      { href: '/alerts-logs/audit-logs', label: 'Audit Logs', icon: FileText },
+      { href: '/alerts-logs/login-history', label: 'Login History', icon: History },
+      { href: '/alerts-logs/client-activity', label: 'Client Activity Feed', icon: Users },
+    ]
+  },
   { href: '/system-settings', label: 'System Settings', icon: Settings },
   { href: '/profile', label: 'Profile', icon: UserCircle },
 ];
@@ -163,7 +173,7 @@ export function SideNavigation() {
               <SidebarMenuButton
                 asChild={!item.subItems} 
                 onClick={item.subItems ? () => toggleSubmenu(item.label) : undefined}
-                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/developer-tools' && item.href !== '/test-lab' && !item.subItems && pathname.startsWith(item.href)) || ((item.href === '/developer-tools' || item.href === '/test-lab') && (pathname === item.href && !item.subItems?.some(si => pathname.startsWith(si.href) && si.href !== item.href)))) : false)}
+                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/developer-tools' && item.href !== '/test-lab' && item.href !== '/alerts-logs' && !item.subItems && pathname.startsWith(item.href)) || ((item.href === '/developer-tools' || item.href === '/test-lab' || item.href === '/alerts-logs') && (pathname === item.href && !item.subItems?.some(si => pathname.startsWith(si.href) && si.href !== item.href)))) : false)}
                 tooltip={{ children: item.label, className: "bg-popover text-popover-foreground border-border" }}
                 className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
               >
