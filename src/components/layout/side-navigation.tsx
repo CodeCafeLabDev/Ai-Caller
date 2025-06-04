@@ -95,8 +95,8 @@ const initialNavItems: NavItemType[] = [
     icon: BarChartBig,
     basePath: '/reports-analytics',
     subItems: [
-      { href: '/reports-analytics/call-reports', label: 'Daily/Monthly Call Reports', icon: CalendarClock },
-      { href: '/reports-analytics/export-data', label: 'Export Data (CSV/PDF)', icon: FileDown },
+      { href: '/reports-analytics/call-reports', label: 'Call Reports', icon: CalendarClock },
+      { href: '/reports-analytics/export-data', label: 'Export Data', icon: FileDown },
       { href: '/reports-analytics/system-usage-trends', label: 'System Usage Trends', icon: TrendingUp },
       { href: '/reports-analytics/error-logs', label: 'Error & Failed Call Logs', icon: AlertTriangle },
     ]
@@ -219,3 +219,4 @@ export function SideNavigation() {
     </Sidebar>
   );
 }
+
