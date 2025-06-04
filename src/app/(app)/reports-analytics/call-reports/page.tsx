@@ -41,8 +41,16 @@ import {
 } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Input } from "@/components/ui/input"; // Added Input for potential future use
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format, subDays, addDays } from "date-fns";
@@ -65,7 +73,11 @@ import {
   ClockIcon,
   Percent,
   LanguagesIcon,
-  CheckCircle
+  CheckCircle,
+  Mail,
+  FileText,
+  SheetIcon,
+  CalendarDays as CalendarIcon,
 } from "lucide-react";
 
 type CallStatus = "Completed" | "Failed" | "Missed" | "Answered" | "All";
@@ -118,6 +130,10 @@ const kpiData = {
     callsByLanguage: { English: 1800, Spanish: 450, French: 100 },
 };
 
+type ExportFormat = "CSV" | "Excel" | "PDF";
+type ReportPeriod = "Current View" | "Daily Summary" | "Weekly Summary" | "Monthly Summary";
+
+
 export default function CallReportsPage() {
   const { toast } = useToast();
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>({
@@ -137,10 +153,9 @@ export default function CallReportsPage() {
   const filteredData = React.useMemo(() => {
     return mockReportData.filter(entry => {
       const dateMatch = dateRange?.from && dateRange?.to ? 
-        entry.date >= dateRange.from && entry.date <= addDays(dateRange.to, 1) : true; // addDays to include the 'to' date fully
+        entry.date >= dateRange.from && entry.date <= addDays(dateRange.to, 1) : true; 
       const clientMatch = selectedClientId === "all" || mockClients.find(c=>c.label === entry.clientName)?.value === selectedClientId;
       const campaignMatch = selectedCampaignId === "all" || mockCampaigns.find(c=>c.label === entry.campaignName)?.value === selectedCampaignId;
-      // Status filter logic would be more complex if it were to filter actual calls, for summary, we ignore for now.
       return dateMatch && clientMatch && campaignMatch;
     });
   }, [dateRange, selectedClientId, selectedCampaignId]);
@@ -152,7 +167,7 @@ export default function CallReportsPage() {
   );
 
   const handleApplyFilters = () => {
-    setCurrentPage(1); // Reset to first page on new filter application
+    setCurrentPage(1); 
     toast({ title: "Filters Applied", description: "Report data has been updated based on your selections." });
   };
 
@@ -165,9 +180,13 @@ export default function CallReportsPage() {
     toast({ title: "Filters Reset", description: "Report filters have been reset to default." });
   };
 
-  const handleExport = () => {
-    toast({ title: "Export Initiated (Simulated)", description: "Report data is being prepared for download."});
-    console.log("Exporting data:", filteredData);
+  const handleExport = (format: ExportFormat, period: ReportPeriod) => {
+    toast({ 
+        title: "Export Initiated (Simulated)", 
+        description: `Preparing ${period} report as ${format}. This would include fields like Call ID, Client Name, Campaign, Phone (masked), Status, Duration, Timestamp, AI Template.`,
+        duration: 5000,
+    });
+    console.log(`Simulating export of ${period} as ${format}. Intended fields: Call ID, Client Name, Campaign Name, Phone Number (masked), Status, Duration, Timestamp, AI Template Used. Current filtered (summarized) data:`, filteredData);
   };
 
   return (
@@ -181,9 +200,44 @@ export default function CallReportsPage() {
             Analyze call performance, track trends, and gain insights into your operations.
           </p>
         </div>
-        <Button onClick={handleExport}>
-          <FileDown className="mr-2 h-4 w-4" /> Export Report
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button>
+              <FileDown className="mr-2 h-4 w-4" /> Export Options
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Export Current View As</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => handleExport("CSV", "Current View")}>
+              <FileText className="mr-2 h-4 w-4" /> CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport("Excel", "Current View")}>
+              <SheetIcon className="mr-2 h-4 w-4" /> Excel (XLSX)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport("PDF", "Current View")}>
+              <FileText className="mr-2 h-4 w-4" /> PDF
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Export Summaries As</DropdownMenuLabel>
+             <DropdownMenuItem onClick={() => handleExport("CSV", "Daily Summary")}>
+                Daily Summary (CSV)
+            </DropdownMenuItem>
+             <DropdownMenuItem onClick={() => handleExport("CSV", "Weekly Summary")}>
+                Weekly Summary (CSV)
+            </DropdownMenuItem>
+             <DropdownMenuItem onClick={() => handleExport("CSV", "Monthly Summary")}>
+                Monthly Summary (CSV)
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Scheduled & Email</DropdownMenuLabel>
+            <DropdownMenuItem disabled>
+              <CalendarIcon className="mr-2 h-4 w-4" /> Schedule Daily Export
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled>
+              <Mail className="mr-2 h-4 w-4" /> Email Export
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Card>
@@ -192,7 +246,6 @@ export default function CallReportsPage() {
           <CardDescription>Refine the report by date, client, campaign, or call status.</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-end">
-          {/* Date Range */}
           <div className="flex flex-col space-y-1.5">
             <span className="text-sm font-medium">Date Range</span>
              <Popover>
@@ -233,7 +286,6 @@ export default function CallReportsPage() {
                 </PopoverContent>
             </Popover>
           </div>
-          {/* Client Filter */}
           <div className="flex flex-col space-y-1.5">
             <span className="text-sm font-medium">Client</span>
             <Popover open={clientOpen} onOpenChange={setClientOpen}>
@@ -260,7 +312,6 @@ export default function CallReportsPage() {
               </PopoverContent>
             </Popover>
           </div>
-          {/* Campaign Filter */}
            <div className="flex flex-col space-y-1.5">
             <span className="text-sm font-medium">Campaign</span>
             <Popover open={campaignOpen} onOpenChange={setCampaignOpen}>
@@ -287,7 +338,6 @@ export default function CallReportsPage() {
               </PopoverContent>
             </Popover>
           </div>
-          {/* Call Status Filter */}
           <div className="flex flex-col space-y-1.5">
             <span className="text-sm font-medium">Call Status</span>
              <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as CallStatus)}>
@@ -323,7 +373,6 @@ export default function CallReportsPage() {
             <div className="p-4 border rounded-lg"><div className="flex items-center text-sm text-muted-foreground"><LanguagesIcon className="mr-2 h-4 w-4"/>Calls by Language</div><div className="text-xs">{Object.entries(kpiData.callsByLanguage).map(([lang, count]) => `${lang}: ${count}`).join(', ')}</div></div>
         </CardContent>
       </Card>
-
 
       <div className="grid md:grid-cols-3 gap-6">
         <Card className="md:col-span-1">
