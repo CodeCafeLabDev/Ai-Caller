@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { format, subDays, addDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { FileText, Filter, UserCircle, CalendarDays, Search, ListFilter, RotateCcw, Server, Users, Edit3, Trash2, KeyRound } from "lucide-react";
+import { Badge } from "@/components/ui/badge"; // Added missing import
 
 type ActionType = 
   | "Client Updated" 
@@ -281,5 +282,3 @@ export default function AuditLogsPage() {
   );
 }
 
-
-    
