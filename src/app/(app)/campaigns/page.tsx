@@ -55,12 +55,15 @@ import {
   TrendingDown,
   Rocket,
   RefreshCcw,
-  BellRing
+  BellRing,
+  PlusCircle // Added PlusCircle here
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
+import { Label } from "@/components/ui/label";
+
 
 type CampaignStatus = "Active" | "Paused" | "Completed";
 type CampaignType = "Outbound" | "Follow-Up" | "Reminder";
@@ -219,10 +222,10 @@ export default function ManageCampaignsPage() {
 
   const handleCampaignAction = (actionName: string, campaignId: string, campaignName: string) => {
     if (actionName === "Pause" || actionName === "Resume") {
-        setCampaigns(prevCampaigns => 
-            prevCampaigns.map(camp => 
-              camp.id === campaignId 
-                ? { ...camp, status: camp.status === "Active" ? "Paused" : "Active" } 
+        setCampaigns(prevCampaigns =>
+            prevCampaigns.map(camp =>
+              camp.id === campaignId
+                ? { ...camp, status: camp.status === "Active" ? "Paused" : "Active" }
                 : camp
             )
         );
@@ -243,13 +246,13 @@ export default function ManageCampaignsPage() {
 
     const matchesStatus = statusFilter === "all" || campaign.status === statusFilter;
     const matchesClient = clientFilter === "all" || campaign.clientId === clientFilter;
-    
-    const matchesDate = 
-        !dateRangeFilter || 
-        (!dateRangeFilter.from || campaign.startDate >= dateRangeFilter.from) && 
+
+    const matchesDate =
+        !dateRangeFilter ||
+        (!dateRangeFilter.from || campaign.startDate >= dateRangeFilter.from) &&
         (!dateRangeFilter.to || campaign.startDate <= addDays(dateRangeFilter.to,1)); // campaign.startDate instead of dateIssued
 
-    const matchesSuccessRate = 
+    const matchesSuccessRate =
         successRateFilter === "all" ||
         (successRateFilter === "low" && campaign.successRate < 70) ||
         (successRateFilter === "high" && campaign.successRate >= 70);
@@ -292,7 +295,7 @@ export default function ManageCampaignsPage() {
               New Campaign
             </Button>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 items-end">
             <div className="relative lg:col-span-2 xl:col-span-2">
                 <Label htmlFor="search-campaigns" className="text-xs font-medium text-muted-foreground">Search</Label>
@@ -306,7 +309,7 @@ export default function ManageCampaignsPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
-            
+
             <div className="flex flex-col">
               <Label htmlFor="status-filter" className="text-xs font-medium text-muted-foreground mb-1">Status</Label>
               <Popover open={statusComboboxOpen} onOpenChange={setStatusComboboxOpen}>
@@ -381,7 +384,7 @@ export default function ManageCampaignsPage() {
                     </PopoverContent>
                 </Popover>
             </div>
-            
+
             {/* Keep Sort By and Export on a new row for better layout on smaller screens, or adjust col-span as needed */}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 pt-3 items-end">
@@ -513,5 +516,3 @@ export default function ManageCampaignsPage() {
     </div>
   );
 }
-
-    
