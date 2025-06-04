@@ -36,7 +36,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "@/components/ui/sheet"; // Added Sheet components
+} from "@/components/ui/sheet";
 import {
   Search,
   PlusCircle,
@@ -49,12 +49,12 @@ import {
   DollarSign,
   Clock,
   Users,
-  FileText,
   Smartphone,
   MessageSquare,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { AddPlanForm } from "@/components/plans/add-plan-form"; // Import AddPlanForm
+import { AddPlanForm } from "@/components/plans/add-plan-form";
+import { EditPlanForm } from "@/components/plans/edit-plan-form"; // Import EditPlanForm
 
 type PlanStatus = "Active" | "Draft" | "Archived";
 type PlanDuration = "Monthly" | "Annual" | "Custom";
@@ -65,9 +65,9 @@ type Plan = {
   priceMonthly?: number;
   priceAnnual?: number;
   currency: string;
-  callMinuteLimit: string; // e.g., "1000 mins" or "500 calls"
+  callMinuteLimit: string; 
   templateUsageLimit: number;
-  durationDisplay: string; // e.g., "30 Days", "1 Year"
+  durationDisplay: PlanDuration; 
   agentSeats: number;
   status: PlanStatus;
 };
@@ -91,7 +91,7 @@ const mockPlans: Plan[] = [
     currency: "USD",
     callMinuteLimit: "2000 mins",
     templateUsageLimit: 20,
-    durationDisplay: "1 Year",
+    durationDisplay: "Annual",
     agentSeats: 5,
     status: "Active",
   },
@@ -129,7 +129,9 @@ export default function PlansBillingPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planTypeFilter, setPlanTypeFilter] = React.useState("all");
-  const [isAddPlanSheetOpen, setIsAddPlanSheetOpen] = React.useState(false); // State for sheet
+  const [isAddPlanSheetOpen, setIsAddPlanSheetOpen] = React.useState(false);
+  const [isEditPlanSheetOpen, setIsEditPlanSheetOpen] = React.useState(false);
+  const [editingPlan, setEditingPlan] = React.useState<Plan | null>(null);
 
   const handleAction = (actionName: string, planName: string) => {
     toast({
@@ -138,9 +140,20 @@ export default function PlansBillingPage() {
     });
   };
 
+  const handleOpenEditSheet = (plan: Plan) => {
+    setEditingPlan(plan);
+    setIsEditPlanSheetOpen(true);
+  };
+
+  const handleEditPlanSuccess = () => {
+    setIsEditPlanSheetOpen(false);
+    setEditingPlan(null);
+    // In a real app, you might want to refresh the plans list here
+    toast({ title: "Plan Updated", description: "The plan has been successfully updated." });
+  };
+  
   const handleAddPlanSuccess = () => {
     setIsAddPlanSheetOpen(false);
-    // In a real app, you might want to refresh the plans list here
     toast({ title: "Plan Added", description: "The new plan has been successfully added." });
   };
 
@@ -275,7 +288,7 @@ export default function PlansBillingPage() {
                         <DropdownMenuItem onClick={() => handleAction("View Plan", plan.name)}>
                           <Eye className="mr-2 h-4 w-4" /> View
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleAction("Edit Plan", plan.name)}>
+                        <DropdownMenuItem onClick={() => handleOpenEditSheet(plan)}>
                           <Edit2 className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleAction("Clone Plan", plan.name)}>
@@ -336,6 +349,30 @@ export default function PlansBillingPage() {
            </div>
         </CardFooter>
       </Card>
+
+      {editingPlan && (
+        <Sheet open={isEditPlanSheetOpen} onOpenChange={(isOpen) => {
+          setIsEditPlanSheetOpen(isOpen);
+          if (!isOpen) setEditingPlan(null);
+        }}>
+          <SheetContent className="sm:max-w-md w-full flex flex-col" side="right">
+            <SheetHeader>
+              <SheetTitle>Edit Plan: {editingPlan.name}</SheetTitle>
+              <SheetDescription>
+                Modify the details of this subscription plan.
+              </SheetDescription>
+            </SheetHeader>
+            <EditPlanForm 
+              plan={editingPlan} 
+              onSuccess={handleEditPlanSuccess}
+              onCancel={() => {
+                setIsEditPlanSheetOpen(false);
+                setEditingPlan(null);
+              }}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }
