@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -57,7 +57,17 @@ const initialNavItems: NavItemType[] = [
       { href: '/clients/users', label: 'Client Users', icon: UserCog },
     ],
   },
-  { href: '/plans-billing', label: 'Plans & Billing', icon: CreditCard },
+  {
+    label: 'Plans & Billing',
+    icon: CreditCard,
+    basePath: '/plans-billing',
+    subItems: [
+      { href: '/plans-billing', label: 'Manage Plans', icon: ClipboardList },
+      { href: '/plans-billing/assign-plan', label: 'Assign Plan to Client', icon: UserPlus },
+      { href: '/plans-billing/invoices', label: 'Billing & Invoices', icon: Receipt },
+      { href: '/plans-billing/payment-settings', label: 'Payment Settings', icon: Settings },
+    ],
+  },
   { href: '/campaigns', label: 'Campaigns', icon: Megaphone },
   { href: '/ai-templates', label: 'AI Templates', icon: Bot },
   { href: '/reports-analytics', label: 'Reports & Analytics', icon: BarChartBig },
