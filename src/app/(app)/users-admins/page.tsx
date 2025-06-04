@@ -35,12 +35,13 @@ import { UserCog, PlusCircle, MoreHorizontal, Edit2, UserX, UserCheck, ListCheck
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type { Metadata } from 'next';
+import { ScrollArea } from "@/components/ui/scroll-area"; // Added import
 
-// export const metadata: Metadata = {
-//   title: 'Admin User & Role Management - Voxaiomni',
-//   description: 'Oversee administrative users, their roles, permissions, and activity logs.',
-//   keywords: ['admin users', 'user roles', 'permissions management', 'admin activity', 'voxaiomni'],
-// };
+export const metadata: Metadata = {
+  title: 'Admin User & Role Management - Voxaiomni',
+  description: 'Oversee administrative users, their roles, permissions, and activity logs.',
+  keywords: ['admin users', 'user roles', 'permissions management', 'admin activity', 'voxaiomni'],
+};
 
 type AdminUserStatus = "Active" | "Suspended";
 type AdminRoleStatus = "Active" | "Archived";
