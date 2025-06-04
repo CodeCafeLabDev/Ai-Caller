@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -90,7 +90,17 @@ const initialNavItems: NavItemType[] = [
         { href: '/ai-templates/import-export', label: 'Import/Export JSON', icon: FileJson },
     ]
   },
-  { href: '/reports-analytics', label: 'Reports & Analytics', icon: BarChartBig },
+  { 
+    label: 'Reports & Analytics', 
+    icon: BarChartBig,
+    basePath: '/reports-analytics',
+    subItems: [
+      { href: '/reports-analytics/call-reports', label: 'Daily/Monthly Call Reports', icon: CalendarClock },
+      { href: '/reports-analytics/export-data', label: 'Export Data (CSV/PDF)', icon: FileDown },
+      { href: '/reports-analytics/system-usage-trends', label: 'System Usage Trends', icon: TrendingUp },
+      { href: '/reports-analytics/error-logs', label: 'Error & Failed Call Logs', icon: AlertTriangle },
+    ]
+  },
   { href: '/developer-tools', label: 'Developer Tools', icon: TerminalSquare },
   { href: '/test-lab', label: 'Test Lab', icon: FlaskConical },
   { href: '/alerts-logs', label: 'Alerts & Logs', icon: ShieldAlert },
