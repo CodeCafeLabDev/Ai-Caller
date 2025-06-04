@@ -63,13 +63,9 @@ import {
 import { AddClientForm } from "@/components/clients/add-client-form";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast"; 
-import type { Metadata } from 'next';
+// Removed: import type { Metadata } from 'next';
 
-// export const metadata: Metadata = { // Metadata must be exported from server components or route handlers
-//   title: 'Manage Clients - Voxaiomni',
-//   description: 'View, manage, and add client accounts.',
-//   keywords: ['clients', 'customer management', 'accounts', 'crm', 'voxaiomni'],
-// };
+// Removed: export const metadata: Metadata = { ... };
 
 
 type Client = {

@@ -23,13 +23,13 @@ import {
   AreaChart,
   PieChart,
 } from "lucide-react";
-import type { Metadata } from 'next';
+// Removed: import type { Metadata } from 'next';
 
-export const metadata: Metadata = {
-  title: 'System Usage Trends - Voxaiomni',
-  description: 'Monitor overall system performance, resource utilization, call volumes, and AI model costs over time.',
-  keywords: ['system usage', 'performance trends', 'resource utilization', 'call volume', 'ai costs', 'voxaiomni analytics'],
-};
+// export const metadata: Metadata = {
+//   title: 'System Usage Trends - Voxaiomni',
+//   description: 'Monitor overall system performance, resource utilization, call volumes, and AI model costs over time.',
+//   keywords: ['system usage', 'performance trends', 'resource utilization', 'call volume', 'ai costs', 'voxaiomni analytics'],
+// };
 
 export default function SystemUsageTrendsPage() {
   return (
@@ -52,7 +52,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/800x400.png"
-              alt="Placeholder: Area chart of total calls over time"
+              alt="Placeholder: Area chart for Total Calls Over Time"
               width={800}
               height={400}
               className="rounded-md w-full"
@@ -69,7 +69,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/400x300.png"
-              alt="Placeholder: Line chart of average call duration"
+              alt="Placeholder: Line chart for Average Call Duration Over Time"
               width={400}
               height={300}
               className="rounded-md w-full"
@@ -86,7 +86,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/400x300.png"
-              alt="Placeholder: Line chart of active campaigns"
+              alt="Placeholder: Line chart for Active Campaigns Over Time"
               width={400}
               height={300}
               className="rounded-md w-full"
@@ -103,7 +103,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/800x400.png"
-              alt="Placeholder: Bar chart of top clients by call volume"
+              alt="Placeholder: Bar chart for Top 5 Clients by Call Volume"
               width={800}
               height={400}
               className="rounded-md w-full"
@@ -120,7 +120,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/400x300.png"
-              alt="Placeholder: Line chart of STT/TTS usage"
+              alt="Placeholder: Line chart for Speech-to-Text/Text-to-Speech Usage"
               width={400}
               height={300}
               className="rounded-md w-full"
@@ -137,7 +137,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/400x300.png"
-              alt="Placeholder: Pie chart of language distribution"
+              alt="Placeholder: Pie chart for Language Distribution"
               width={400}
               height={300}
               className="rounded-md w-full"
@@ -154,7 +154,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
              <Image
               src="https://placehold.co/400x300.png"
-              alt="Placeholder: Bar chart of AI model costs"
+              alt="Placeholder: Bar chart for AI Model Cost Analysis"
               width={400}
               height={300}
               className="rounded-md w-full"
@@ -172,7 +172,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/1200x400.png"
-              alt="Placeholder: Heat map of call activity"
+              alt="Placeholder: Heat map for Call Activity"
               width={1200}
               height={400}
               className="rounded-md w-full"

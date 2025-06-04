@@ -23,13 +23,13 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Award, ArrowUpDown, TrendingUp, ListChecks, BarChart2 } from "lucide-react";
-import type { Metadata } from 'next';
+// Removed: import type { Metadata } from 'next';
 
-export const metadata: Metadata = {
-  title: 'Top Performing Campaigns - Voxaiomni',
-  description: 'Identify standout campaigns based on success rate, conversion, call volume, and feedback. Analyze factors for success.',
-  keywords: ['top campaigns', 'campaign performance', 'analytics', 'best campaigns', 'voxaiomni'],
-};
+// export const metadata: Metadata = {
+//   title: 'Top Performing Campaigns - Voxaiomni',
+//   description: 'Identify standout campaigns based on success rate, conversion, call volume, and feedback. Analyze factors for success.',
+//   keywords: ['top campaigns', 'campaign performance', 'analytics', 'best campaigns', 'voxaiomni'],
+// };
 
 type TopPerformingCampaign = {
   id: string;

@@ -79,13 +79,13 @@ import {
   SheetIcon,
   CalendarDays as CalendarIcon,
 } from "lucide-react";
-import type { Metadata } from 'next';
+// Removed: import type { Metadata } from 'next';
 
-export const metadata: Metadata = {
-  title: 'Call Reports - Voxaiomni',
-  description: 'Analyze call performance, track trends, and gain insights into your calling operations with daily and monthly reports.',
-  keywords: ['call reports', 'call analytics', 'performance tracking', 'voxaiomni reports'],
-};
+// export const metadata: Metadata = {
+//   title: 'Call Reports - Voxaiomni',
+//   description: 'Analyze call performance, track trends, and gain insights into your calling operations with daily and monthly reports.',
+//   keywords: ['call reports', 'call analytics', 'performance tracking', 'voxaiomni reports'],
+// };
 
 type CallStatus = "Completed" | "Failed" | "Missed" | "Answered" | "All";
 type ReportEntry = {
