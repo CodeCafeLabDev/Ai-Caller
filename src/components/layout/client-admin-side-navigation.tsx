@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Megaphone, Users, CreditCard, UserCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, CreditCard, UserCircle, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -25,6 +25,7 @@ type ClientAdminNavItem = {
 const clientAdminNavItems: ClientAdminNavItem[] = [
   { href: '/client-admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, basePath: '/client-admin/dashboard' },
   { href: '/client-admin/campaigns', label: 'My Campaigns', icon: Megaphone, basePath: '/client-admin/campaigns' },
+  { href: '/client-admin/campaigns/call-history', label: 'Call History', icon: ClipboardList, basePath: '/client-admin/campaigns/call-history' },
   { href: '/client-admin/users', label: 'Manage Users', icon: Users, basePath: '/client-admin/users' },
   { href: '/client-admin/billing', label: 'Billing & Invoices', icon: CreditCard, basePath: '/client-admin/billing' },
   { href: '/client-admin/profile', label: 'My Profile', icon: UserCircle, basePath: '/client-admin/profile' },
