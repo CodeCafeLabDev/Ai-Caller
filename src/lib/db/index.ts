@@ -101,64 +101,75 @@ async function initializeLoginTable(): Promise<void> {
   }
 }
 
-/**
- * Adds a sample user to the Login table if they do not already exist.
- * Logs the credentials for testing.
- */
-async function addSampleUserIfNotExists(): Promise<{ userId: string; plainPassword_DO_NOT_USE_IN_PROD: string } | null> {
-  const conn = await getDbConnection();
-  const sampleUserId = 'testUser';
-  const samplePlainPassword = 'password123'; // Store the plain password to return/log
+interface SampleUserCredentials {
+  userId: string;
+  plainPassword_DO_NOT_USE_IN_PROD: string;
+  roleHint: 'super_admin' | 'client_admin';
+}
 
+/**
+ * Adds a specific sample user to the Login table if they do not already exist.
+ */
+async function addSpecificSampleUser(
+  userId: string,
+  plainPassword: string,
+  roleHint: 'super_admin' | 'client_admin'
+): Promise<SampleUserCredentials | null> {
+  const conn = await getDbConnection();
   try {
-    // Check if the user already exists
     const [rows] = await conn.execute<mysql.RowDataPacket[]>(
       'SELECT user_Id FROM Login WHERE user_Id = ?',
-      [sampleUserId]
+      [userId]
     );
 
     if (rows.length > 0) {
-      console.log(`Sample user '${sampleUserId}' already exists.`);
-      // Optionally, you could return the credentials here too if needed for consistency
-      return { userId: sampleUserId, plainPassword_DO_NOT_USE_IN_PROD: samplePlainPassword };
+      console.log(`Sample user '${userId}' already exists.`);
+      return { userId, plainPassword_DO_NOT_USE_IN_PROD: plainPassword, roleHint };
     }
 
-    // If user doesn't exist, hash the password and insert
-    const hashedPassword = await bcrypt.hash(samplePlainPassword, 10);
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
     await conn.execute(
       'INSERT INTO Login (user_Id, password) VALUES (?, ?)',
-      [sampleUserId, hashedPassword]
+      [userId, hashedPassword]
     );
-    console.log(`Sample user '${sampleUserId}' added successfully.`);
-    return { userId: sampleUserId, plainPassword_DO_NOT_USE_IN_PROD: samplePlainPassword };
+    console.log(`Sample user '${userId}' added successfully.`);
+    return { userId, plainPassword_DO_NOT_USE_IN_PROD: plainPassword, roleHint };
   } catch (error) {
-    console.error(`Error adding or checking sample user '${sampleUserId}':`, error);
-    throw new Error('Could not add or check sample user.');
+    console.error(`Error adding or checking sample user '${userId}':`, error);
+    // Return null or throw, depending on how critical this is for your app startup
+    // For this example, we'll log error and return null to allow app to continue if possible
+    return null; 
   }
 }
 
 
 /**
- * Initializes all necessary database tables and adds a sample user.
+ * Initializes all necessary database tables and adds sample users.
  * Call this function when your application starts or during a setup phase.
  */
 export async function initializeDatabase(): Promise<void> {
   try {
     await initializeLoginTable();
-    const sampleUser = await addSampleUserIfNotExists();
     
-    if (sampleUser) {
-      console.log("--- Sample User Credentials (for testing ONLY) ---");
-      console.log(`User ID: ${sampleUser.userId}`);
-      console.log(`Password: ${sampleUser.plainPassword_DO_NOT_USE_IN_PROD}`);
-      console.log("-------------------------------------------------");
+    console.log("--- Sample User Credentials (for testing ONLY) ---");
+
+    const superAdminUser = await addSpecificSampleUser('testUser', 'password123', 'super_admin');
+    if (superAdminUser) {
+      console.log(`Super Admin User ID: ${superAdminUser.userId}`);
+      console.log(`Super Admin Password: ${superAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
     }
-    console.log("Database initialization complete.");
+
+    const clientAdminUser = await addSpecificSampleUser('clientTestUser', 'password123', 'client_admin');
+    if (clientAdminUser) {
+      console.log(`Client Admin User ID: ${clientAdminUser.userId}`);
+      console.log(`Client Admin Password: ${clientAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
+    }
+    
+    console.log("-------------------------------------------------");
+    console.log("Database initialization complete. Check console for sample user credentials.");
   } catch (error) {
     console.error("Error during database initialization:", error);
-    // Depending on your error handling strategy, you might want to exit the process
-    // or throw the error to be caught by a higher-level handler.
-    throw error;
+    throw error; // Re-throw to indicate failure
   }
 }
 
@@ -175,3 +186,4 @@ export async function initializeDatabase(): Promise<void> {
 //     // process.exit(1); // Optional: exit if DB initialization is critical
 //   }
 // })();
+
