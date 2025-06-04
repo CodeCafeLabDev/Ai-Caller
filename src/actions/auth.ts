@@ -2,54 +2,14 @@
 'use server';
 
 import { z } from 'zod';
-import bcrypt from 'bcryptjs';
-import { getDbConnection } from '@/lib/db';
-import type { RowDataPacket } from 'mysql2';
-
-// const signUpSchema = z.object({
-//   email: z.string().email(),
-//   password: z.string().min(6),
-// });
+// Removed: import bcrypt from 'bcryptjs';
+// Removed: import { getDbConnection } from '@/lib/db';
+// Removed: import type { RowDataPacket } from 'mysql2';
 
 const signInSchema = z.object({
   user_Id: z.string().min(1, { message: "User ID is required." }),
   password: z.string().min(1, { message: "Password is required." }),
 });
-
-// export async function signUpUserAction(values: z.infer<typeof signUpSchema>) {
-//   try {
-//     const validatedFields = signUpSchema.safeParse(values);
-//     if (!validatedFields.success) {
-//       return { success: false, message: 'Invalid input.' };
-//     }
-
-//     const { email, password } = validatedFields.data;
-//     const hashedPassword = await bcrypt.hash(password, 10);
-//     const connection = await getDbConnection();
-
-//     try {
-//       const [existingUser] = await connection.execute<RowDataPacket[]>(
-//         'SELECT email FROM users WHERE email = ?',
-//         [email]
-//       );
-//       if (existingUser.length > 0) {
-//         return { success: false, message: 'Email already exists.' };
-//       }
-
-//       await connection.execute(
-//         'INSERT INTO users (email, password) VALUES (?, ?)',
-//         [email, hashedPassword]
-//       );
-//       return { success: true, message: 'Sign up successful! Please sign in.' };
-//     } catch (dbError) {
-//       console.error('Database error during sign up:', dbError);
-//       return { success: false, message: 'An error occurred. Please try again.' };
-//     }
-//   } catch (error) {
-//     console.error('Sign up action error:', error);
-//     return { success: false, message: 'An unexpected error occurred.' };
-//   }
-// }
 
 export async function signInUserAction(values: z.infer<typeof signInSchema>) {
   try {
@@ -59,42 +19,26 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>) {
     }
 
     const { user_Id, password } = validatedFields.data;
-    const connection = await getDbConnection();
 
-    try {
-      const [rows] = await connection.execute<RowDataPacket[]>(
-        'SELECT user_Id, password FROM Login WHERE user_Id = ?',
-        [user_Id]
-      );
-
-      if (rows.length === 0) {
-        return { success: false, message: 'Invalid User ID or password.', user: null };
-      }
-
-      const user = rows[0];
-      const passwordMatch = await bcrypt.compare(password, user.password);
-
-      if (!passwordMatch) {
-        return { success: false, message: 'Invalid User ID or password.', user: null };
-      }
-
-      let userRole = 'client_admin'; // Default role
-      if (user.user_Id === 'testUser') {
-        userRole = 'super_admin';
-      }
-
+    // Hardcoded credentials for testing
+    if (user_Id === 'testUser' && password === 'password123') {
       return {
         success: true,
-        message: 'Sign in successful!',
-        user: { userId: user.user_Id, role: userRole },
+        message: 'Sign in successful! (Super Admin)',
+        user: { userId: 'testUser', role: 'super_admin' },
       };
-    } catch (dbError) {
-      console.error('Database error during sign in:', dbError);
-      return { success: false, message: 'An error occurred. Please try again.', user: null };
+    } else if (user_Id === 'clientTestUser' && password === 'password123') {
+      return {
+        success: true,
+        message: 'Sign in successful! (Client Admin)',
+        user: { userId: 'clientTestUser', role: 'client_admin' },
+      };
+    } else {
+      return { success: false, message: 'Invalid User ID or password.', user: null };
     }
+
   } catch (error) {
-    console.error('Sign in action error:', error);
+    console.error('Sign in action error (simplified):', error);
     return { success: false, message: 'An unexpected error occurred.', user: null };
   }
 }
-
