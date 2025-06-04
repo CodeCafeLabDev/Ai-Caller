@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { UserCircle, LogOut, Bell, Search } from 'lucide-react';
+import { UserCircle, LogOut, Bell, Search, PlusCircle, Megaphone, CreditCard, Users as UsersIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -23,6 +23,12 @@ const mockClientData = {
   notificationsCount: 1,
 };
 
+const clientQuickActionItems = [
+  { text: "Start New Campaign", icon: Megaphone, href: "/client-admin/campaigns" }, // Assuming they can start from the main campaigns page or a specific create page
+  { text: "View Billing", icon: CreditCard, href: "/client-admin/billing" },
+  { text: "Manage Users", icon: UsersIcon, href: "/client-admin/users" },
+];
+
 export function ClientAdminHeader() {
   const router = useRouter();
   const { toast } = useToast();
@@ -36,6 +42,10 @@ export function ClientAdminHeader() {
     router.push('/signin'); // Or a client-specific sign-in page
   };
 
+  const handleQuickActionClick = (href: string) => {
+    router.push(href);
+  };
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 md:px-6 shadow-sm">
       <div className="flex items-center gap-2 md:gap-4">
@@ -46,8 +56,6 @@ export function ClientAdminHeader() {
       </div>
       
       <div className="flex items-center gap-2 md:gap-4">
-        {/* Removed "Client Portal" text */}
-
         <form className="relative ml-auto flex-1 sm:flex-initial max-w-xs hidden md:block">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -56,6 +64,28 @@ export function ClientAdminHeader() {
             className="pl-8 w-full bg-muted h-9"
           />
         </form>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full shrink-0" aria-label="Quick Actions">
+              <PlusCircle className="h-5 w-5" />
+              <span className="sr-only">Quick Actions</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Quick Client Actions</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {clientQuickActionItems.map((item, index) => {
+              const IconComponent = item.icon;
+              return (
+                <DropdownMenuItem key={index} onClick={() => handleQuickActionClick(item.href)} className="cursor-pointer">
+                  <IconComponent className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span>{item.text}</span>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
