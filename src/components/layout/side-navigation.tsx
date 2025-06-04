@@ -111,7 +111,15 @@ const initialNavItems: NavItemType[] = [
       { href: '/developer-tools/integration-logs', label: 'Integration Logs', icon: ListChecks },
     ]
   },
-  { href: '/test-lab', label: 'Test Lab', icon: FlaskConical },
+  { 
+    label: 'Test Lab', 
+    icon: FlaskConical,
+    basePath: '/test-lab',
+    subItems: [
+      { href: '/test-lab/call-flow', label: 'Call Flow Simulation', icon: Bot },
+      { href: '/test-lab/voice-bot-testing', label: 'Voice Bot Testing', icon: Languages },
+    ]
+  },
   { href: '/alerts-logs', label: 'Alerts & Logs', icon: ShieldAlert },
   { href: '/system-settings', label: 'System Settings', icon: Settings },
   { href: '/profile', label: 'Profile', icon: UserCircle },
@@ -154,7 +162,7 @@ export function SideNavigation() {
               <SidebarMenuButton
                 asChild={!item.subItems} 
                 onClick={item.subItems ? () => toggleSubmenu(item.label) : undefined}
-                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/developer-tools' && pathname.startsWith(item.href)) || (item.href === '/developer-tools' && (pathname === item.href && !item.subItems?.some(si => pathname.startsWith(si.href) && si.href !== item.href)))) : false)}
+                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/developer-tools' && !item.subItems && pathname.startsWith(item.href)) || (item.href === '/developer-tools' && (pathname === item.href && !item.subItems?.some(si => pathname.startsWith(si.href) && si.href !== item.href)))) : false)}
                 tooltip={{ children: item.label, className: "bg-popover text-popover-foreground border-border" }}
                 className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
               >
@@ -226,5 +234,3 @@ export function SideNavigation() {
     </Sidebar>
   );
 }
-
-    
