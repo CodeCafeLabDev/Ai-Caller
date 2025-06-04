@@ -29,6 +29,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Settings2, BookOpen, ListTree, Tag, Play, Save, UploadCloud } from "lucide-react";
 import type { AITemplateUseCase, AITemplateLanguage } from "@/app/(app)/ai-templates/page";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Create AI Template - Voxaiomni',
+//   description: 'Design and configure a new voice conversation flow for your AI caller.',
+//   keywords: ['create ai template', 'conversation flow designer', 'script builder', 'voxaiomni'],
+// };
+
 
 const templateUseCases: AITemplateUseCase[] = ["Lead Generation", "Reminder", "Feedback", "Support", "Sales", "Payment Collection", "Survey", "Other"];
 const templateLanguages: AITemplateLanguage[] = ["English (US)", "Spanish (ES)", "French (FR)", "German (DE)", "Hindi (IN)", "Other"];
@@ -267,5 +275,3 @@ export default function CreateAITemplatePage() {
     </div>
   );
 }
-
-    

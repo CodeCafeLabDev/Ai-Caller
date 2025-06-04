@@ -1,6 +1,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BookOpen, Link as LinkIcon, KeyRound, ListChecks, Terminal } from "lucide-react";
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'API Documentation & Developer Tools - Voxaiomni',
+  description: 'Explore API documentation, manage API keys, webhooks, and view integration logs for Voxaiomni.',
+  keywords: ['api documentation', 'developer tools', 'api keys', 'webhooks', 'integration logs', 'voxaiomni api'],
+};
 
 export default function ApiDocsPage() {
   return (
@@ -91,5 +98,3 @@ export default function ApiDocsPage() {
     </div>
   );
 }
-
-    

@@ -1,4 +1,12 @@
 
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Reports & Analytics - Voxaiomni',
+  description: 'Access various reports, data visualizations, and performance analytics for your Voxaiomni system.',
+  keywords: ['reports', 'analytics', 'data visualization', 'performance metrics', 'voxaiomni'],
+};
+
 export default function ReportsAnalyticsPage() {
   return (
     <div className="container mx-auto py-10">

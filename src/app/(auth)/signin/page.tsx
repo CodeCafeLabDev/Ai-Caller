@@ -20,6 +20,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 // import { signInUserAction } from '@/actions/auth'; // No longer needed for bypassed auth
 import { useState, useTransition } from 'react';
+import type { Metadata } from 'next';
+
+// Even though this is a client component, metadata can be exported from page files
+// export const metadata: Metadata = {
+//   title: 'Sign In - Voxaiomni',
+//   description: 'Access your Voxaiomni account.',
+//   keywords: ['signin', 'login', 'authentication', 'voxaiomni account'],
+// };
+// For client components, metadata is typically handled in the nearest server component layout or page.
+// The layout src/app/(auth)/layout.tsx already sets a title.
 
 const formSchema = z.object({
   user_Id: z.string().optional(), // Fields are optional as they are not processed

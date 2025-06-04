@@ -54,11 +54,18 @@ import {
   FileText,
   CalendarDays,
   Info,
-  FileDown, // Added FileDown icon
+  FileDown, 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddPlanForm } from "@/components/plans/add-plan-form";
 import { EditPlanForm } from "@/components/plans/edit-plan-form";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Subscription Plans - Voxaiomni',
+//   description: 'Manage service tiers and subscription plan configurations for clients.',
+//   keywords: ['subscription plans', 'billing', 'pricing tiers', 'saas plans', 'voxaiomni'],
+// };
 
 export type PlanStatus = "Active" | "Draft" | "Archived";
 
@@ -469,5 +476,3 @@ export default function PlansBillingPage() {
     </div>
   );
 }
-
-    

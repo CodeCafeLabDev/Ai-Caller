@@ -23,16 +23,23 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Award, ArrowUpDown, TrendingUp, ListChecks, BarChart2 } from "lucide-react";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Top Performing Campaigns - Voxaiomni',
+//   description: 'Identify standout campaigns based on success rate, conversion, call volume, and feedback. Analyze factors for success.',
+//   keywords: ['top campaigns', 'campaign performance', 'analytics', 'best campaigns', 'voxaiomni'],
+// };
 
 type TopPerformingCampaign = {
   id: string;
   name: string;
   clientName: string;
-  successRate: number; // Percentage
-  conversionRate: number; // Percentage
+  successRate: number; 
+  conversionRate: number; 
   totalCalls: number;
-  bounceRate: number; // Percentage
-  feedbackScore: number; // Out of 5 or 10
+  bounceRate: number; 
+  feedbackScore: number; 
   durationDays: number;
 };
 

@@ -25,6 +25,13 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { KeyRound, PlusCircle, Trash2, Eye, EyeOff, Copy, Edit, RotateCcw, CheckCircle, XCircle, MoreHorizontal, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'API Keys Management - Voxaiomni',
+//   description: 'Generate, manage, and revoke API keys for client integrations. Securely handle API access and permissions.',
+//   keywords: ['api keys', 'developer tools', 'authentication keys', 'api access', 'voxaiomni'],
+// };
 
 type ApiKeyPermission = "read-only" | "read-write" | "campaigns:read" | "campaigns:write" | "reports:read";
 type ApiKeyStatus = "Active" | "Revoked";
@@ -35,7 +42,7 @@ interface ApiKey {
   clientId: string;
   keyPrefix: "sk_live_" | "sk_test_";
   keySuffix: string;
-  fullKey: string; // Store the full key for copy functionality
+  fullKey: string; 
   permissions: ApiKeyPermission[];
   createdDate: Date;
   lastUsedDate?: Date;
@@ -77,11 +84,10 @@ export default function ApiKeysPage() {
   };
 
   const handleGenerateNewKey = () => {
-    // In a real app, this would open a dialog to select client, permissions etc.
     const newKeyData = generateNewApiKey("sk_live_");
     const newKey: ApiKey = {
       id: `key_${Date.now()}`,
-      clientName: `Client ${apiKeys.length + 1}`, // Mock client name
+      clientName: `Client ${apiKeys.length + 1}`, 
       clientId: `client_${apiKeys.length + 1}`,
       keyPrefix: "sk_live_",
       keySuffix: newKeyData.suffix,
@@ -242,5 +248,3 @@ export default function ApiKeysPage() {
       </Card>
     </div>
   );
-
-    

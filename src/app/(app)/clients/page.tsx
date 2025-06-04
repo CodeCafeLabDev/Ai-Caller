@@ -1,4 +1,12 @@
 
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Clients Overview - Voxaiomni',
+  description: 'Client management section of Voxaiomni. View, add, and manage client accounts.',
+  keywords: ['clients', 'customer relationship', 'account management', 'voxaiomni'],
+};
+
 export default function ClientsPage() {
   return (
     <div className="container mx-auto py-10">

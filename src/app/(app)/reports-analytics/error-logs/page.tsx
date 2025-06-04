@@ -74,6 +74,13 @@ import {
   ShieldAlert,
   MoreHorizontal
 } from "lucide-react";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Error & Failed Call Logs - Voxaiomni',
+//   description: 'Investigate system errors, failed calls, and manage resolutions. Filter logs by date, client, campaign, and error type.',
+//   keywords: ['error logs', 'failed calls', 'call troubleshooting', 'system errors', 'voxaiomni logs'],
+// };
 
 type ErrorType = "Timeout" | "No Answer" | "Network Error" | "TTS Error" | "Bot Crash" | "Validation Error" | "API Limit Exceeded" | "Authentication Failed" | "Permission Denied";
 type ResolvedStatus = "Yes" | "No" | "Investigating";
@@ -196,14 +203,12 @@ export default function ErrorLogsPage() {
   const handleRetryCall = (logId: string, callId: string) => {
     setErrorLogs(prev => prev.map(log => log.id === logId ? {...log, retryAttempted: "In Progress"} : log));
     toast({ title: "Retry Initiated", description: `Retrying call ${callId} for error log ${logId}. (Simulated)`});
-    // Simulate completion of retry
     setTimeout(() => {
         setErrorLogs(prev => prev.map(log => log.id === logId ? {...log, retryAttempted: "Yes", isResolved: "Yes"} : log));
         toast({ title: "Retry Successful", description: `Call ${callId} (Error ${logId}) retried successfully.`});
     }, 2000);
   };
 
-  // Quick Stats Calculation (mocked)
   const failureRate = filteredErrorLogs.length > 0 && initialMockErrorLogs.length > 0 ? (filteredErrorLogs.filter(log => log.errorType !== "No Answer").length / initialMockErrorLogs.length * 100).toFixed(1) + "%" : "N/A";
   const commonErrorType = filteredErrorLogs.length > 0 ? 
     Object.entries(filteredErrorLogs.reduce((acc, log) => { acc[log.errorType] = (acc[log.errorType] || 0) + 1; return acc; }, {} as Record<ErrorType, number>))
@@ -391,6 +396,3 @@ export default function ErrorLogsPage() {
     </div>
   );
 }
-
-
-    

@@ -1,7 +1,7 @@
 
 "use client";
 
-import Link from "next/link"; // Restored Link import
+import Link from "next/link"; 
 import * as React from "react";
 import {
   Table,
@@ -21,7 +21,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-// Removed Sheet imports
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import {
@@ -45,14 +44,20 @@ import {
   Edit2,
   Archive,
   Copy,
-  PlusCircle, // Kept for the button
+  PlusCircle, 
   Check,
   ChevronsUpDown,
   FileText,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-// Removed CreateTemplateForm import
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'AI Script Templates - Voxaiomni',
+//   description: 'Manage global AI conversation templates for various use cases and languages.',
+//   keywords: ['ai templates', 'script templates', 'conversation flow', 'bot scripts', 'voxaiomni'],
+// };
 
 export type AITemplateStatus = "Draft" | "Published" | "Archived";
 export type AITemplateUseCase = "Sales" | "Reminder" | "Feedback" | "Support" | "Lead Generation" | "Payment Collection" | "Survey" | "Other";
@@ -64,9 +69,9 @@ export type AITemplate = {
   name: string;
   useCase: AITemplateUseCase;
   tags: string[];
-  createdBy: string; // "System" or User Name
+  createdBy: string; 
   language: AITemplateLanguage;
-  lastModified: string; // ISO date string
+  lastModified: string; 
   status: AITemplateStatus;
   version: string;
 };
@@ -126,7 +131,6 @@ export default function AiTemplatesPage() {
   const [useCaseComboboxOpen, setUseCaseComboboxOpen] = React.useState(false);
   const [languageComboboxOpen, setLanguageComboboxOpen] = React.useState(false);
   const [statusComboboxOpen, setStatusComboboxOpen] = React.useState(false);
-  // Removed isCreateSheetOpen state
 
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 10;
@@ -137,8 +141,6 @@ export default function AiTemplatesPage() {
       description: `Action performed on template: ${templateName}.`,
     });
   };
-
-  // Removed handleCreateTemplateSuccess as it was tied to the Sheet form
 
   const filteredTemplates = templates.filter((template) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
@@ -167,7 +169,6 @@ export default function AiTemplatesPage() {
           <h1 className="text-3xl font-bold font-headline">AI Script Templates</h1>
           <p className="text-muted-foreground">Manage global AI conversation templates.</p>
         </div>
-        {/* Reverted to Link */}
         <Button size="lg" asChild>
             <Link href="/ai-templates/create">
                 <PlusCircle className="mr-2 h-5 w-5" />
@@ -175,8 +176,6 @@ export default function AiTemplatesPage() {
             </Link>
         </Button>
       </div>
-
-      {/* Removed Sheet component */}
 
       <Card className="shadow-lg">
         <CardHeader className="border-b p-4">
@@ -192,7 +191,6 @@ export default function AiTemplatesPage() {
               />
             </div>
             <div className="flex gap-2 flex-wrap w-full md:w-auto justify-start items-center">
-                {/* Use Case Filter */}
                 <Popover open={useCaseComboboxOpen} onOpenChange={setUseCaseComboboxOpen}>
                     <PopoverTrigger asChild>
                         <Button variant="outline" role="combobox" className="w-full sm:w-auto md:w-[180px] justify-between">
@@ -210,7 +208,6 @@ export default function AiTemplatesPage() {
                     </PopoverContent>
                 </Popover>
 
-                {/* Language Filter */}
                  <Popover open={languageComboboxOpen} onOpenChange={setLanguageComboboxOpen}>
                     <PopoverTrigger asChild>
                         <Button variant="outline" role="combobox" className="w-full sm:w-auto md:w-[180px] justify-between">
@@ -228,7 +225,6 @@ export default function AiTemplatesPage() {
                     </PopoverContent>
                 </Popover>
 
-                {/* Status Filter */}
                 <Popover open={statusComboboxOpen} onOpenChange={setStatusComboboxOpen}>
                     <PopoverTrigger asChild>
                         <Button variant="outline" role="combobox" className="w-full sm:w-auto md:w-[180px] justify-between">
@@ -327,5 +323,3 @@ export default function AiTemplatesPage() {
     </div>
   );
 }
-
-    

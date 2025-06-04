@@ -45,7 +45,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { AddCampaignForm } from "@/components/campaigns/add-campaign-form"; // Import the new form
+import { AddCampaignForm } from "@/components/campaigns/add-campaign-form"; 
 import {
   Search,
   ListFilter,
@@ -72,7 +72,13 @@ import { cn } from "@/lib/utils";
 import { format, addDays, subDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { Label } from "@/components/ui/label";
+import type { Metadata } from 'next';
 
+// export const metadata: Metadata = {
+//   title: 'Manage Campaigns - Voxaiomni',
+//   description: 'Oversee, control, and create calling campaigns. Filter and sort campaigns by various criteria.',
+//   keywords: ['campaign management', 'calling campaigns', 'outbound calls', 'lead generation', 'voxaiomni'],
+// };
 
 export type CampaignStatus = "Active" | "Paused" | "Completed";
 export type CampaignType = "Outbound" | "Follow-Up" | "Reminder";
@@ -92,7 +98,7 @@ export type Campaign = {
   endDate: Date;
   status: CampaignStatus;
   successRate: number; // 0-100
-  representativePhoneNumber?: string; // For search by phone number
+  representativePhoneNumber?: string; 
 };
 
 export const mockClientsForFilter = [
@@ -251,8 +257,8 @@ export default function ManageCampaignsPage() {
       id: `camp_${Date.now()}`,
       ...newCampaignData,
       callsAttempted: 0,
-      status: 'Active', // Default status for new campaigns
-      successRate: 0, // Default success rate
+      status: 'Active', 
+      successRate: 0, 
     };
     setCampaigns(prev => [newCampaign, ...prev]);
     setIsAddCampaignSheetOpen(false);
@@ -556,5 +562,3 @@ export default function ManageCampaignsPage() {
     </div>
   );
 }
-
-    

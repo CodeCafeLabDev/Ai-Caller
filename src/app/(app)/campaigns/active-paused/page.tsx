@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -30,8 +31,15 @@ import {
   ListChecks,
 } from "lucide-react";
 import { format, subDays, addDays } from "date-fns";
+import type { Metadata } from 'next';
 
-type CampaignStatus = "Active" | "Paused" | "Completed"; // Assuming Completed might be filtered out or handled if present
+// export const metadata: Metadata = {
+//   title: 'Active & Paused Campaigns - Voxaiomni',
+//   description: 'View and manage currently running or paused campaigns and their key real-time metrics.',
+//   keywords: ['active campaigns', 'paused campaigns', 'live campaigns', 'campaign status', 'voxaiomni'],
+// };
+
+type CampaignStatus = "Active" | "Paused" | "Completed"; 
 
 interface Campaign {
   id: string;
@@ -40,7 +48,6 @@ interface Campaign {
   status: CampaignStatus;
   callsAttempted: number;
   callsTargeted: number;
-  // Add other relevant fields if needed for display or logic
   startDate: Date;
   endDate: Date;
 }
@@ -87,7 +94,7 @@ const mockCampaignsData: Campaign[] = [
     endDate: addDays(new Date(), 28),
   },
    {
-    id: "camp_completed_1", // Example of a completed one, will be filtered out by default logic
+    id: "camp_completed_1", 
     name: "Old Q1 Promo",
     clientName: "Innovate Corp",
     status: "Completed",
@@ -145,7 +152,7 @@ export default function ActivePausedCampaignsPage() {
       title: "Monitor Campaign",
       description: `Navigating to monitor "${campaignName}". (Functionality to be implemented)`,
     });
-    // router.push(`/campaigns/monitor-live?campaignId=${campaignId}`); // Future navigation
+    // router.push(`/campaigns/monitor-live?campaignId=${campaignId}`); 
   };
 
   const displayedCampaigns = campaigns.filter(

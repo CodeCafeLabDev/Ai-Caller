@@ -3,6 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { UsersRound, TrendingUp, Clock, Zap } from "lucide-react";
 import Image from "next/image";
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Dashboard - Voxaiomni',
+  description: 'Overview and key metrics for your Voxaiomni AI calling system.',
+  keywords: ['dashboard', 'analytics', 'metrics', 'ai calling', 'voxaiomni'],
+};
 
 const statCardsData = [
   {

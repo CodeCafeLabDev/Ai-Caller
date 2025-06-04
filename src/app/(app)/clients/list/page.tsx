@@ -58,11 +58,19 @@ import {
   FileText,
   Check,
   ChevronsUpDown,
-  FileDown, // Added FileDown icon
+  FileDown, 
 } from "lucide-react";
 import { AddClientForm } from "@/components/clients/add-client-form";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast"; // Added for toast notifications
+import { useToast } from "@/hooks/use-toast"; 
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = { // Metadata must be exported from server components or route handlers
+//   title: 'Manage Clients - Voxaiomni',
+//   description: 'View, manage, and add client accounts.',
+//   keywords: ['clients', 'customer management', 'accounts', 'crm', 'voxaiomni'],
+// };
+
 
 type Client = {
   id: string;
@@ -181,7 +189,7 @@ const sortOptions = [
 
 
 export default function AllClientsListPage() {
-  const { toast } = useToast(); // Initialize toast
+  const { toast } = useToast(); 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planFilter, setPlanFilter] = React.useState("all");

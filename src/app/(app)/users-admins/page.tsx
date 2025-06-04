@@ -34,6 +34,13 @@ import { useToast } from "@/hooks/use-toast";
 import { UserCog, PlusCircle, MoreHorizontal, Edit2, UserX, UserCheck, ListChecks, ShieldCheck, Activity, Eye, KeyRound, LogOut, Trash2, Search, ListFilterIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Admin User & Role Management - Voxaiomni',
+//   description: 'Oversee administrative users, their roles, permissions, and activity logs.',
+//   keywords: ['admin users', 'user roles', 'permissions management', 'admin activity', 'voxaiomni'],
+// };
 
 type AdminUserStatus = "Active" | "Suspended";
 type AdminRoleStatus = "Active" | "Archived";
@@ -96,7 +103,7 @@ export default function UsersAdminsPage() {
   const [statusFilter, setStatusFilter] = React.useState<AdminUserStatus | "All Statuses">("All Statuses");
   
   const [currentPage, setCurrentPage] = React.useState(1);
-  const itemsPerPage = 5; // Adjusted for smaller tables in one page
+  const itemsPerPage = 5; 
 
   const handleAdminUserAction = (actionName: string, userName: string, userId?: string) => {
     if ((actionName === "Suspend User" || actionName === "Activate User") && userId) {
@@ -357,4 +364,3 @@ export default function UsersAdminsPage() {
     </div>
   );
 }
-    

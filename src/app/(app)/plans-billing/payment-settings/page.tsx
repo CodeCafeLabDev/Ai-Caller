@@ -27,7 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { KeyRound, FileText, MailWarning, UploadCloud, ServerCog, LinkIcon, FileDown } from "lucide-react"; // Added FileDown
+import { KeyRound, FileText, MailWarning, UploadCloud, ServerCog, LinkIcon, FileDown } from "lucide-react"; 
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,7 +35,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"; // Added DropdownMenu
+} from "@/components/ui/dropdown-menu"; 
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Payment Settings - Voxaiomni',
+//   description: 'Configure payment gateway integrations, invoice settings, and billing notifications.',
+//   keywords: ['payment gateway', 'stripe', 'razorpay', 'invoice settings', 'billing notifications', 'voxaiomni'],
+// };
 
 const apiConfigSchema = z.object({
   paymentGateway: z.enum(["stripe", "razorpay"], { required_error: "Please select a payment gateway." }),
@@ -426,5 +433,3 @@ export default function PaymentSettingsPage() {
     </div>
   );
 }
-
-    

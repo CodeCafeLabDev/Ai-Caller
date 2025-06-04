@@ -1,4 +1,12 @@
 
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Export Data - Voxaiomni',
+  description: 'Export various types of data, including call logs, campaign performance, and client information, in CSV or PDF formats.',
+  keywords: ['export data', 'csv export', 'pdf export', 'data download', 'voxaiomni reports'],
+};
+
 export default function ExportDataPage() {
   return (
     <div className="container mx-auto py-10">

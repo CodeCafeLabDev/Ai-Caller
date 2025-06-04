@@ -1,6 +1,14 @@
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo'; // Assuming logo component will be created
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Voxaiomni - Omni-Channel Communication Management',
+  description: 'Welcome to Voxaiomni, the next generation platform for seamless voice integration and omni-channel communication management.',
+  keywords: ['voice integration', 'omni-channel', 'communication', 'ai calling', 'platform'],
+};
 
 export default function HomePage() {
   return (

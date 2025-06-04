@@ -15,8 +15,15 @@ import { Ban, CheckCircle, CalendarClock, Edit, Tag, Users, FileDown, PlayCircle
 import { format } from "date-fns";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import type { Metadata } from 'next';
 
-// Mock client data for selection - in a real app, this would come from an API
+// export const metadata: Metadata = {
+//   title: 'Client Account Status - Voxaiomni',
+//   description: 'Manage client account access, trial periods, and log status changes.',
+//   keywords: ['client status', 'account management', 'suspend client', 'trial management', 'voxaiomni'],
+// };
+
+
 const mockClients = [
   { id: "1", name: "Innovate Corp", status: "Active" },
   { id: "2", name: "Solutions Ltd", status: "Suspended" },

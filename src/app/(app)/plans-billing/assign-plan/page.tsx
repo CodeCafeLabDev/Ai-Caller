@@ -23,7 +23,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, ChevronsUpDown, CalendarIcon, Edit, Tag, Users, FileDown } from "lucide-react"; // Added FileDown
+import { Check, ChevronsUpDown, CalendarIcon, Edit, Tag, Users, FileDown } from "lucide-react"; 
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,11 +31,18 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"; // Added DropdownMenu
+} from "@/components/ui/dropdown-menu"; 
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import type { Plan } from "@/app/(app)/plans-billing/page"; 
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Assign Plan to Client - Voxaiomni',
+//   description: 'Manually link a subscription plan to a client account with optional overrides and discounts.',
+//   keywords: ['assign plan', 'client subscription', 'billing management', 'saas billing', 'voxaiomni'],
+// };
 
 const mockClients = [
   { id: "client_1", name: "Innovate Corp" },
@@ -435,5 +442,3 @@ export default function AssignPlanToClientPage() {
     </div>
   );
 }
-
-    

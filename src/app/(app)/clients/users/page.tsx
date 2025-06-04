@@ -74,6 +74,13 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Client Users Management - Voxaiomni',
+//   description: 'Manage user accounts within client organizations, including roles and statuses.',
+//   keywords: ['client users', 'user management', 'roles', 'permissions', 'voxaiomni'],
+// };
 
 type UserRole = "Admin" | "Agent" | "Analyst" | "Viewer";
 type UserStatus = "Active" | "Suspended" | "Pending";
@@ -504,6 +511,3 @@ export default function ClientUsersPage() {
     </div>
   );
 }
-
-
-    

@@ -41,6 +41,13 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Billing & Invoices - Voxaiomni',
+//   description: 'Monitor client transactions, manage invoices, and track payment statuses.',
+//   keywords: ['billing', 'invoices', 'payments', 'transactions', 'saas billing', 'voxaiomni'],
+// };
 
 type PaymentStatus = "Paid" | "Failed" | "Pending" | "Overdue";
 
@@ -421,5 +428,3 @@ export default function BillingInvoicesPage() {
     </div>
   );
 }
-
-    

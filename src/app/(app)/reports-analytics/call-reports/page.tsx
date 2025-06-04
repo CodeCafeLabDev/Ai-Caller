@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input"; // Added Input for potential future use
+import { Input } from "@/components/ui/input"; 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   DropdownMenu,
@@ -79,6 +79,13 @@ import {
   SheetIcon,
   CalendarDays as CalendarIcon,
 } from "lucide-react";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Call Reports - Voxaiomni',
+//   description: 'Analyze call performance, track trends, and gain insights into your calling operations with daily and monthly reports.',
+//   keywords: ['call reports', 'call analytics', 'performance tracking', 'voxaiomni reports'],
+// };
 
 type CallStatus = "Completed" | "Failed" | "Missed" | "Answered" | "All";
 type ReportEntry = {
@@ -87,7 +94,7 @@ type ReportEntry = {
   clientName: string;
   campaignName: string;
   totalCalls: number;
-  connectedRate: number; // percentage
+  connectedRate: number; 
   avgDurationMinutes: number;
   statusSummary: Record<"Completed" | "Failed" | "Missed" | "Answered", number>;
 };
@@ -471,5 +478,3 @@ export default function CallReportsPage() {
     </div>
   );
 }
-
-    

@@ -23,6 +23,13 @@ import {
   AreaChart,
   PieChart,
 } from "lucide-react";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'System Usage Trends - Voxaiomni',
+//   description: 'Monitor overall system performance, resource utilization, call volumes, and AI model costs over time.',
+//   keywords: ['system usage', 'performance trends', 'resource utilization', 'call volume', 'ai costs', 'voxaiomni analytics'],
+// };
 
 export default function SystemUsageTrendsPage() {
   return (

@@ -41,11 +41,19 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Edit3, Trash2, Languages, Settings, BookOpen, Mic, SlidersHorizontal, CheckCircle } from "lucide-react";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'AI Template Language Settings - Voxaiomni',
+//   description: 'Manage language support, TTS configurations, and localization for AI templates.',
+//   keywords: ['language settings', 'tts configuration', 'localization', 'ai templates', 'voxaiomni'],
+// };
+
 
 interface LanguageSetting {
   id: string;
   name: string;
-  code: string; // e.g., "en-US", "es-ES"
+  code: string; 
   ttsEngine: string;
   voice: string;
   speed?: number;
@@ -83,7 +91,6 @@ export default function AiTemplateLanguageSettingsPage() {
   const [isConfigDialogOpen, setIsConfigDialogOpen] = React.useState(false);
   const [currentLangToConfig, setCurrentLangToConfig] = React.useState<LanguageSetting | null>(null);
   
-  // Form state for Add/Config dialogs
   const [selectedLangCode, setSelectedLangCode] = React.useState<string>("");
   const [selectedTtsEngine, setSelectedTtsEngine] = React.useState<string>("");
   const [selectedVoice, setSelectedVoice] = React.useState<string>("");
@@ -119,7 +126,7 @@ export default function AiTemplateLanguageSettingsPage() {
   
   const handleOpenConfigDialog = (lang: LanguageSetting) => {
     setCurrentLangToConfig(lang);
-    setSelectedLangCode(lang.code); // Not for change, just for display
+    setSelectedLangCode(lang.code); 
     setSelectedTtsEngine(lang.ttsEngine);
     setSelectedVoice(lang.voice);
     setCurrentSpeed(lang.speed || 1);
@@ -223,7 +230,7 @@ export default function AiTemplateLanguageSettingsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {supportedLanguages
-                      .filter(lang => lang.id !== defaultLanguageId) // Cannot be same as default
+                      .filter(lang => lang.id !== defaultLanguageId) 
                       .map((lang) => (
                       <SelectItem key={lang.id} value={lang.id}>
                         {lang.name}
@@ -342,7 +349,6 @@ export default function AiTemplateLanguageSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Add Language Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -389,7 +395,6 @@ export default function AiTemplateLanguageSettingsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Configure Language Dialog */}
       <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -433,5 +438,3 @@ export default function AiTemplateLanguageSettingsPage() {
     </div>
   );
 }
-
-    

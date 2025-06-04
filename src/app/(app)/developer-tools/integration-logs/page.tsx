@@ -71,6 +71,13 @@ import {
   ServerIcon,
   MessageSquare,
 } from "lucide-react";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'API Integration Logs - Voxaiomni',
+//   description: 'Monitor and review all API interactions and webhook deliveries. Filter logs by date, client, endpoint, status, method, and type.',
+//   keywords: ['integration logs', 'api logs', 'webhook logs', 'developer tools', 'voxaiomni'],
+// };
 
 type LogType = "API Call" | "Webhook";
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "ALL";
@@ -87,8 +94,8 @@ interface LogEntry {
   responseCode: number;
   errorMessage?: string;
   retryAttempted?: boolean;
-  requestBody?: string; // Simplified for now
-  responseBody?: string; // Simplified for now
+  requestBody?: string; 
+  responseBody?: string; 
 }
 
 const mockClients = [
@@ -379,5 +386,3 @@ export default function IntegrationLogsPage() {
     </div>
   );
 }
-
-    

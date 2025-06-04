@@ -1,4 +1,12 @@
 
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'System Settings - Voxaiomni',
+  description: 'Manage general system configurations, integrations, and security settings for Voxaiomni.',
+  keywords: ['system settings', 'configuration', 'integrations', 'security', 'voxaiomni admin'],
+};
+
 export default function SystemSettingsPage() {
   return (
     <div className="container mx-auto py-10">

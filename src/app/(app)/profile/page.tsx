@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,6 +19,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'User Profile - Voxaiomni',
+//   description: 'Manage your account settings, personal information, and change your password.',
+//   keywords: ['user profile', 'account settings', 'change password', 'personal information', 'voxaiomni'],
+// };
 
 const profileFormSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),

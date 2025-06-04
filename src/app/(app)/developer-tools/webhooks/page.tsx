@@ -57,6 +57,13 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ArrowRightLeft, PlusCircle, MoreHorizontal, Edit, Trash2, Play, Pause, KeyRound, Copy, Eye, EyeOff, RotateCcw, ListChecks, Sparkles } from "lucide-react";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Webhooks Management - Voxaiomni',
+//   description: 'Configure and manage webhook endpoints for real-time event notifications from Voxaiomni.',
+//   keywords: ['webhooks', 'event notifications', 'api integration', 'developer tools', 'voxaiomni'],
+// };
 
 type WebhookStatus = "Active" | "Inactive";
 type WebhookEventType = "onCallEnd" | "onCallFailed" | "onIntentMatch" | "onCampaignStatusChange" | "onPaymentSuccess" | "onPaymentFailure";
@@ -388,6 +395,3 @@ export default function WebhooksPage() {
     </div>
   );
 }
-
-
-    

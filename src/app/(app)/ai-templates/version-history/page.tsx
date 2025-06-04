@@ -49,6 +49,13 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { MoreHorizontal, Eye, CheckCircle, History, RotateCcw, ChevronsUpDown, Check, Diff } from "lucide-react";
 import { format } from "date-fns";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'AI Template Version History - Voxaiomni',
+//   description: 'Track changes, view previous versions, and manage the version history of your AI script templates.',
+//   keywords: ['version history', 'ai templates', 'script versions', 'change tracking', 'voxaiomni'],
+// };
 
 interface AITemplateSummary {
   id: string;
@@ -124,7 +131,7 @@ export default function AiTemplateVersionHistoryPage() {
   };
   
   const handleRollback = (versionId: string) => {
-    handleSetAsActive(versionId); // For simulation, rollback is same as set active
+    handleSetAsActive(versionId); 
     toast({
       title: "Rollback Successful (Simulated)",
       description: `Rolled back to version ${versions.find(v=>v.id === versionId)?.versionNumber}.`,
@@ -306,5 +313,3 @@ export default function AiTemplateVersionHistoryPage() {
     </div>
   );
 }
-
-    

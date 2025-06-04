@@ -24,12 +24,19 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { UploadCloud, Download, FileJson, Loader2, CheckCircle, AlertCircle, Edit3 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Import/Export AI Templates - Voxaiomni',
+//   description: 'Manage AI conversation templates by exporting them for backup or sharing, or importing pre-existing templates in JSON format.',
+//   keywords: ['import templates', 'export templates', 'json templates', 'ai scripts', 'conversation backup', 'voxaiomni'],
+// };
 
 interface MockTemplate {
   id: string;
   name: string;
   version: string;
-  content: object; // Simplified content
+  content: object; 
 }
 
 const mockTemplatesForExport: MockTemplate[] = [
@@ -57,9 +64,8 @@ export default function AiTemplateImportExportPage() {
   const [showImportConfirmation, setShowImportConfirmation] = React.useState(false);
   const [importedTemplateDetails, setImportedTemplateDetails] = React.useState<ImportedTemplateDetails | null>(null);
   
-  // State for editable fields after import
   const [editName, setEditName] = React.useState("");
-  const [editCategory, setEditCategory] = React.useState(""); // Example: use pre-defined categories
+  const [editCategory, setEditCategory] = React.useState(""); 
   const [editStatus, setEditStatus] = React.useState<"Draft" | "Published">("Draft");
 
 
@@ -104,7 +110,6 @@ export default function AiTemplateImportExportPage() {
         setShowImportConfirmation(false); 
         setImportedTemplateDetails(null);
         
-        // Simulate processing
         setIsImporting(true);
         setImportProgress(0);
         let progress = 0;
@@ -114,16 +119,13 @@ export default function AiTemplateImportExportPage() {
           if (progress >= 100) {
             clearInterval(interval);
             setIsImporting(false);
-            // Mock parsing file content
             try {
-              // In a real app, you'd use FileReader to read file.content
-              // For this mock, we'll assume it's a valid template structure
               const mockParsedData: Partial<MockTemplate> = { name: file.name.replace(".json", ""), description: "Imported from file" };
               setImportedTemplateDetails({
                 name: mockParsedData.name || "Unnamed Template",
                 description: mockParsedData.description || "No description provided.",
-                category: "Other", // Default or parsed
-                language: "English (US)", // Default or parsed
+                category: "Other", 
+                language: "English (US)", 
               });
               setEditName(mockParsedData.name || "Unnamed Template");
               setEditCategory("Other");
@@ -270,7 +272,6 @@ export default function AiTemplateImportExportPage() {
                         <div className="space-y-1">
                              <Label htmlFor="edit-category">Category*</Label>
                              <Input id="edit-category" value={editCategory} onChange={e => setEditCategory(e.target.value)} placeholder="e.g., Lead Generation" />
-                             {/* Replace with Select for predefined categories later */}
                         </div>
                          <div className="space-y-1">
                             <Label htmlFor="edit-status">Set Status*</Label>
@@ -330,5 +331,3 @@ export default function AiTemplateImportExportPage() {
     </div>
   );
 }
-
-    

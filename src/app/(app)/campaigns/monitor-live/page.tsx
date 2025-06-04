@@ -41,6 +41,14 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import type { Metadata } from 'next';
+
+// export const metadata: Metadata = {
+//   title: 'Monitor Live Calls - Voxaiomni',
+//   description: 'Real-time insights into your calling operations, including live call tracking and system logs.',
+//   keywords: ['live calls', 'call monitoring', 'real-time analytics', 'call center', 'voxaiomni'],
+// };
+
 
 type CallStatus = "Dialing" | "Answered" | "In Progress" | "Failed" | "Completed";
 type LogType = "info" | "warning" | "error";
@@ -120,16 +128,13 @@ export default function MonitorLiveCallsPage() {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Simulate live updates
   React.useEffect(() => {
     const interval = setInterval(() => {
-      // Update call durations and possibly statuses
       setLiveCalls(prevCalls =>
         prevCalls.map(call => {
           if (["Dialing", "Answered", "In Progress"].includes(call.status)) {
             const newDuration = call.durationSeconds + 1;
             let newStatus = call.status;
-            // Randomly change status for simulation
             if (Math.random() < 0.01 && call.status === "Dialing") newStatus = "Answered";
             else if (Math.random() < 0.005 && call.status === "Answered") newStatus = "In Progress";
             else if (Math.random() < 0.002 && call.status === "In Progress" && newDuration > 180) newStatus = "Completed";
@@ -141,7 +146,6 @@ export default function MonitorLiveCallsPage() {
         })
       );
 
-      // Add new log entry
       if (Math.random() < 0.2) {
         const newLogId = `log_${Date.now()}`;
         const randomCall = liveCalls[Math.floor(Math.random() * liveCalls.length)];
@@ -157,7 +161,6 @@ export default function MonitorLiveCallsPage() {
         setLogEntries(prevLogs => [{ id: newLogId, timestamp: new Date(), message: logMessages[randomIndex], type: logTypes[randomIndex] }, ...prevLogs.slice(0, 49) ]);
       }
 
-      // Update summary stats
       const currentLive = liveCalls.filter(c => ["Dialing", "Answered", "In Progress"].includes(c.status)).length;
       setTotalLiveCalls(currentLive);
       const agents = new Set(liveCalls.filter(c => c.agent && ["Answered", "In Progress"].includes(c.status)).map(c => c.agent));
@@ -165,10 +168,10 @@ export default function MonitorLiveCallsPage() {
       setAvgResponseTime(`${Math.floor(Math.random() * 5) + 8}s`);
 
 
-    }, 1000); // Update every second
+    }, 1000); 
 
     return () => clearInterval(interval);
-  }, [liveCalls]); // Dependency on liveCalls to use its latest state in log generation
+  }, [liveCalls]); 
 
   const handleCallAction = (actionName: string, callId: string) => {
     toast({
@@ -318,5 +321,3 @@ export default function MonitorLiveCallsPage() {
     </div>
   );
 }
-
-    

@@ -14,9 +14,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { UserCircle, BarChart3, FileBadge, NotebookText, Edit3, Phone, Mail, CalendarDays, Briefcase, Building } from "lucide-react";
-import Image from "next/image"; // Keep if any other images might be used
+import Image from "next/image"; 
+import type { Metadata } from 'next';
 
-// Mock client data for demonstration - ensure all fields from requirements are here
+// Metadata should be defined in a server component or route handler if possible.
+// For client components, the nearest server layout/page handles overall metadata.
+// We can add a comment here indicating what the metadata *would* be.
+// Potential Metadata:
+// export const metadata: Metadata = {
+//   title: 'Client Details & Usage - Voxaiomni',
+//   description: 'View detailed information, usage statistics, and plan details for a specific client.',
+//   keywords: ['client details', 'client usage', 'customer analytics', 'subscription', 'voxaiomni'],
+// };
+
 const mockClient = {
   id: "1",
   name: "Innovate Corp",
