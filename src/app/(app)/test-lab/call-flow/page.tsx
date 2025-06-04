@@ -352,7 +352,7 @@ export default function SimulateCallFlowPage() {
             <Card>
               <CardHeader><CardTitle className="flex items-center"><FileText className="mr-2 h-5 w-5"/>Visual Node-based Flow (Placeholder)</CardTitle></CardHeader>
               <CardContent>
-                <Image src="https://placehold.co/600x300.png?text=Call+Flow+Diagram" alt="Visual Call Flow Placeholder" width={600} height={300} className="rounded-md border w-full" data-ai-hint="flowchart diagram"/>
+                <Image src="https://placehold.co/600x300.png?text=Call+Flow+Diagram" alt="Placeholder: Flowchart diagram of call flow" width={600} height={300} className="rounded-md border w-full" data-ai-hint="flowchart diagram"/>
                 <p className="text-xs text-muted-foreground mt-2">This area would display a visual representation of the call script and current active node.</p>
               </CardContent>
             </Card>

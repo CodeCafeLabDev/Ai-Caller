@@ -25,11 +25,11 @@ import { Badge } from "@/components/ui/badge";
 import { Award, ArrowUpDown, TrendingUp, ListChecks, BarChart2 } from "lucide-react";
 import type { Metadata } from 'next';
 
-// export const metadata: Metadata = {
-//   title: 'Top Performing Campaigns - Voxaiomni',
-//   description: 'Identify standout campaigns based on success rate, conversion, call volume, and feedback. Analyze factors for success.',
-//   keywords: ['top campaigns', 'campaign performance', 'analytics', 'best campaigns', 'voxaiomni'],
-// };
+export const metadata: Metadata = {
+  title: 'Top Performing Campaigns - Voxaiomni',
+  description: 'Identify standout campaigns based on success rate, conversion, call volume, and feedback. Analyze factors for success.',
+  keywords: ['top campaigns', 'campaign performance', 'analytics', 'best campaigns', 'voxaiomni'],
+};
 
 type TopPerformingCampaign = {
   id: string;
@@ -195,7 +195,7 @@ export default function TopPerformingCampaignsPage() {
                 <CardContent>
                     <Image
                         src="https://placehold.co/600x400.png?text=Engagement+Chart"
-                        alt="Engagement Chart Placeholder"
+                        alt="Placeholder: Bar chart for engagement"
                         width={600}
                         height={400}
                         className="rounded-md w-full"
@@ -210,7 +210,7 @@ export default function TopPerformingCampaignsPage() {
                 <CardContent>
                      <Image
                         src="https://placehold.co/600x400.png?text=Trends+Chart"
-                        alt="Performance Trends Chart Placeholder"
+                        alt="Placeholder: Line graph for performance trends"
                         width={600}
                         height={400}
                         className="rounded-md w-full"

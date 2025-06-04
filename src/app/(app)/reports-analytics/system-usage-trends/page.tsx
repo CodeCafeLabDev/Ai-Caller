@@ -25,11 +25,11 @@ import {
 } from "lucide-react";
 import type { Metadata } from 'next';
 
-// export const metadata: Metadata = {
-//   title: 'System Usage Trends - Voxaiomni',
-//   description: 'Monitor overall system performance, resource utilization, call volumes, and AI model costs over time.',
-//   keywords: ['system usage', 'performance trends', 'resource utilization', 'call volume', 'ai costs', 'voxaiomni analytics'],
-// };
+export const metadata: Metadata = {
+  title: 'System Usage Trends - Voxaiomni',
+  description: 'Monitor overall system performance, resource utilization, call volumes, and AI model costs over time.',
+  keywords: ['system usage', 'performance trends', 'resource utilization', 'call volume', 'ai costs', 'voxaiomni analytics'],
+};
 
 export default function SystemUsageTrendsPage() {
   return (
@@ -52,7 +52,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/800x400.png"
-              alt="Total Calls Over Time Chart Placeholder"
+              alt="Placeholder: Area chart of total calls over time"
               width={800}
               height={400}
               className="rounded-md w-full"
@@ -69,7 +69,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/400x300.png"
-              alt="Average Call Duration Chart Placeholder"
+              alt="Placeholder: Line chart of average call duration"
               width={400}
               height={300}
               className="rounded-md w-full"
@@ -86,7 +86,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/400x300.png"
-              alt="Active Campaigns Chart Placeholder"
+              alt="Placeholder: Line chart of active campaigns"
               width={400}
               height={300}
               className="rounded-md w-full"
@@ -103,7 +103,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/800x400.png"
-              alt="Top Clients Chart Placeholder"
+              alt="Placeholder: Bar chart of top clients by call volume"
               width={800}
               height={400}
               className="rounded-md w-full"
@@ -120,7 +120,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/400x300.png"
-              alt="STT/TTS Usage Chart Placeholder"
+              alt="Placeholder: Line chart of STT/TTS usage"
               width={400}
               height={300}
               className="rounded-md w-full"
@@ -137,7 +137,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/400x300.png"
-              alt="Language Distribution Chart Placeholder"
+              alt="Placeholder: Pie chart of language distribution"
               width={400}
               height={300}
               className="rounded-md w-full"
@@ -154,7 +154,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
              <Image
               src="https://placehold.co/400x300.png"
-              alt="AI Model Cost Chart Placeholder"
+              alt="Placeholder: Bar chart of AI model costs"
               width={400}
               height={300}
               className="rounded-md w-full"
@@ -172,7 +172,7 @@ export default function SystemUsageTrendsPage() {
           <CardContent>
             <Image
               src="https://placehold.co/1200x400.png"
-              alt="Call Activity Heat Map Placeholder"
+              alt="Placeholder: Heat map of call activity"
               width={1200}
               height={400}
               className="rounded-md w-full"

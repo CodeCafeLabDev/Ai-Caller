@@ -107,7 +107,7 @@ export default function DashboardPage() {
           <CardContent>
             <Image
               src="https://placehold.co/600x300.png?text=Call+Activity+Chart"
-              alt="Call Activity Chart Placeholder"
+              alt="Placeholder: Line chart for call activity"
               width={600}
               height={300}
               className="rounded-md w-full"

@@ -81,11 +81,11 @@ import {
 } from "lucide-react";
 import type { Metadata } from 'next';
 
-// export const metadata: Metadata = {
-//   title: 'Call Reports - Voxaiomni',
-//   description: 'Analyze call performance, track trends, and gain insights into your calling operations with daily and monthly reports.',
-//   keywords: ['call reports', 'call analytics', 'performance tracking', 'voxaiomni reports'],
-// };
+export const metadata: Metadata = {
+  title: 'Call Reports - Voxaiomni',
+  description: 'Analyze call performance, track trends, and gain insights into your calling operations with daily and monthly reports.',
+  keywords: ['call reports', 'call analytics', 'performance tracking', 'voxaiomni reports'],
+};
 
 type CallStatus = "Completed" | "Failed" | "Missed" | "Answered" | "All";
 type ReportEntry = {
@@ -385,19 +385,19 @@ export default function CallReportsPage() {
         <Card className="md:col-span-1">
           <CardHeader><CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5"/>Calls Over Time</CardTitle></CardHeader>
           <CardContent>
-            <Image data-ai-hint="line chart calls" src="https://placehold.co/600x400.png?text=Calls/Day+Chart" alt="Calls per day chart placeholder" width={600} height={400} className="rounded-md w-full"/>
+            <Image data-ai-hint="line chart calls" src="https://placehold.co/600x400.png?text=Calls/Day+Chart" alt="Placeholder: Line chart of calls per day" width={600} height={400} className="rounded-md w-full"/>
           </CardContent>
         </Card>
         <Card className="md:col-span-1">
           <CardHeader><CardTitle className="flex items-center"><PieChartIcon className="mr-2 h-5 w-5"/>Call Status Breakdown</CardTitle></CardHeader>
           <CardContent>
-            <Image data-ai-hint="pie chart status" src="https://placehold.co/400x400.png?text=Status+Pie+Chart" alt="Status breakdown pie chart placeholder" width={400} height={400} className="rounded-md w-full aspect-square object-cover"/>
+            <Image data-ai-hint="pie chart status" src="https://placehold.co/400x400.png?text=Status+Pie+Chart" alt="Placeholder: Pie chart of call status breakdown" width={400} height={400} className="rounded-md w-full aspect-square object-cover"/>
           </CardContent>
         </Card>
         <Card className="md:col-span-1">
           <CardHeader><CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5"/>Calls by Client/Campaign</CardTitle></CardHeader>
           <CardContent>
-             <Image data-ai-hint="bar chart clients" src="https://placehold.co/600x400.png?text=Calls+by+Client+Chart" alt="Calls by client bar chart placeholder" width={600} height={400} className="rounded-md w-full"/>
+             <Image data-ai-hint="bar chart clients" src="https://placehold.co/600x400.png?text=Calls+by+Client+Chart" alt="Placeholder: Bar chart of calls by client" width={600} height={400} className="rounded-md w-full"/>
           </CardContent>
         </Card>
       </div>
