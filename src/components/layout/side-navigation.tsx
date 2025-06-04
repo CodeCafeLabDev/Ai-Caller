@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -79,7 +79,17 @@ const initialNavItems: NavItemType[] = [
       { href: '/campaigns/top-performing', label: 'Top Performing', icon: Award },
     ],
   },
-  { href: '/ai-templates', label: 'AI Templates', icon: Bot },
+  {
+    label: 'AI Templates',
+    icon: Bot,
+    basePath: '/ai-templates',
+    subItems: [
+        { href: '/ai-templates', label: 'Manage Templates', icon: Bot },
+        { href: '/ai-templates/version-history', label: 'Version History', icon: History },
+        { href: '/ai-templates/language-settings', label: 'Language Settings', icon: Languages },
+        { href: '/ai-templates/import-export', label: 'Import/Export JSON', icon: FileJson },
+    ]
+  },
   { href: '/reports-analytics', label: 'Reports & Analytics', icon: BarChartBig },
   { href: '/developer-tools', label: 'Developer Tools', icon: TerminalSquare },
   { href: '/test-lab', label: 'Test Lab', icon: FlaskConical },
