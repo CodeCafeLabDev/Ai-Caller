@@ -23,26 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { SheetFooter, SheetClose } from "@/components/ui/sheet";
+import { SheetFooter } from "@/components/ui/sheet"; // Removed SheetClose as it's handled by onCancel
+import type { Plan } from "@/app/(app)/plans-billing/page"; // Import Plan type
 
 const planStatusOptions = ["Active", "Draft", "Archived"] as const;
 const planDurationOptions = ["Monthly", "Annual", "Custom"] as const;
-
-// Matches the Plan type in plans-billing/page.tsx
-type Plan = {
-  id: string;
-  name: string;
-  priceMonthly?: number;
-  priceAnnual?: number;
-  currency: string;
-  callMinuteLimit: string;
-  templateUsageLimit: number;
-  durationDisplay: "Monthly" | "Annual" | "Custom"; // Ensure this matches options
-  agentSeats: number;
-  status: "Active" | "Draft" | "Archived";
-};
 
 const editPlanFormSchema = z.object({
   name: z.string().min(2, { message: "Plan name must be at least 2 characters." }),
@@ -60,12 +46,11 @@ type EditPlanFormValues = z.infer<typeof editPlanFormSchema>;
 
 interface EditPlanFormProps {
   plan: Plan;
-  onSuccess?: () => void;
-  onCancel?: () => void;
+  onSuccess: (updatedPlan: Plan) => void; // Changed to pass updatedPlan
+  onCancel: () => void;
 }
 
 export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
-  const { toast } = useToast();
   const form = useForm<EditPlanFormValues>({
     resolver: zodResolver(editPlanFormSchema),
     defaultValues: {
@@ -101,14 +86,20 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
       priceMonthly: data.priceMonthly === '' ? undefined : data.priceMonthly,
       priceAnnual: data.priceAnnual === '' ? undefined : data.priceAnnual,
     };
-    console.log("Updated Plan Data (Simulated):", { id: plan.id, ...submittedData });
-    toast({
-      title: "Plan Updated (Simulated)",
-      description: `Plan "${submittedData.name}" has been updated successfully.`,
-    });
-    if (onSuccess) {
-      onSuccess();
-    }
+    const updatedPlanObject: Plan = {
+      id: plan.id, 
+      name: submittedData.name,
+      priceMonthly: submittedData.priceMonthly,
+      priceAnnual: submittedData.priceAnnual,
+      currency: submittedData.currency,
+      callMinuteLimit: submittedData.callMinuteLimit,
+      templateUsageLimit: submittedData.templateUsageLimit,
+      durationDisplay: submittedData.durationDisplay,
+      agentSeats: submittedData.agentSeats,
+      status: submittedData.status,
+    };
+    console.log("Updated Plan Data (Simulated):", updatedPlanObject);
+    onSuccess(updatedPlanObject); // Pass the updated plan object
   }
 
   return (
@@ -274,3 +265,5 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
     </Form>
   );
 }
+
+    

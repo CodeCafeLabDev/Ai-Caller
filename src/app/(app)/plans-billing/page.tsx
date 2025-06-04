@@ -54,12 +54,12 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddPlanForm } from "@/components/plans/add-plan-form";
-import { EditPlanForm } from "@/components/plans/edit-plan-form"; // Import EditPlanForm
+import { EditPlanForm } from "@/components/plans/edit-plan-form";
 
 type PlanStatus = "Active" | "Draft" | "Archived";
 type PlanDuration = "Monthly" | "Annual" | "Custom";
 
-type Plan = {
+export type Plan = {
   id: string;
   name: string;
   priceMonthly?: number;
@@ -72,7 +72,7 @@ type Plan = {
   status: PlanStatus;
 };
 
-const mockPlans: Plan[] = [
+const initialMockPlans: Plan[] = [
   {
     id: "plan_basic_01",
     name: "Basic Monthly",
@@ -126,6 +126,7 @@ const statusVariants: Record<PlanStatus, string> = {
 
 export default function PlansBillingPage() {
   const { toast } = useToast();
+  const [plans, setPlans] = React.useState<Plan[]>(initialMockPlans);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planTypeFilter, setPlanTypeFilter] = React.useState("all");
@@ -133,7 +134,14 @@ export default function PlansBillingPage() {
   const [isEditPlanSheetOpen, setIsEditPlanSheetOpen] = React.useState(false);
   const [editingPlan, setEditingPlan] = React.useState<Plan | null>(null);
 
-  const handleAction = (actionName: string, planName: string) => {
+  const handleAction = (actionName: string, planName: string, planId?: string) => {
+     if (actionName === "Archive Plan" || actionName === "Unarchive Plan") {
+      setPlans(prevPlans => 
+        prevPlans.map(p => 
+          p.id === planId ? {...p, status: p.status === "Archived" ? "Active" : "Archived"} : p
+        )
+      );
+    }
     toast({
       title: `${actionName} (Simulated)`,
       description: `Action performed on plan: ${planName}.`,
@@ -145,19 +153,22 @@ export default function PlansBillingPage() {
     setIsEditPlanSheetOpen(true);
   };
 
-  const handleEditPlanSuccess = () => {
+  const handleEditPlanSuccess = (updatedPlan: Plan) => {
+    setPlans(prevPlans =>
+      prevPlans.map(p => (p.id === updatedPlan.id ? updatedPlan : p))
+    );
     setIsEditPlanSheetOpen(false);
     setEditingPlan(null);
-    // In a real app, you might want to refresh the plans list here
-    toast({ title: "Plan Updated", description: "The plan has been successfully updated." });
+    toast({ title: "Plan Updated", description: `The plan "${updatedPlan.name}" has been successfully updated.` });
   };
   
-  const handleAddPlanSuccess = () => {
+  const handleAddPlanSuccess = (newPlan: Plan) => {
+    setPlans(prevPlans => [newPlan, ...prevPlans]);
     setIsAddPlanSheetOpen(false);
-    toast({ title: "Plan Added", description: "The new plan has been successfully added." });
+    toast({ title: "Plan Added", description: `The new plan "${newPlan.name}" has been successfully added.` });
   };
 
-  const filteredPlans = mockPlans.filter((plan) => {
+  const filteredPlans = plans.filter((plan) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
     return (
       plan.name.toLowerCase().includes(lowerSearchTerm) &&
@@ -196,7 +207,10 @@ export default function PlansBillingPage() {
                 Fill in the details below to create a new subscription plan.
               </SheetDescription>
             </SheetHeader>
-            <AddPlanForm onSuccess={handleAddPlanSuccess} />
+            <AddPlanForm 
+              onSuccess={handleAddPlanSuccess} 
+              onCancel={() => setIsAddPlanSheetOpen(false)}
+            />
           </SheetContent>
         </Sheet>
       </div>
@@ -298,7 +312,7 @@ export default function PlansBillingPage() {
                         {plan.status !== "Archived" && (
                           <DropdownMenuItem 
                             className="text-yellow-600 focus:bg-yellow-50 focus:text-yellow-700"
-                            onClick={() => handleAction("Archive Plan", plan.name)}
+                            onClick={() => handleAction("Archive Plan", plan.name, plan.id)}
                           >
                             <Archive className="mr-2 h-4 w-4" /> Archive
                           </DropdownMenuItem>
@@ -306,7 +320,7 @@ export default function PlansBillingPage() {
                          {plan.status === "Archived" && (
                           <DropdownMenuItem 
                             className="text-green-600 focus:bg-green-50 focus:text-green-700"
-                            onClick={() => handleAction("Unarchive Plan", plan.name)}
+                            onClick={() => handleAction("Unarchive Plan", plan.name, plan.id)}
                           >
                             <Archive className="mr-2 h-4 w-4" /> Unarchive
                           </DropdownMenuItem>
@@ -376,3 +390,5 @@ export default function PlansBillingPage() {
     </div>
   );
 }
+
+    

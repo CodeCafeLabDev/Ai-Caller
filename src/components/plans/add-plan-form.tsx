@@ -23,9 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { SheetFooter, SheetClose } from "@/components/ui/sheet"; // Added SheetFooter and SheetClose
+import { SheetFooter, SheetClose } from "@/components/ui/sheet"; 
+import type { Plan } from "@/app/(app)/plans-billing/page"; // Import Plan type
 
 const planStatusOptions = ["Active", "Draft", "Archived"] as const;
 const planDurationOptions = ["Monthly", "Annual", "Custom"] as const;
@@ -45,11 +45,11 @@ const addPlanFormSchema = z.object({
 type AddPlanFormValues = z.infer<typeof addPlanFormSchema>;
 
 interface AddPlanFormProps {
-  onSuccess?: () => void;
+  onSuccess: (newPlan: Plan) => void; // Changed to pass newPlan
+  onCancel: () => void;
 }
 
-export function AddPlanForm({ onSuccess }: AddPlanFormProps) {
-  const { toast } = useToast();
+export function AddPlanForm({ onSuccess, onCancel }: AddPlanFormProps) {
   const form = useForm<AddPlanFormValues>({
     resolver: zodResolver(addPlanFormSchema),
     defaultValues: {
@@ -66,21 +66,26 @@ export function AddPlanForm({ onSuccess }: AddPlanFormProps) {
   });
 
   function onSubmit(data: AddPlanFormValues) {
-    // Convert empty string prices to undefined for proper optional handling
     const submittedData = {
       ...data,
       priceMonthly: data.priceMonthly === '' ? undefined : data.priceMonthly,
       priceAnnual: data.priceAnnual === '' ? undefined : data.priceAnnual,
     };
-    console.log("New Plan Data (Simulated):", submittedData);
-    toast({
-      title: "Plan Added (Simulated)",
-      description: `Plan "${submittedData.name}" has been added successfully.`,
-    });
+    const newPlanObject: Plan = {
+      id: `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, // More unique ID
+      name: submittedData.name,
+      priceMonthly: submittedData.priceMonthly,
+      priceAnnual: submittedData.priceAnnual,
+      currency: submittedData.currency,
+      callMinuteLimit: submittedData.callMinuteLimit,
+      templateUsageLimit: submittedData.templateUsageLimit,
+      durationDisplay: submittedData.durationDisplay,
+      agentSeats: submittedData.agentSeats,
+      status: submittedData.status,
+    };
+    console.log("New Plan Data (Simulated):", newPlanObject);
     form.reset();
-    if (onSuccess) {
-      onSuccess();
-    }
+    onSuccess(newPlanObject); // Pass the new plan object
   }
 
   return (
@@ -237,9 +242,7 @@ export function AddPlanForm({ onSuccess }: AddPlanFormProps) {
           </div>
         </ScrollArea>
         <SheetFooter className="pt-4 px-2 mt-auto border-t">
-            <SheetClose asChild>
-                <Button type="button" variant="outline">Cancel</Button>
-            </SheetClose>
+            <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
             <Button type="submit" disabled={form.formState.isSubmitting}>
             {form.formState.isSubmitting ? "Adding Plan..." : "Add Plan"}
             </Button>
@@ -248,3 +251,5 @@ export function AddPlanForm({ onSuccess }: AddPlanFormProps) {
     </Form>
   );
 }
+
+    
