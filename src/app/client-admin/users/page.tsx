@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, UserPlus, MoreHorizontal, Edit, Trash2, KeyRound } from "lucide-react";
+import { Users, UserPlus, MoreHorizontal, Edit, Trash2, KeyRound, UserX, UserCheck } from "lucide-react"; // Added UserPlus
 import {
   Table,
   TableBody,
@@ -116,7 +116,7 @@ export default function ClientUsersPage() {
                           <KeyRound className="mr-2 h-4 w-4" /> Reset Password
                         </DropdownMenuItem>
                          <DropdownMenuItem onClick={() => handleUserAction(user.status === 'Active' ? `Suspend ${user.name}` : `Activate ${user.name}`, user.name)}>
-                           {user.status === 'Active' ? <UserPlus className="mr-2 h-4 w-4 text-red-500" /> : <UserPlus className="mr-2 h-4 w-4 text-green-500" />}
+                           {user.status === 'Active' ? <UserX className="mr-2 h-4 w-4 text-red-500" /> : <UserCheck className="mr-2 h-4 w-4 text-green-500" />}
                           {user.status === 'Active' ? "Suspend" : "Activate"}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
