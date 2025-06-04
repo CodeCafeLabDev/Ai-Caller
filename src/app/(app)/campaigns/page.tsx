@@ -38,6 +38,15 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { AddCampaignForm } from "@/components/campaigns/add-campaign-form"; // Import the new form
+import {
   Search,
   ListFilter,
   MoreHorizontal,
@@ -56,7 +65,7 @@ import {
   Rocket,
   RefreshCcw,
   BellRing,
-  PlusCircle // Added PlusCircle here
+  PlusCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -65,12 +74,12 @@ import type { DateRange } from "react-day-picker";
 import { Label } from "@/components/ui/label";
 
 
-type CampaignStatus = "Active" | "Paused" | "Completed";
-type CampaignType = "Outbound" | "Follow-Up" | "Reminder";
+export type CampaignStatus = "Active" | "Paused" | "Completed";
+export type CampaignType = "Outbound" | "Follow-Up" | "Reminder";
 type SuccessRateFilter = "all" | "low" | "high"; // low < 70%, high >= 70%
 type SortByType = "latest" | "totalCalls" | "successRate";
 
-type Campaign = {
+export type Campaign = {
   id: string;
   name: string;
   clientName: string;
@@ -86,7 +95,7 @@ type Campaign = {
   representativePhoneNumber?: string; // For search by phone number
 };
 
-const mockClientsForFilter = [
+export const mockClientsForFilter = [
   { id: "client_1", name: "Innovate Corp" },
   { id: "client_2", name: "Solutions Ltd" },
   { id: "client_3", name: "Tech Ventures" },
@@ -216,6 +225,7 @@ export default function ManageCampaignsPage() {
   const [clientComboboxOpen, setClientComboboxOpen] = React.useState(false);
   const [successRateComboboxOpen, setSuccessRateComboboxOpen] = React.useState(false);
   const [sortComboboxOpen, setSortComboboxOpen] = React.useState(false);
+  const [isAddCampaignSheetOpen, setIsAddCampaignSheetOpen] = React.useState(false);
 
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 10;
@@ -236,6 +246,22 @@ export default function ManageCampaignsPage() {
     });
   };
 
+  const handleAddCampaignSuccess = (newCampaignData: Omit<Campaign, 'id' | 'callsAttempted' | 'status' | 'successRate'>) => {
+    const newCampaign: Campaign = {
+      id: `camp_${Date.now()}`,
+      ...newCampaignData,
+      callsAttempted: 0,
+      status: 'Active', // Default status for new campaigns
+      successRate: 0, // Default success rate
+    };
+    setCampaigns(prev => [newCampaign, ...prev]);
+    setIsAddCampaignSheetOpen(false);
+    toast({
+      title: "Campaign Added",
+      description: `Campaign "${newCampaign.name}" has been successfully created.`,
+    });
+  };
+
   const filteredCampaigns = campaigns.filter((campaign) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
     const matchesSearch =
@@ -250,7 +276,7 @@ export default function ManageCampaignsPage() {
     const matchesDate =
         !dateRangeFilter ||
         (!dateRangeFilter.from || campaign.startDate >= dateRangeFilter.from) &&
-        (!dateRangeFilter.to || campaign.startDate <= addDays(dateRangeFilter.to,1)); // campaign.startDate instead of dateIssued
+        (!dateRangeFilter.to || campaign.startDate <= addDays(dateRangeFilter.to,1));
 
     const matchesSuccessRate =
         successRateFilter === "all" ||
@@ -290,7 +316,7 @@ export default function ManageCampaignsPage() {
               <CardTitle className="text-3xl font-bold font-headline">Manage Campaigns</CardTitle>
               <CardDescription>Oversee and control all your calling campaigns.</CardDescription>
             </div>
-            <Button size="lg" onClick={() => toast({ title: "New Campaign Clicked", description: "Implement form to create a new campaign."})}>
+            <Button size="lg" onClick={() => setIsAddCampaignSheetOpen(true)}>
               <PlusCircle className="mr-2 h-5 w-5" />
               New Campaign
             </Button>
@@ -384,8 +410,6 @@ export default function ManageCampaignsPage() {
                     </PopoverContent>
                 </Popover>
             </div>
-
-            {/* Keep Sort By and Export on a new row for better layout on smaller screens, or adjust col-span as needed */}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 pt-3 items-end">
             <div className="flex flex-col">
@@ -408,7 +432,7 @@ export default function ManageCampaignsPage() {
                 </Popover>
             </div>
             <div className="flex flex-col">
-                <Label htmlFor="export-data" className="text-xs font-medium text-muted-foreground mb-1 opacity-0 sm:hidden">.</Label> {/* Spacer label for alignment */}
+                <Label htmlFor="export-data" className="text-xs font-medium text-muted-foreground mb-1 opacity-0 sm:hidden">.</Label> {}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                     <Button id="export-data" variant="outline" className="w-full h-9 text-sm">
@@ -472,7 +496,7 @@ export default function ManageCampaignsPage() {
                             <Eye className="mr-2 h-4 w-4" /> View
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => toast({title: "Monitor Campaign", description: "Redirect to live monitoring page (to be implemented)."})}>
-                            <PlayCircle className="mr-2 h-4 w-4" /> Monitor {/* Or an actual Monitor icon if available */}
+                            <PlayCircle className="mr-2 h-4 w-4" /> Monitor {}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {campaign.status === "Active" && (
@@ -513,6 +537,24 @@ export default function ManageCampaignsPage() {
            </div>
         </CardFooter>
       </Card>
+
+      <Sheet open={isAddCampaignSheetOpen} onOpenChange={setIsAddCampaignSheetOpen}>
+        <SheetContent className="sm:max-w-lg w-full flex flex-col" side="right">
+            <SheetHeader>
+                <SheetTitle>Create New Campaign</SheetTitle>
+                <SheetDescription>
+                    Fill in the details below to launch a new calling campaign.
+                </SheetDescription>
+            </SheetHeader>
+            <AddCampaignForm 
+                clients={mockClientsForFilter} 
+                onSuccess={handleAddCampaignSuccess} 
+                onCancel={() => setIsAddCampaignSheetOpen(false)}
+            />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
+
+    
