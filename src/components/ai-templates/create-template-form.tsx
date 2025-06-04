@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Removed unused imports
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
@@ -52,7 +52,6 @@ const createTemplateFormSchema = z.object({
       return false;
     }
   }, { message: "Global variables must be valid JSON or key:value pairs per line if provided." }),
-  // assignToClients: z.array(z.string()).optional(), // Placeholder for future
 });
 
 export type CreateTemplateFormValues = z.infer<typeof createTemplateFormSchema>;
@@ -94,13 +93,12 @@ export function CreateTemplateForm({ onSuccess, onCancel }: CreateTemplateFormPr
       description: "Script simulation functionality to be implemented. Content logged to console.",
     });
     console.log("Simulating script:", script);
-    // In a real app, you might open a modal or another panel for simulation
   };
 
   return (
     <Form {...form}>
-      <form className="flex flex-col h-full"> {/* Make form take full height of sheet */}
-        <ScrollArea className="flex-1 min-h-0"> {/* Make ScrollArea take available space */}
+      <form className="flex flex-col flex-1 min-h-0"> {/* Changed h-full to flex-1 min-h-0 */}
+        <ScrollArea className="flex-1 min-h-0"> 
           <div className="space-y-6 p-4 sm:p-6">
             <Card className="border-none shadow-none -m-2">
               <CardHeader className="px-2 py-0 pb-3">
@@ -243,12 +241,12 @@ export function CreateTemplateForm({ onSuccess, onCancel }: CreateTemplateFormPr
           </div>
         </ScrollArea>
         
-        <SheetFooter className="p-4 border-t mt-auto"> {/* Ensure footer is at the bottom */}
+        <SheetFooter className="p-4 border-t mt-auto"> 
           <div className="flex flex-col sm:flex-row gap-2 w-full">
             <Button type="button" variant="outline" onClick={handleSimulateScript} className="w-full sm:w-auto flex-1 sm:flex-none">
                 <Play className="mr-2 h-4 w-4" /> Simulate (Mock)
             </Button>
-            <div className="flex-grow sm:hidden"></div> {/* Spacer for mobile */}
+            <div className="flex-grow sm:hidden"></div> 
             <SheetClose asChild>
                 <Button type="button" variant="ghost" onClick={onCancel} className="w-full sm:w-auto">Cancel</Button>
             </SheetClose>
@@ -264,5 +262,3 @@ export function CreateTemplateForm({ onSuccess, onCancel }: CreateTemplateFormPr
     </Form>
   );
 }
-
-    
