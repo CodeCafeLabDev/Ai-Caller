@@ -1,9 +1,7 @@
 
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Users, UserPlus, MoreHorizontal, Edit, Trash2, KeyRound, UserX, UserCheck } from "lucide-react"; // Added UserPlus
+import * as React from "react";
 import {
   Table,
   TableBody,
@@ -12,7 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,16 +20,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast"; // Import useToast
-import * as React from "react"; // Import React
+import { Badge } from "@/components/ui/badge";
+import { Users, UserPlus, MoreHorizontal, Edit, Trash2, KeyRound, UserX, UserCheck } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added Card imports
 
 // Mock data for client users
 const mockClientUsers = [
-  { id: "user_c1_01", name: "Alice Wonderland", email: "alice@innovatecorp.com", role: "Administrator", status: "Active", lastLogin: "2024-07-28" },
-  { id: "user_c1_02", name: "Bob The Builder", email: "bob@innovatecorp.com", role: "Campaign Manager", status: "Active", lastLogin: "2024-07-27" },
-  { id: "user_c1_03", name: "Carol Danvers", email: "carol@innovatecorp.com", role: "Agent", status: "Suspended", lastLogin: "2024-07-15" },
-  { id: "user_c1_04", name: "David Copperfield", email: "david@innovatecorp.com", role: "Agent", status: "Active", lastLogin: "2024-07-29" },
+  { id: "user_c1_01", name: "Alice Wonderland", email: "alice@innovatecorp.com", role: "Administrator", status: "Active" as "Active" | "Suspended", lastLogin: "2024-07-28" },
+  { id: "user_c1_02", name: "Bob The Builder", email: "bob@innovatecorp.com", role: "Campaign Manager", status: "Active" as "Active" | "Suspended", lastLogin: "2024-07-27" },
+  { id: "user_c1_03", name: "Carol Danvers", email: "carol@innovatecorp.com", role: "Agent", status: "Suspended" as "Active" | "Suspended", lastLogin: "2024-07-15" },
+  { id: "user_c1_04", name: "David Copperfield", email: "david@innovatecorp.com", role: "Agent", status: "Active" as "Active" | "Suspended", lastLogin: "2024-07-29" },
 ];
 
 const statusVariants = {
@@ -97,7 +97,7 @@ export default function ClientUsersPage() {
                   <TableCell>{user.email}</TableCell>
                   <TableCell>{user.role}</TableCell>
                   <TableCell>
-                     <Badge className={`text-xs ${statusVariants[user.status as keyof typeof statusVariants]}`}>{user.status}</Badge>
+                     <Badge className={`text-xs ${statusVariants[user.status]}`}>{user.status}</Badge>
                   </TableCell>
                   <TableCell>{user.lastLogin}</TableCell>
                   <TableCell className="text-right">
