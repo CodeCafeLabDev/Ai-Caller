@@ -18,15 +18,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-// import { signInUserAction } from '@/actions/auth'; // No longer needed for bypassed auth
+import { signInUserAction } from '@/actions/auth'; 
 import { useState, useTransition } from 'react';
 
-// For client components, metadata is typically handled in the nearest server component layout or page.
-// The layout src/app/(auth)/layout.tsx already sets a title.
-
 const formSchema = z.object({
-  user_Id: z.string().optional(), // Fields are optional as they are not processed
-  password: z.string().optional(),
+  user_Id: z.string().min(1, { message: "User ID is required." }),
+  password: z.string().min(1, { message: "Password is required." }),
 });
 
 export default function SignInPage() {
@@ -42,14 +39,31 @@ export default function SignInPage() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    startTransition(() => {
-      // Bypass authentication and directly navigate to dashboard
-      toast({
-        title: "Proceeding to Dashboard",
-        description: "Bypassing login for test purposes.",
-      });
-      router.push("/dashboard");
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    startTransition(async () => {
+      const result = await signInUserAction(values);
+      
+      if (result.success && result.user) {
+        toast({
+          title: "Sign In Successful",
+          description: result.message,
+        });
+        if (result.user.role === 'super_admin') {
+          router.push("/dashboard");
+        } else if (result.user.role === 'client_admin') {
+          router.push("/client-admin/dashboard");
+        } else {
+          // Fallback, though the action should always assign a role on success
+          console.warn("User role not determined, defaulting to super admin dashboard.");
+          router.push("/dashboard");
+        }
+      } else {
+        toast({
+          title: "Sign In Failed",
+          description: result.message || "An unexpected error occurred.",
+          variant: "destructive",
+        });
+      }
     });
   }
 
@@ -71,7 +85,7 @@ export default function SignInPage() {
                 <FormItem>
                   <FormLabel>User ID</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., your_username" {...field} disabled={isPending} />
+                    <Input placeholder="e.g., testUser or your_client_username" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -84,7 +98,7 @@ export default function SignInPage() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="e.g., your_password" {...field} disabled={isPending} />
+                    <Input type="password" placeholder="e.g., password123" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

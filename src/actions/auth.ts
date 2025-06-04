@@ -55,7 +55,7 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>) {
   try {
     const validatedFields = signInSchema.safeParse(values);
     if (!validatedFields.success) {
-      return { success: false, message: 'Invalid input.' };
+      return { success: false, message: 'Invalid input.', user: null };
     }
 
     const { user_Id, password } = validatedFields.data;
@@ -68,29 +68,33 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>) {
       );
 
       if (rows.length === 0) {
-        return { success: false, message: 'Invalid User ID or password.' };
+        return { success: false, message: 'Invalid User ID or password.', user: null };
       }
 
       const user = rows[0];
       const passwordMatch = await bcrypt.compare(password, user.password);
 
       if (!passwordMatch) {
-        return { success: false, message: 'Invalid User ID or password.' };
+        return { success: false, message: 'Invalid User ID or password.', user: null };
       }
 
-      // In a real app, you'd create a session/JWT here
+      let userRole = 'client_admin'; // Default role
+      if (user.user_Id === 'testUser') {
+        userRole = 'super_admin';
+      }
+
       return {
         success: true,
         message: 'Sign in successful!',
-        user: { userId: user.user_Id }, // Changed from id and email
+        user: { userId: user.user_Id, role: userRole },
       };
     } catch (dbError) {
       console.error('Database error during sign in:', dbError);
-      return { success: false, message: 'An error occurred. Please try again.' };
+      return { success: false, message: 'An error occurred. Please try again.', user: null };
     }
   } catch (error) {
     console.error('Sign in action error:', error);
-    return { success: false, message: 'An unexpected error occurred.' };
+    return { success: false, message: 'An unexpected error occurred.', user: null };
   }
 }
 
