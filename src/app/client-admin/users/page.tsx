@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Users, UserPlus, MoreHorizontal, Edit, Trash2, KeyRound, UserX, UserCheck, Phone } from "lucide-react";
+import { Users, UserPlus, MoreHorizontal, Edit, Trash2, KeyRound, UserX, UserCheck, Phone } from "lucide-react"; // Ensured all icons are imported
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -92,6 +92,10 @@ export default function ClientUsersPage() {
     };
     setClientUsers(prev => [newUser, ...prev]);
     setIsAddUserSheetOpen(false);
+    toast({
+      title: "User Added",
+      description: `User "${data.fullName}" has been successfully added. (Simulated)`,
+    });
   };
 
   const filteredUsers = clientUsers.filter(user => 
@@ -156,11 +160,17 @@ export default function ClientUsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user) => (
+              {filteredUsers.length > 0 ? filteredUsers.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.phone || "-"}</TableCell>
+                  <TableCell>
+                    {user.phone ? (
+                      <div className="flex items-center">
+                        <Phone className="mr-1.5 h-3.5 w-3.5 text-muted-foreground"/>{user.phone}
+                      </div>
+                    ) : "-"}
+                  </TableCell>
                   <TableCell>
                      <Badge className={`text-xs ${roleVariants[user.role]}`}>{user.role}</Badge>
                   </TableCell>
@@ -195,10 +205,15 @@ export default function ClientUsersPage() {
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    No users found matching your search.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
-           {filteredUsers.length === 0 && <p className="p-4 text-center text-muted-foreground">No users found matching your search.</p>}
         </CardContent>
       </Card>
     </div>

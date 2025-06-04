@@ -29,10 +29,10 @@ import { useToast } from "@/hooks/use-toast";
 
 // Define roles and statuses specific to client users
 const clientUserRoles = ["Admin", "Agent", "Analyst", "Viewer"] as const;
-type ClientUserRole = typeof clientUserRoles[number];
+export type ClientUserRole = typeof clientUserRoles[number]; // Exporting for use in users/page.tsx type
 
 const clientUserStatuses = ["Active", "Pending"] as const; // Suspended is usually an action, not initial state
-type ClientUserStatus = typeof clientUserStatuses[number];
+export type ClientUserStatus = typeof clientUserStatuses[number]; // Exporting for use in users/page.tsx type
 
 const addClientUserFormSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
@@ -63,7 +63,7 @@ export function AddClientUserForm({ onSuccess, onCancel }: AddClientUserFormProp
       email: "",
       phone: "",
       role: undefined,
-      status: "Active",
+      status: "Active", // Default to Active
       password: "",
       confirmPassword: "",
     },
@@ -72,12 +72,9 @@ export function AddClientUserForm({ onSuccess, onCancel }: AddClientUserFormProp
   function onSubmit(data: AddClientUserFormValues) {
     // In a real app, this would call an API to create the user.
     console.log("New Client User Data (Simulated):", data);
-    toast({
-      title: "User Creation Requested",
-      description: `User "${data.fullName}" has been submitted for creation. (Simulated)`,
-    });
-    form.reset();
-    onSuccess(data); 
+    // Removed direct toast from here, will be handled by parent page
+    form.reset(); // Reset form fields
+    onSuccess(data); // Call parent's success handler
   }
 
   return (
