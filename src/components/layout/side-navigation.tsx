@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -68,7 +68,16 @@ const initialNavItems: NavItemType[] = [
       { href: '/plans-billing/payment-settings', label: 'Payment Settings', icon: Settings },
     ],
   },
-  { href: '/campaigns', label: 'Campaigns', icon: Megaphone },
+  {
+    label: 'Campaigns',
+    icon: Megaphone,
+    basePath: '/campaigns',
+    subItems: [
+      { href: '/campaigns', label: 'Manage Campaigns', icon: ClipboardList },
+      { href: '/campaigns/active-paused', label: 'Active & Paused Campaigns', icon: ListFilter },
+      { href: '/campaigns/monitor-live', label: 'Monitor Live Calls', icon: PhoneCall },
+    ],
+  },
   { href: '/ai-templates', label: 'AI Templates', icon: Bot },
   { href: '/reports-analytics', label: 'Reports & Analytics', icon: BarChartBig },
   { href: '/developer-tools', label: 'Developer Tools', icon: TerminalSquare },
