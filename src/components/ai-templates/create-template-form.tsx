@@ -97,8 +97,8 @@ export function CreateTemplateForm({ onSuccess, onCancel }: CreateTemplateFormPr
 
   return (
     <Form {...form}>
-      <form className="flex flex-col flex-1 min-h-0"> {/* Changed h-full to flex-1 min-h-0 */}
-        <ScrollArea className="flex-1 min-h-0"> 
+      <form className="flex flex-col h-full"> {/* Reverted */}
+        <ScrollArea className="flex-grow"> {/* Reverted */}
           <div className="space-y-6 p-4 sm:p-6">
             <Card className="border-none shadow-none -m-2">
               <CardHeader className="px-2 py-0 pb-3">
