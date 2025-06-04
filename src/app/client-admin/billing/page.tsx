@@ -11,6 +11,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Billing & Invoices | Client Admin - Voxaiomni',
+  description: 'Manage your subscription, payment methods, and view invoices for your Voxaiomni account.',
+  keywords: ['client billing', 'invoices', 'subscription', 'payment methods', 'voxaiomni client'],
+};
 
 // Mock data for client billing
 const mockBillingInfo = {

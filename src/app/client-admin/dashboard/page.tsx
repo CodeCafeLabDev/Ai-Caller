@@ -4,11 +4,18 @@ import { Button } from "@/components/ui/button";
 import { TrendingUp, Megaphone, Users, CreditCard, BarChart3, PieChart, Settings, UserCircle } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Dashboard | Client Admin - Voxaiomni',
+  description: 'Overview of your account activity, campaigns, and usage statistics in the Voxaiomni client admin panel.',
+  keywords: ['client dashboard', 'campaigns', 'usage statistics', 'billing', 'voxaiomni client'],
+};
 
 export default function ClientAdminDashboardPage() {
   // Mock data - this would come from an API in a real app
   const clientData = {
-    companyName: "Innovate Corp",
+    companyName: "Innovate Corp", // This could be dynamically fetched
     currentPlan: "Premium Monthly",
     activeCampaigns: 3,
     totalCallsThisMonth: 1250,
