@@ -97,7 +97,13 @@ const mockUsers: ClientUser[] = [
   { id: "usr_5", fullName: "Edward Davis", email: "edward@example.com", phone: "555-0105", role: "Agent", status: "Active", lastLogin: "2024-07-21", clientId: "client_2" },
 ];
 
-const roleOptions: UserRole[] = ["Admin", "Agent", "Analyst", "Viewer"];
+const roleOptions: { value: UserRole | "all"; label: string }[] = [
+  { value: "all", label: "All Roles" },
+  { value: "Admin", label: "Admin" },
+  { value: "Agent", label: "Agent" },
+  { value: "Analyst", label: "Analyst" },
+  { value: "Viewer", label: "Viewer" },
+];
 const statusOptions: UserStatus[] = ["Active", "Suspended", "Pending"];
 
 const mockClientsForSelection = [
@@ -126,7 +132,7 @@ const addUserFormSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
   email: z.string().email({ message: "Invalid email address." }),
   phone: z.string().optional(),
-  role: z.enum(roleOptions, { required_error: "Please select a role." }),
+  role: z.enum(["Admin", "Agent", "Analyst", "Viewer"] as [UserRole, ...UserRole[]], { required_error: "Please select a role." }),
   status: z.enum(statusOptions, { required_error: "Please select a status." }),
 });
 type AddUserFormValues = z.infer<typeof addUserFormSchema>;
@@ -137,6 +143,7 @@ export default function ClientUsersPage() {
   const [roleFilter, setRoleFilter] = React.useState<UserRole | "all">("all");
   const [isAddUserSheetOpen, setIsAddUserSheetOpen] = React.useState(false);
   const [clientComboboxOpen, setClientComboboxOpen] = React.useState(false);
+  const [roleFilterComboboxOpen, setRoleFilterComboboxOpen] = React.useState(false);
 
 
   const form = useForm<AddUserFormValues>({
@@ -321,8 +328,8 @@ export default function ClientUsersPage() {
                                 </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                {roleOptions.map(role => (
-                                    <SelectItem key={role} value={role}>{role}</SelectItem>
+                                {roleOptions.filter(r => r.value !== "all").map(role => (
+                                    <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
                                 ))}
                                 </SelectContent>
                             </Select>
@@ -369,19 +376,50 @@ export default function ClientUsersPage() {
       </div>
 
       <div className="flex items-center gap-4 p-4 border rounded-lg shadow-sm bg-card">
-        <Label htmlFor="role-filter" className="text-sm font-medium">Filter by Role:</Label>
-        <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as UserRole | "all")}>
-          <SelectTrigger id="role-filter" className="w-full md:w-[200px]">
-            <ListFilter className="mr-2 h-4 w-4 inline-block" />
-            <SelectValue placeholder="Filter by Role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Roles</SelectItem>
-            {roleOptions.map(role => (
-              <SelectItem key={role} value={role}>{role}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label htmlFor="role-filter-combobox" className="text-sm font-medium">Filter by Role:</Label>
+        <Popover open={roleFilterComboboxOpen} onOpenChange={setRoleFilterComboboxOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={roleFilterComboboxOpen}
+              id="role-filter-combobox"
+              className="w-full md:w-[200px] justify-between"
+            >
+              <ListFilter className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+              {roleOptions.find(r => r.value === roleFilter)?.label || "Filter by Role"}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+            <Command>
+              <CommandInput placeholder="Search role..." />
+              <CommandList>
+                <CommandEmpty>No role found.</CommandEmpty>
+                <CommandGroup>
+                  {roleOptions.map(option => (
+                    <CommandItem
+                      key={option.value}
+                      value={option.label}
+                      onSelect={() => {
+                        setRoleFilter(option.value as UserRole | "all");
+                        setRoleFilterComboboxOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          roleFilter === option.value ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {option.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <ScrollArea className="rounded-lg border shadow-sm">
@@ -466,3 +504,6 @@ export default function ClientUsersPage() {
     </div>
   );
 }
+
+
+    
