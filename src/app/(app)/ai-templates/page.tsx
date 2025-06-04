@@ -2,7 +2,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link"; // Added Link import
 import {
   Table,
   TableBody,
@@ -21,6 +20,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import {
@@ -51,6 +58,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { CreateTemplateForm, type CreateTemplateFormValues } from "@/components/ai-templates/create-template-form";
 
 export type AITemplateStatus = "Draft" | "Published" | "Archived";
 export type AITemplateUseCase = "Sales" | "Reminder" | "Feedback" | "Support" | "Lead Generation" | "Payment Collection" | "Survey" | "Other";
@@ -124,6 +132,7 @@ export default function AiTemplatesPage() {
   const [useCaseComboboxOpen, setUseCaseComboboxOpen] = React.useState(false);
   const [languageComboboxOpen, setLanguageComboboxOpen] = React.useState(false);
   const [statusComboboxOpen, setStatusComboboxOpen] = React.useState(false);
+  const [isCreateSheetOpen, setIsCreateSheetOpen] = React.useState(false);
 
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 10;
@@ -134,6 +143,28 @@ export default function AiTemplatesPage() {
       description: `Action performed on template: ${templateName}.`,
     });
   };
+
+  const handleCreateTemplateSuccess = (data: CreateTemplateFormValues & { status: "Draft" | "Published" }) => {
+    console.log("Create Template Data:", data);
+    const newTemplate: AITemplate = {
+        id: `tpl_${Date.now()}`,
+        name: data.templateName,
+        useCase: data.category,
+        tags: data.tags ? data.tags.split(',').map(t => t.trim()).filter(t => t) : [],
+        createdBy: "Current User", // Placeholder
+        language: data.defaultLanguage,
+        lastModified: new Date().toISOString().split('T')[0],
+        status: data.status,
+        version: "1.0",
+    };
+    setTemplates(prev => [newTemplate, ...prev]);
+    toast({
+      title: `Template ${data.status}`,
+      description: `Template "${data.templateName}" has been ${data.status.toLowerCase()}.`,
+    });
+    setIsCreateSheetOpen(false);
+  };
+
 
   const filteredTemplates = templates.filter((template) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
@@ -162,12 +193,26 @@ export default function AiTemplatesPage() {
           <h1 className="text-3xl font-bold font-headline">AI Script Templates</h1>
           <p className="text-muted-foreground">Manage global AI conversation templates.</p>
         </div>
-        <Button asChild size="lg">
-            <Link href="/ai-templates/create">
+        <Sheet open={isCreateSheetOpen} onOpenChange={setIsCreateSheetOpen}>
+          <SheetTrigger asChild>
+            <Button size="lg">
                 <PlusCircle className="mr-2 h-5 w-5" />
                 Create New Template
-            </Link>
-        </Button>
+            </Button>
+          </SheetTrigger>
+          <SheetContent className="sm:max-w-xl w-full flex flex-col">
+            <SheetHeader className="px-4 pt-4 sm:px-6 sm:pt-6">
+                <SheetTitle>Create New AI Template</SheetTitle>
+                <SheetDescription>
+                  Design and configure a new voice conversation flow for your AI caller.
+                </SheetDescription>
+            </SheetHeader>
+            <CreateTemplateForm 
+                onSuccess={handleCreateTemplateSuccess}
+                onCancel={() => setIsCreateSheetOpen(false)}
+            />
+          </SheetContent>
+        </Sheet>
       </div>
 
       <Card className="shadow-lg">
