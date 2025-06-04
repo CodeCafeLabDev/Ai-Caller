@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -76,6 +76,7 @@ const initialNavItems: NavItemType[] = [
       { href: '/campaigns', label: 'Manage Campaigns', icon: ClipboardList },
       { href: '/campaigns/active-paused', label: 'Active & Paused Campaigns', icon: ListFilter },
       { href: '/campaigns/monitor-live', label: 'Monitor Live Calls', icon: PhoneCall },
+      { href: '/campaigns/top-performing', label: 'Top Performing', icon: Award },
     ],
   },
   { href: '/ai-templates', label: 'AI Templates', icon: Bot },
