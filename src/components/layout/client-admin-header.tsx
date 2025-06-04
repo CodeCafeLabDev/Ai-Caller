@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { UserCircle, LogOut, Bell, Search, PlusCircle, Megaphone, CreditCard, Users as UsersIcon } from 'lucide-react';
+import { UserCircle, LogOut, Bell, Search, PlusCircle, Megaphone, CreditCard, Users as UsersIcon, Languages } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -24,7 +24,7 @@ const mockClientData = {
 };
 
 const clientQuickActionItems = [
-  { text: "Start New Campaign", icon: Megaphone, href: "/client-admin/campaigns" }, // Assuming they can start from the main campaigns page or a specific create page
+  { text: "Start New Campaign", icon: Megaphone, href: "/client-admin/campaigns" }, 
   { text: "View Billing", icon: CreditCard, href: "/client-admin/billing" },
   { text: "Manage Users", icon: UsersIcon, href: "/client-admin/users" },
 ];
@@ -39,11 +39,20 @@ export function ClientAdminHeader() {
       description: "You have been successfully logged out.",
     });
     // In a real app, this would also clear session/token
-    router.push('/signin'); // Or a client-specific sign-in page
+    router.push('/signin'); 
   };
 
   const handleQuickActionClick = (href: string) => {
     router.push(href);
+  };
+
+  const handleLanguageSelect = (language: string) => {
+    console.log(`Language selected: ${language}`);
+    toast({
+      title: "Language Selected",
+      description: `${language} selected. (Localization not yet implemented)`,
+    });
+    // Here you would typically set locale preference, e.g., in context or cookies
   };
 
   return (
@@ -51,7 +60,7 @@ export function ClientAdminHeader() {
       <div className="flex items-center gap-2 md:gap-4">
         <SidebarTrigger className="md:hidden shrink-0" />
         <div className="hidden md:block">
-          <Logo iconClassName="text-primary" textClassName="text-foreground" />
+          {/* Logo can be placed here if desired, or title removed */}
         </div>
       </div>
       
@@ -111,6 +120,25 @@ export function ClientAdminHeader() {
             ) : (
                 <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>
             )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="rounded-full shrink-0" aria-label="Select Language">
+              <Languages className="h-5 w-5" />
+              <span className="sr-only">Select Language</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuLabel>Select Language</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleLanguageSelect('English')} className="cursor-pointer">
+              English
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleLanguageSelect('Hindi')} className="cursor-pointer">
+              हिन्दी (Hindi)
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
