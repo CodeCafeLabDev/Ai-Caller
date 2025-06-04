@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -203,7 +204,7 @@ export default function ErrorLogsPage() {
   };
 
   // Quick Stats Calculation (mocked)
-  const failureRate = filteredErrorLogs.length > 0 ? (filteredErrorLogs.filter(log => log.errorType !== "No Answer").length / mockErrorLogs.length * 100).toFixed(1) + "%" : "N/A";
+  const failureRate = filteredErrorLogs.length > 0 && initialMockErrorLogs.length > 0 ? (filteredErrorLogs.filter(log => log.errorType !== "No Answer").length / initialMockErrorLogs.length * 100).toFixed(1) + "%" : "N/A";
   const commonErrorType = filteredErrorLogs.length > 0 ? 
     Object.entries(filteredErrorLogs.reduce((acc, log) => { acc[log.errorType] = (acc[log.errorType] || 0) + 1; return acc; }, {} as Record<ErrorType, number>))
         .sort((a,b) => b[1] - a[1])[0]?.[0] || "N/A" 
@@ -390,3 +391,6 @@ export default function ErrorLogsPage() {
     </div>
   );
 }
+
+
+    
