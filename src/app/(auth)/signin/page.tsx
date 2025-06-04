@@ -20,14 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 // import { signInUserAction } from '@/actions/auth'; // No longer needed for bypassed auth
 import { useState, useTransition } from 'react';
-import type { Metadata } from 'next';
 
-// Even though this is a client component, metadata can be exported from page files
-// export const metadata: Metadata = {
-//   title: 'Sign In - Voxaiomni',
-//   description: 'Access your Voxaiomni account.',
-//   keywords: ['signin', 'login', 'authentication', 'voxaiomni account'],
-// };
 // For client components, metadata is typically handled in the nearest server component layout or page.
 // The layout src/app/(auth)/layout.tsx already sets a title.
 
@@ -61,7 +54,7 @@ export default function SignInPage() {
   }
 
   return (
-    <Card className="w-full max-w-md shadow-xl mx-auto">
+    <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
         <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
         <CardDescription className="text-center">
