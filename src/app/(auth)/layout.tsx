@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Logo } from '@/components/logo';
 import Link from 'next/link';
@@ -13,7 +14,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-muted/40 p-4">
+    <div className="w-full flex flex-col items-center justify-center min-h-screen bg-muted/40 p-4">
       <div className="mb-8">
         <Logo className="text-primary" iconClassName="text-primary" />
       </div>
