@@ -58,7 +58,8 @@ import {
   FileText,
   Check,
   ChevronsUpDown,
-  FileDown, 
+  FileDown,
+  UserCog, // Added UserCog icon
 } from "lucide-react";
 import { AddClientForm } from "@/components/clients/add-client-form";
 import { cn } from "@/lib/utils";
@@ -502,11 +503,16 @@ export default function AllClientsListPage() {
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem asChild>
                             <Link href={`/clients/details-usage?clientId=${client.id}`}>
-                                <Eye className="mr-2 h-4 w-4" /> View
+                                <Eye className="mr-2 h-4 w-4" /> View Details
                             </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem>
-                            <Edit2 className="mr-2 h-4 w-4" /> Edit
+                            <Edit2 className="mr-2 h-4 w-4" /> Edit Client
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                            <Link href={`/client-admin/dashboard`}> {}
+                                <UserCog className="mr-2 h-4 w-4" /> Admin Panel
+                            </Link>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {client.status === "Active" && (
@@ -560,3 +566,4 @@ export default function AllClientsListPage() {
     </div>
   );
 }
+
