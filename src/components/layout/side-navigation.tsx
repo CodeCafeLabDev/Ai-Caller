@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks, CheckSquare } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -118,6 +118,7 @@ const initialNavItems: NavItemType[] = [
     subItems: [
       { href: '/test-lab/call-flow', label: 'Call Flow Simulation', icon: Bot },
       { href: '/test-lab/voice-bot-testing', label: 'Voice Bot Testing', icon: Languages },
+      { href: '/test-lab/script-validation', label: 'Script Validation', icon: CheckSquare },
     ]
   },
   { href: '/alerts-logs', label: 'Alerts & Logs', icon: ShieldAlert },
@@ -162,7 +163,7 @@ export function SideNavigation() {
               <SidebarMenuButton
                 asChild={!item.subItems} 
                 onClick={item.subItems ? () => toggleSubmenu(item.label) : undefined}
-                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/developer-tools' && !item.subItems && pathname.startsWith(item.href)) || (item.href === '/developer-tools' && (pathname === item.href && !item.subItems?.some(si => pathname.startsWith(si.href) && si.href !== item.href)))) : false)}
+                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/developer-tools' && item.href !== '/test-lab' && !item.subItems && pathname.startsWith(item.href)) || ((item.href === '/developer-tools' || item.href === '/test-lab') && (pathname === item.href && !item.subItems?.some(si => pathname.startsWith(si.href) && si.href !== item.href)))) : false)}
                 tooltip={{ children: item.label, className: "bg-popover text-popover-foreground border-border" }}
                 className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
               >
@@ -207,11 +208,11 @@ export function SideNavigation() {
             <Button variant="ghost" className="w-full justify-start p-2 h-auto text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:p-0">
               <Avatar className="h-8 w-8 mr-2 group-data-[collapsible=icon]:mr-0">
                 <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user avatar" />
-                <AvatarFallback>VO</AvatarFallback>
+                <AvatarFallback>AU</AvatarFallback>
               </Avatar>
               <div className="group-data-[collapsible=icon]:hidden flex flex-col items-start">
-                <span className="font-medium">User Name</span>
-                <span className="text-xs text-sidebar-foreground/70">user@example.com</span>
+                <span className="font-medium">Admin User</span>
+                <span className="text-xs text-sidebar-foreground/70">admin@voxaiomni.com</span>
               </div>
             </Button>
           </DropdownMenuTrigger>
@@ -234,3 +235,5 @@ export function SideNavigation() {
     </Sidebar>
   );
 }
+
+    
