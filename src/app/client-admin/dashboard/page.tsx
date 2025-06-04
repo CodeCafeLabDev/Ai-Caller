@@ -130,7 +130,7 @@ export default function ClientAdminDashboardPage() {
                 <Link href="/client-admin/billing"><CreditCard className="mr-2 h-4 w-4"/>Billing Details</Link>
             </Button>
             <Button variant="outline" className="w-full justify-start" asChild>
-                 <Link href="/client-admin/users"><Users className="mr-2 h-4 w-4"/>Manage Team Users</Link>
+                 <Link href="/client-admin/users"><Users className="mr-2 h-4 w-4"/>Manage Users</Link>
             </Button>
         </CardContent>
       </Card>
