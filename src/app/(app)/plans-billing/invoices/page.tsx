@@ -48,7 +48,7 @@ type Invoice = {
   id: string;
   invoiceId: string;
   clientName: string;
-  clientId: string; // For filtering
+  clientId: string; 
   planName: string;
   amount: number;
   currency: string;
@@ -56,7 +56,7 @@ type Invoice = {
   dueDate: Date;
   paymentStatus: PaymentStatus;
   paymentMethod?: string;
-  pdfUrl?: string; // Mock
+  pdfUrl?: string; 
 };
 
 const mockClientsForFilter = [
@@ -139,7 +139,7 @@ export default function BillingInvoicesPage() {
     const matchesDate = 
         !dateRange || 
         (!dateRange.from || invoice.dateIssued >= dateRange.from) && 
-        (!dateRange.to || invoice.dateIssued <= addDays(dateRange.to,1)); // Add 1 day to include the end date
+        (!dateRange.to || invoice.dateIssued <= addDays(dateRange.to,1)); 
 
     return matchesSearch && matchesClient && matchesStatus && matchesDate;
   });
@@ -149,6 +149,14 @@ export default function BillingInvoicesPage() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  const handleExport = (format: "csv" | "excel" | "pdf") => {
+    toast({
+      title: `Exporting as ${format.toUpperCase()} (Simulated)`,
+      description: `Preparing ${filteredInvoices.length} invoice records for export.`,
+    });
+    console.log(`Exporting ${format.toUpperCase()} data (Invoices):`, filteredInvoices);
+  };
 
 
   return (
@@ -160,8 +168,32 @@ export default function BillingInvoicesPage() {
 
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>Filter Invoices</CardTitle>
-          <CardDescription>Refine the list of invoices by various criteria.</CardDescription>
+          <div className="flex flex-col md:flex-row justify-between items-center">
+            <div>
+                <CardTitle>Filter Invoices</CardTitle>
+                <CardDescription>Refine the list of invoices by various criteria.</CardDescription>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="mt-4 md:mt-0">
+                  <FileDown className="mr-2 h-4 w-4" /> Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Export Options</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleExport("csv")}>
+                  Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("excel")}>
+                  Export as Excel (XLSX)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                  Export as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
              <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />

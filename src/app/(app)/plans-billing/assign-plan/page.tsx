@@ -23,20 +23,27 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, ChevronsUpDown, CalendarIcon, Edit, Tag, Users } from "lucide-react";
+import { Check, ChevronsUpDown, CalendarIcon, Edit, Tag, Users, FileDown } from "lucide-react"; // Added FileDown
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"; // Added DropdownMenu
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import type { Plan } from "@/app/(app)/plans-billing/page"; // Re-use Plan type
+import type { Plan } from "@/app/(app)/plans-billing/page"; 
 
-// Mock data for clients and plans
 const mockClients = [
   { id: "client_1", name: "Innovate Corp" },
   { id: "client_2", name: "Solutions Ltd" },
   { id: "client_3", name: "Tech Ventures" },
 ];
 
-const mockPlans: Plan[] = [ // Assuming Plan type has at least id and name
+const mockPlans: Plan[] = [ 
   { id: "plan_basic_01", name: "Basic Monthly", currency: "USD", totalCallsAllowedPerMonth: "500", numberOfAgents: 1, templatesAllowed: 5, apiAccess: false, customTemplates: false, reportingAnalytics: true, liveCallMonitor: false, overagesAllowed: true, trialEligible: true, status: "Active" },
   { id: "plan_premium_01", name: "Premium Annual", currency: "USD", totalCallsAllowedPerMonth: "2000", numberOfAgents: 5, templatesAllowed: 20, apiAccess: true, customTemplates: true, reportingAnalytics: true, liveCallMonitor: true, overagesAllowed: true, trialEligible: false, status: "Active" },
 ];
@@ -52,12 +59,12 @@ const assignPlanSchema = z.object({
   notes: z.string().optional(),
   autoSendNotifications: z.boolean().default(true),
 }).refine(data => {
-    if (data.discountType && data.discountValue === undefined) return false; // Value required if type is set
-    if (!data.discountType && data.discountValue !== undefined) return false; // Type required if value is set
+    if (data.discountType && data.discountValue === undefined) return false; 
+    if (!data.discountType && data.discountValue !== undefined) return false; 
     return true;
 }, {
     message: "Both discount type and value must be provided if applying a discount.",
-    path: ["discountValue"], // Or ["discountType"]
+    path: ["discountValue"], 
 });
 
 type AssignPlanFormValues = z.infer<typeof assignPlanSchema>;
@@ -93,14 +100,44 @@ export default function AssignPlanToClientPage() {
       description: `Plan "${selectedPlan?.name}" assigned to client "${selectedClient?.name}". Start: ${data.startDate ? format(data.startDate, "PPP") : 'N/A'}. Duration: ${data.durationOverrideDays || 'Plan Default'}. Trial: ${data.isTrial}. Notifications: ${data.autoSendNotifications}.`,
     });
     console.log("Assign Plan Data:", data);
-    // form.reset(); // Optionally reset form
   }
+
+  const handleExport = (format: "csv" | "excel" | "pdf") => {
+    const formData = form.getValues();
+    toast({
+      title: `Exporting as ${format.toUpperCase()} (Simulated)`,
+      description: `Preparing current form data for export.`,
+    });
+    console.log(`Exporting ${format.toUpperCase()} data (Assign Plan Form):`, formData);
+  };
 
   return (
     <div className="container mx-auto py-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold font-headline">Assign Plan to Client</h1>
-        <p className="text-muted-foreground">Manually link a plan to a client with optional overrides.</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold font-headline">Assign Plan to Client</h1>
+          <p className="text-muted-foreground">Manually link a plan to a client with optional overrides.</p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              <FileDown className="mr-2 h-4 w-4" /> Export Form Data
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Export Options</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleExport("csv")}>
+              Export as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport("excel")}>
+              Export as Excel (XLSX)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport("pdf")}>
+              Export as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Form {...form}>
@@ -247,7 +284,7 @@ export default function AssignPlanToClientPage() {
                             mode="single"
                             selected={field.value}
                             onSelect={field.onChange}
-                            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) } // Disable past dates
+                            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) } 
                             initialFocus
                           />
                         </PopoverContent>
@@ -398,6 +435,5 @@ export default function AssignPlanToClientPage() {
     </div>
   );
 }
-
 
     

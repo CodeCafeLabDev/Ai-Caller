@@ -27,9 +27,16 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { KeyRound, FileText, MailWarning, UploadCloud, ServerCog, LinkIcon } from "lucide-react";
+import { KeyRound, FileText, MailWarning, UploadCloud, ServerCog, LinkIcon, FileDown } from "lucide-react"; // Added FileDown
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"; // Added DropdownMenu
 
-// Schemas for each tab
 const apiConfigSchema = z.object({
   paymentGateway: z.enum(["stripe", "razorpay"], { required_error: "Please select a payment gateway." }),
   stripeTestPubKey: z.string().optional(),
@@ -52,7 +59,7 @@ const invoiceSettingsSchema = z.object({
   invoiceSenderEmail: z.string().email({ message: "Invalid email address." }),
   autoGenerateInvoice: z.boolean().default(true),
   autoChargeRecurring: z.boolean().default(false),
-  invoiceLogo: z.any().optional(), // For file input, Zod validation is tricky client-side
+  invoiceLogo: z.any().optional(), 
 });
 
 const notificationSettingsSchema = z.object({
@@ -67,6 +74,8 @@ type NotificationSettingsFormValues = z.infer<typeof notificationSettingsSchema>
 
 export default function PaymentSettingsPage() {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = React.useState("api-config");
+
 
   const apiConfigForm = useForm<ApiConfigFormValues>({
     resolver: zodResolver(apiConfigSchema),
@@ -135,21 +144,67 @@ export default function PaymentSettingsPage() {
     });
   }
 
+  const handleExport = (format: "csv" | "excel" | "pdf") => {
+    let dataToExport;
+    let exportType = "";
+    if (activeTab === "api-config") {
+        dataToExport = apiConfigForm.getValues();
+        exportType = "API Configuration Settings";
+    } else if (activeTab === "invoice-settings") {
+        dataToExport = invoiceSettingsForm.getValues();
+        exportType = "Invoice Settings";
+    } else if (activeTab === "notifications") {
+        dataToExport = notificationSettingsForm.getValues();
+        exportType = "Notification Settings";
+    }
+
+    if (dataToExport) {
+        toast({
+        title: `Exporting as ${format.toUpperCase()} (Simulated)`,
+        description: `Preparing ${exportType} for export.`,
+        });
+        console.log(`Exporting ${format.toUpperCase()} data (${exportType}):`, dataToExport);
+    } else {
+         toast({ title: "Export Error", description: "No active tab data to export.", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="container mx-auto py-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold font-headline">Payment Settings</h1>
-        <p className="text-muted-foreground">Configure payment gateway, invoice settings, and billing notifications.</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold font-headline">Payment Settings</h1>
+          <p className="text-muted-foreground">Configure payment gateway, invoice settings, and billing notifications.</p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              <FileDown className="mr-2 h-4 w-4" /> Export Settings
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Export Options (Active Tab)</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => handleExport("csv")}>
+              Export as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport("excel")}>
+              Export as Excel (XLSX)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport("pdf")}>
+              Export as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      <Tabs defaultValue="api-config" className="w-full">
+      <Tabs defaultValue="api-config" className="w-full" onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
           <TabsTrigger value="api-config"><KeyRound className="mr-2 h-4 w-4" />API Configuration</TabsTrigger>
           <TabsTrigger value="invoice-settings"><FileText className="mr-2 h-4 w-4" />Invoice Settings</TabsTrigger>
           <TabsTrigger value="notifications"><MailWarning className="mr-2 h-4 w-4" />Notifications</TabsTrigger>
         </TabsList>
 
-        {/* API Configuration Tab */}
         <TabsContent value="api-config" className="mt-6">
           <Card>
             <CardHeader>
@@ -256,7 +311,6 @@ export default function PaymentSettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Invoice Settings Tab */}
         <TabsContent value="invoice-settings" className="mt-6">
           <Card>
             <CardHeader>
@@ -326,7 +380,6 @@ export default function PaymentSettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Notifications Tab */}
         <TabsContent value="notifications" className="mt-6">
           <Card>
             <CardHeader>
@@ -373,6 +426,5 @@ export default function PaymentSettingsPage() {
     </div>
   );
 }
-
 
     

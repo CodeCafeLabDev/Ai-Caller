@@ -54,6 +54,7 @@ import {
   FileText,
   CalendarDays,
   Info,
+  FileDown, // Added FileDown icon
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddPlanForm } from "@/components/plans/add-plan-form";
@@ -68,19 +69,19 @@ export type Plan = {
   priceMonthly?: number;
   priceAnnual?: number;
   currency: string;
-  durationDays?: number; // New
-  totalCallsAllowedPerMonth: string; // Renamed from callMinuteLimit
-  callDurationPerCallMaxMinutes?: number; // New
-  numberOfAgents: number; // Renamed from agentSeats
-  templatesAllowed: number; // Renamed from templateUsageLimit
-  voicebotUsageCap?: string; // New
-  apiAccess: boolean; // New
-  customTemplates: boolean; // New
-  reportingAnalytics: boolean; // New
-  liveCallMonitor: boolean; // New
-  overagesAllowed: boolean; // New
-  overageChargesPer100Calls?: number; // New
-  trialEligible: boolean; // New
+  durationDays?: number; 
+  totalCallsAllowedPerMonth: string; 
+  callDurationPerCallMaxMinutes?: number; 
+  numberOfAgents: number; 
+  templatesAllowed: number; 
+  voicebotUsageCap?: string; 
+  apiAccess: boolean; 
+  customTemplates: boolean; 
+  reportingAnalytics: boolean; 
+  liveCallMonitor: boolean; 
+  overagesAllowed: boolean; 
+  overageChargesPer100Calls?: number; 
+  trialEligible: boolean; 
   status: PlanStatus;
 };
 
@@ -132,7 +133,6 @@ const initialMockPlans: Plan[] = [
     name: "Enterprise Custom",
     description: "Tailored solutions for large organizations.",
     currency: "USD",
-    // durationDays: undefined, // Custom might not have a fixed day duration
     totalCallsAllowedPerMonth: "Unlimited",
     callDurationPerCallMaxMinutes: 60,
     numberOfAgents: 25,
@@ -179,7 +179,7 @@ export default function PlansBillingPage() {
   const [plans, setPlans] = React.useState<Plan[]>(initialMockPlans);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
-  const [planTypeFilter, setPlanTypeFilter] = React.useState("all"); // Based on priceMonthly/priceAnnual
+  const [planTypeFilter, setPlanTypeFilter] = React.useState("all"); 
   const [isAddPlanSheetOpen, setIsAddPlanSheetOpen] = React.useState(false);
   const [isEditPlanSheetOpen, setIsEditPlanSheetOpen] = React.useState(false);
   const [editingPlan, setEditingPlan] = React.useState<Plan | null>(null);
@@ -235,6 +235,13 @@ export default function PlansBillingPage() {
     currentPage * itemsPerPage
   );
 
+  const handleExport = (format: "csv" | "excel" | "pdf") => {
+    toast({
+      title: `Exporting as ${format.toUpperCase()} (Simulated)`,
+      description: `Preparing ${filteredPlans.length} plan records for export.`,
+    });
+    console.log(`Exporting ${format.toUpperCase()} data (Plans):`, filteredPlans);
+  };
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -278,7 +285,7 @@ export default function PlansBillingPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <div className="flex gap-2 flex-wrap w-full md:w-auto justify-between md:justify-start">
+            <div className="flex gap-2 flex-wrap w-full md:w-auto justify-start items-center">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full md:w-[180px]">
                   <ListFilter className="mr-2 h-4 w-4" />
@@ -304,6 +311,26 @@ export default function PlansBillingPage() {
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
+               <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    <FileDown className="mr-2 h-4 w-4" /> Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Export Options</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleExport("csv")}>
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("excel")}>
+                    Export as Excel (XLSX)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                    Export as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </CardHeader>
