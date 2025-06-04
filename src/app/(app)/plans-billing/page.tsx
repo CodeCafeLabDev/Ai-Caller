@@ -51,24 +51,36 @@ import {
   Users,
   Smartphone,
   MessageSquare,
+  FileText,
+  CalendarDays,
+  Info,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddPlanForm } from "@/components/plans/add-plan-form";
 import { EditPlanForm } from "@/components/plans/edit-plan-form";
 
-type PlanStatus = "Active" | "Draft" | "Archived";
-type PlanDuration = "Monthly" | "Annual" | "Custom";
+export type PlanStatus = "Active" | "Draft" | "Archived";
 
 export type Plan = {
   id: string;
   name: string;
+  description?: string;
   priceMonthly?: number;
   priceAnnual?: number;
   currency: string;
-  callMinuteLimit: string; 
-  templateUsageLimit: number;
-  durationDisplay: PlanDuration; 
-  agentSeats: number;
+  durationDays?: number; // New
+  totalCallsAllowedPerMonth: string; // Renamed from callMinuteLimit
+  callDurationPerCallMaxMinutes?: number; // New
+  numberOfAgents: number; // Renamed from agentSeats
+  templatesAllowed: number; // Renamed from templateUsageLimit
+  voicebotUsageCap?: string; // New
+  apiAccess: boolean; // New
+  customTemplates: boolean; // New
+  reportingAnalytics: boolean; // New
+  liveCallMonitor: boolean; // New
+  overagesAllowed: boolean; // New
+  overageChargesPer100Calls?: number; // New
+  trialEligible: boolean; // New
   status: PlanStatus;
 };
 
@@ -76,44 +88,82 @@ const initialMockPlans: Plan[] = [
   {
     id: "plan_basic_01",
     name: "Basic Monthly",
+    description: "Ideal for small teams and startups.",
     priceMonthly: 29,
     currency: "USD",
-    callMinuteLimit: "500 calls",
-    templateUsageLimit: 5,
-    durationDisplay: "Monthly",
-    agentSeats: 1,
+    durationDays: 30,
+    totalCallsAllowedPerMonth: "500 calls",
+    callDurationPerCallMaxMinutes: 10,
+    numberOfAgents: 1,
+    templatesAllowed: 5,
+    voicebotUsageCap: "10 hours",
+    apiAccess: false,
+    customTemplates: false,
+    reportingAnalytics: true,
+    liveCallMonitor: false,
+    overagesAllowed: true,
+    overageChargesPer100Calls: 5,
+    trialEligible: true,
     status: "Active",
   },
   {
     id: "plan_premium_01",
     name: "Premium Annual",
+    description: "Best value for growing businesses.",
     priceAnnual: 990,
     currency: "USD",
-    callMinuteLimit: "2000 mins",
-    templateUsageLimit: 20,
-    durationDisplay: "Annual",
-    agentSeats: 5,
+    durationDays: 365,
+    totalCallsAllowedPerMonth: "2000 mins",
+    callDurationPerCallMaxMinutes: 30,
+    numberOfAgents: 5,
+    templatesAllowed: 20,
+    voicebotUsageCap: "50 hours",
+    apiAccess: true,
+    customTemplates: true,
+    reportingAnalytics: true,
+    liveCallMonitor: true,
+    overagesAllowed: true,
+    overageChargesPer100Calls: 3,
+    trialEligible: false,
     status: "Active",
   },
   {
     id: "plan_enterprise_01",
     name: "Enterprise Custom",
+    description: "Tailored solutions for large organizations.",
     currency: "USD",
-    callMinuteLimit: "Unlimited",
-    templateUsageLimit: 100,
-    durationDisplay: "Custom",
-    agentSeats: 25,
+    // durationDays: undefined, // Custom might not have a fixed day duration
+    totalCallsAllowedPerMonth: "Unlimited",
+    callDurationPerCallMaxMinutes: 60,
+    numberOfAgents: 25,
+    templatesAllowed: 100,
+    voicebotUsageCap: "Custom",
+    apiAccess: true,
+    customTemplates: true,
+    reportingAnalytics: true,
+    liveCallMonitor: true,
+    overagesAllowed: false,
+    trialEligible: false,
     status: "Draft",
   },
   {
     id: "plan_starter_01",
-    name: "Starter Monthly",
+    name: "Starter Archived",
+    description: "Old starter plan.",
     priceMonthly: 15,
     currency: "USD",
-    callMinuteLimit: "200 calls",
-    templateUsageLimit: 2,
-    durationDisplay: "Monthly",
-    agentSeats: 1,
+    durationDays: 30,
+    totalCallsAllowedPerMonth: "200 calls",
+    callDurationPerCallMaxMinutes: 5,
+    numberOfAgents: 1,
+    templatesAllowed: 2,
+    voicebotUsageCap: "5 hours",
+    apiAccess: false,
+    customTemplates: false,
+    reportingAnalytics: false,
+    liveCallMonitor: false,
+    overagesAllowed: false,
+    trialEligible: true,
     status: "Archived",
   },
 ];
@@ -129,7 +179,7 @@ export default function PlansBillingPage() {
   const [plans, setPlans] = React.useState<Plan[]>(initialMockPlans);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
-  const [planTypeFilter, setPlanTypeFilter] = React.useState("all");
+  const [planTypeFilter, setPlanTypeFilter] = React.useState("all"); // Based on priceMonthly/priceAnnual
   const [isAddPlanSheetOpen, setIsAddPlanSheetOpen] = React.useState(false);
   const [isEditPlanSheetOpen, setIsEditPlanSheetOpen] = React.useState(false);
   const [editingPlan, setEditingPlan] = React.useState<Plan | null>(null);
@@ -200,7 +250,7 @@ export default function PlansBillingPage() {
               Add New Plan
             </Button>
           </SheetTrigger>
-          <SheetContent className="sm:max-w-md w-full flex flex-col" side="right">
+          <SheetContent className="sm:max-w-lg w-full flex flex-col" side="right">
             <SheetHeader>
               <SheetTitle>Add New Plan</SheetTitle>
               <SheetDescription>
@@ -263,10 +313,10 @@ export default function PlansBillingPage() {
               <TableRow>
                 <TableHead>Plan Name</TableHead>
                 <TableHead>Price</TableHead>
-                <TableHead><Smartphone className="inline-block mr-1 h-4 w-4"/>Call/Minute Limit</TableHead>
-                <TableHead><MessageSquare className="inline-block mr-1 h-4 w-4"/>Template Limit</TableHead>
-                <TableHead><Clock className="inline-block mr-1 h-4 w-4"/>Duration</TableHead>
-                <TableHead><Users className="inline-block mr-1 h-4 w-4"/>Agent Seats</TableHead>
+                <TableHead><FileText className="inline-block mr-1 h-4 w-4"/>Description</TableHead>
+                <TableHead><Smartphone className="inline-block mr-1 h-4 w-4"/>Calls/Month</TableHead>
+                <TableHead><Users className="inline-block mr-1 h-4 w-4"/>Agents</TableHead>
+                <TableHead><CalendarDays className="inline-block mr-1 h-4 w-4"/>Duration (Days)</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -280,10 +330,12 @@ export default function PlansBillingPage() {
                     {plan.priceAnnual && <div>${plan.priceAnnual} / yr</div>}
                     {!plan.priceMonthly && !plan.priceAnnual && <div>Custom</div>}
                   </TableCell>
-                  <TableCell>{plan.callMinuteLimit}</TableCell>
-                  <TableCell>{plan.templateUsageLimit}</TableCell>
-                  <TableCell>{plan.durationDisplay}</TableCell>
-                  <TableCell>{plan.agentSeats}</TableCell>
+                  <TableCell className="max-w-xs truncate" title={plan.description}>
+                    {plan.description || "-"}
+                  </TableCell>
+                  <TableCell>{plan.totalCallsAllowedPerMonth}</TableCell>
+                  <TableCell>{plan.numberOfAgents}</TableCell>
+                  <TableCell>{plan.durationDays ? `${plan.durationDays} days` : 'N/A'}</TableCell>
                   <TableCell>
                     <Badge className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusVariants[plan.status]}`}>
                       {plan.status}
@@ -299,8 +351,8 @@ export default function PlansBillingPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleAction("View Plan", plan.name)}>
-                          <Eye className="mr-2 h-4 w-4" /> View
+                        <DropdownMenuItem onClick={() => handleAction("View Plan", plan.name)} disabled>
+                          <Eye className="mr-2 h-4 w-4" /> View (Soon)
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleOpenEditSheet(plan)}>
                           <Edit2 className="mr-2 h-4 w-4" /> Edit
@@ -369,7 +421,7 @@ export default function PlansBillingPage() {
           setIsEditPlanSheetOpen(isOpen);
           if (!isOpen) setEditingPlan(null);
         }}>
-          <SheetContent className="sm:max-w-md w-full flex flex-col" side="right">
+          <SheetContent className="sm:max-w-lg w-full flex flex-col" side="right">
             <SheetHeader>
               <SheetTitle>Edit Plan: {editingPlan.name}</SheetTitle>
               <SheetDescription>
