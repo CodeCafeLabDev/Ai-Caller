@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Megaphone, Users, CreditCard, BarChart3, PieChart, Settings } from "lucide-react";
+import { TrendingUp, Megaphone, Users, CreditCard, BarChart3, PieChart, Settings, UserCircle } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
