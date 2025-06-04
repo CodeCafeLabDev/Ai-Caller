@@ -20,7 +20,6 @@ import { useToast } from "@/hooks/use-toast";
 
 // Simplified mock client data for header
 const mockClientData = {
-  name: "Innovate Corp", // This would be dynamic in a real app
   notificationsCount: 1,
 };
 
@@ -47,11 +46,8 @@ export function ClientAdminHeader() {
       </div>
       
       <div className="flex items-center gap-2 md:gap-4">
-        <h2 className="text-lg font-medium text-foreground hidden sm:block">
-          Client Portal
-        </h2>
+        {/* Removed "Client Portal" text */}
 
-        {/* Search Bar Added Here */}
         <form className="relative ml-auto flex-1 sm:flex-initial max-w-xs hidden md:block">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
