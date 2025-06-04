@@ -1,28 +1,22 @@
 
+// This layout's functionality has been moved to /client-admin/layout.tsx
+// This file should be deleted to avoid routing conflicts.
 import type { Metadata } from 'next';
-import { ClientAdminSideNavigation } from '@/components/layout/client-admin-side-navigation';
-import { SidebarInset } from '@/components/ui/sidebar';
-import { ClientAdminHeader } from '@/components/layout/client-admin-header';
 
 export const metadata: Metadata = {
-  title: 'Client Admin Panel - Voxaiomni',
-  description: 'Manage your Voxaiomni services and account.',
+  title: 'Client Admin Panel - Deprecated',
+  description: 'This layout is deprecated.',
 };
 
-export default function ClientAdminAppLayout({
+export default function DeprecatedClientAdminLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <div className="flex min-h-screen w-full">
-      <ClientAdminSideNavigation />
-      <SidebarInset className="flex flex-1 flex-col bg-muted/40">
-        <ClientAdminHeader />
-        <main className="flex-1 p-6 overflow-auto">
-          {children}
-        </main>
-      </SidebarInset>
+    <div>
+      <p>This layout is deprecated and should be removed. Functionality moved to /client-admin/layout.tsx.</p>
+      {children}
     </div>
   );
 }
