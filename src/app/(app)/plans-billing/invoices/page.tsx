@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -66,7 +67,7 @@ const mockClientsForFilter = [
   { id: "client_5", name: "Synergy Systems" },
 ];
 
-const mockInvoices: Invoice[] = [
+const initialMockInvoices: Invoice[] = [
   { id: "inv_1", invoiceId: "INV-2024-001", clientName: "Innovate Corp", clientId: "client_1", planName: "Premium Annual", amount: 990, currency: "USD", dateIssued: subDays(new Date(), 5), dueDate: addDays(new Date(), 25), paymentStatus: "Paid", paymentMethod: "Credit Card", pdfUrl: "/mock-invoice.pdf" },
   { id: "inv_2", invoiceId: "INV-2024-002", clientName: "Solutions Ltd", clientId: "client_2", planName: "Basic Monthly", amount: 29, currency: "USD", dateIssued: subDays(new Date(), 10), dueDate: addDays(new Date(), 20), paymentStatus: "Pending", paymentMethod: "Bank Transfer", pdfUrl: "/mock-invoice.pdf" },
   { id: "inv_3", invoiceId: "INV-2024-003", clientName: "Tech Ventures", clientId: "client_3", planName: "Trial", amount: 0, currency: "USD", dateIssued: subDays(new Date(), 15), dueDate: addDays(new Date(), 15), paymentStatus: "Paid", pdfUrl: "/mock-invoice.pdf" },
@@ -93,6 +94,7 @@ const paymentStatusOptions: { value: PaymentStatus | "all"; label: string }[] = 
 
 export default function BillingInvoicesPage() {
   const { toast } = useToast();
+  const [invoices, setInvoices] = React.useState<Invoice[]>(initialMockInvoices);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedClientId, setSelectedClientId] = React.useState<string | "all">("all");
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
@@ -105,13 +107,27 @@ export default function BillingInvoicesPage() {
   const itemsPerPage = 10;
 
   const handleAction = (actionName: string, invoiceId: string, clientName: string) => {
-    toast({
-      title: `${actionName} (Simulated)`,
-      description: `Action for Invoice ${invoiceId} (${clientName}).`,
-    });
+    if (actionName === "Retry Payment") {
+      setInvoices(prevInvoices => 
+        prevInvoices.map(inv => 
+          inv.invoiceId === invoiceId 
+            ? { ...inv, paymentStatus: "Paid", paymentMethod: `${inv.paymentMethod || 'Card'} - Retried` } 
+            : inv
+        )
+      );
+      toast({
+        title: `Payment Retry Simulated`,
+        description: `Invoice ${invoiceId} for ${clientName} marked as Paid.`,
+      });
+    } else {
+      toast({
+        title: `${actionName} (Simulated)`,
+        description: `Action for Invoice ${invoiceId} (${clientName}).`,
+      });
+    }
   };
 
-  const filteredInvoices = mockInvoices.filter((invoice) => {
+  const filteredInvoices = invoices.filter((invoice) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
     const matchesSearch =
       invoice.invoiceId.toLowerCase().includes(lowerSearchTerm) ||
