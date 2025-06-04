@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -99,6 +98,11 @@ const initialNavItems: NavItemType[] = [
       { href: '/reports-analytics/system-usage-trends', label: 'System Usage Trends', icon: TrendingUp },
       { href: '/reports-analytics/error-logs', label: 'Error & Failed Call Logs', icon: AlertTriangle },
     ]
+  },
+  { 
+    label: 'Users & Admins', 
+    icon: UserCog, // New top-level item
+    href: '/users-admins', // Direct link for now, can become a basePath if sub-items are added
   },
   { 
     label: 'Developer Tools', 
@@ -246,4 +250,3 @@ export function SideNavigation() {
   );
 }
 
-    
