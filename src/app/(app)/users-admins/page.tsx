@@ -34,14 +34,10 @@ import { useToast } from "@/hooks/use-toast";
 import { UserCog, PlusCircle, MoreHorizontal, Edit2, UserX, UserCheck, ListChecks, ShieldCheck, Activity, Eye, KeyRound, LogOut, Trash2, Search, ListFilterIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import type { Metadata } from 'next';
-import { ScrollArea } from "@/components/ui/scroll-area"; // Added import
+import { ScrollArea } from "@/components/ui/scroll-area"; 
 
-export const metadata: Metadata = {
-  title: 'Admin User & Role Management - Voxaiomni',
-  description: 'Oversee administrative users, their roles, permissions, and activity logs.',
-  keywords: ['admin users', 'user roles', 'permissions management', 'admin activity', 'voxaiomni'],
-};
+// Removed: import type { Metadata } from 'next';
+// Removed: export const metadata: Metadata = { ... };
 
 type AdminUserStatus = "Active" | "Suspended";
 type AdminRoleStatus = "Active" | "Archived";
