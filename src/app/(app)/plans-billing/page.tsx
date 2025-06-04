@@ -30,6 +30,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"; // Added Sheet components
+import {
   Search,
   PlusCircle,
   ListFilter,
@@ -46,6 +54,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AddPlanForm } from "@/components/plans/add-plan-form"; // Import AddPlanForm
 
 type PlanStatus = "Active" | "Draft" | "Archived";
 type PlanDuration = "Monthly" | "Annual" | "Custom";
@@ -120,13 +129,19 @@ export default function PlansBillingPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planTypeFilter, setPlanTypeFilter] = React.useState("all");
-  // Add more state for other filters/sorting as needed
+  const [isAddPlanSheetOpen, setIsAddPlanSheetOpen] = React.useState(false); // State for sheet
 
   const handleAction = (actionName: string, planName: string) => {
     toast({
       title: `${actionName} (Simulated)`,
       description: `Action performed on plan: ${planName}.`,
     });
+  };
+
+  const handleAddPlanSuccess = () => {
+    setIsAddPlanSheetOpen(false);
+    // In a real app, you might want to refresh the plans list here
+    toast({ title: "Plan Added", description: "The new plan has been successfully added." });
   };
 
   const filteredPlans = mockPlans.filter((plan) => {
@@ -154,10 +169,23 @@ export default function PlansBillingPage() {
           <h1 className="text-3xl font-bold font-headline">Subscription Plans</h1>
           <p className="text-muted-foreground">Manage service tiers and plan configurations.</p>
         </div>
-        <Button size="lg" onClick={() => handleAction("Add New Plan", "")}>
-          <PlusCircle className="mr-2 h-5 w-5" />
-          Add New Plan
-        </Button>
+        <Sheet open={isAddPlanSheetOpen} onOpenChange={setIsAddPlanSheetOpen}>
+          <SheetTrigger asChild>
+            <Button size="lg">
+              <PlusCircle className="mr-2 h-5 w-5" />
+              Add New Plan
+            </Button>
+          </SheetTrigger>
+          <SheetContent className="sm:max-w-md w-full flex flex-col" side="right">
+            <SheetHeader>
+              <SheetTitle>Add New Plan</SheetTitle>
+              <SheetDescription>
+                Fill in the details below to create a new subscription plan.
+              </SheetDescription>
+            </SheetHeader>
+            <AddPlanForm onSuccess={handleAddPlanSuccess} />
+          </SheetContent>
+        </Sheet>
       </div>
 
       <Card className="shadow-lg">
@@ -199,7 +227,6 @@ export default function PlansBillingPage() {
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
-              {/* Add more filters here if needed, e.g., Call Limit */}
             </div>
           </div>
         </CardHeader>
@@ -312,4 +339,3 @@ export default function PlansBillingPage() {
     </div>
   );
 }
-
