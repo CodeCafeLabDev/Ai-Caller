@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -100,7 +100,17 @@ const initialNavItems: NavItemType[] = [
       { href: '/reports-analytics/error-logs', label: 'Error & Failed Call Logs', icon: AlertTriangle },
     ]
   },
-  { href: '/developer-tools', label: 'Developer Tools', icon: TerminalSquare },
+  { 
+    label: 'Developer Tools', 
+    icon: TerminalSquare,
+    basePath: '/developer-tools',
+    subItems: [
+      { href: '/developer-tools', label: 'API Docs', icon: BookOpen },
+      { href: '/developer-tools/webhooks', label: 'Webhooks', icon: ArrowRightLeft },
+      { href: '/developer-tools/api-keys', label: 'API Keys', icon: KeyRound },
+      { href: '/developer-tools/integration-logs', label: 'Integration Logs', icon: ListChecks },
+    ]
+  },
   { href: '/test-lab', label: 'Test Lab', icon: FlaskConical },
   { href: '/alerts-logs', label: 'Alerts & Logs', icon: ShieldAlert },
   { href: '/system-settings', label: 'System Settings', icon: Settings },
@@ -142,21 +152,19 @@ export function SideNavigation() {
           {initialNavItems.map((item) => (
             <SidebarMenuItem key={item.label}>
               <SidebarMenuButton
-                asChild={!item.subItems} // Only use asChild if it's a direct link
+                asChild={!item.subItems} 
                 onClick={item.subItems ? () => toggleSubmenu(item.label) : undefined}
-                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))) : false)}
+                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/developer-tools' && pathname.startsWith(item.href)) || (item.href === '/developer-tools' && (pathname === item.href && !item.subItems?.some(si => pathname.startsWith(si.href) && si.href !== item.href)))) : false)}
                 tooltip={{ children: item.label, className: "bg-popover text-popover-foreground border-border" }}
                 className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
               >
                 {item.subItems ? (
-                  // Content for parent item that toggles submenu
                   <>
                     <item.icon />
                     <span>{item.label}</span>
                     {openSubmenus[item.label] ? <ChevronDown className="ml-auto h-4 w-4 shrink-0" /> : <ChevronRight className="ml-auto h-4 w-4 shrink-0" />}
                   </>
                 ) : (
-                  // Content for direct link item
                   <Link href={item.href || '#'}>
                     <item.icon />
                     <span>{item.label}</span>
@@ -219,3 +227,4 @@ export function SideNavigation() {
   );
 }
 
+    
