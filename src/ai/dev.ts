@@ -8,9 +8,9 @@ async function main() {
   try {
     await initializeDatabase();
     console.log('Database initialization process completed (see logs above for details).');
-    console.log('Sample user credentials for testing:');
-    console.log('  Super Admin Panel -> User ID: testUser, Password: password123');
-    console.log('  Client Admin Panel -> User ID: clientTestUser, Password: password123');
+    console.log('Sample user credentials for testing (from Users table):');
+    console.log('  Super Admin Panel -> User Identifier: testUser, Password: password123');
+    console.log('  Client Admin Panel -> User Identifier: clientTestUser, Password: password123');
   } catch (error) {
     console.error('Failed to initialize database during dev startup:', error);
     console.error('Please ensure your database server is running and credentials in .env.local are correct.');

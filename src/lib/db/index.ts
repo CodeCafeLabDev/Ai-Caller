@@ -55,61 +55,75 @@ export async function closeDbConnection(): Promise<void> {
   }
 }
 
-async function initializeLoginTable(): Promise<void> {
+async function initializeUsersTable(): Promise<void> {
   const conn = await getDbConnection();
+  // User has already created this table as per their message.
+  // The IF NOT EXISTS clause makes this safe to run.
   await conn.execute(`
-    CREATE TABLE IF NOT EXISTS Login (
-      user_Id VARCHAR(255) PRIMARY KEY NOT NULL,
-      password VARCHAR(255) NOT NULL
+    CREATE TABLE IF NOT EXISTS Users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_identifier VARCHAR(255) NOT NULL UNIQUE,
+      password_hash VARCHAR(255) NOT NULL,
+      full_name VARCHAR(255),
+      email VARCHAR(255) UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     );
   `);
-  console.log("Login table checked/created.");
+  console.log("Users table checked/created.");
 }
 
 interface SampleUserCredentials {
-  userId: string;
+  userIdentifier: string;
   plainPassword_DO_NOT_USE_IN_PROD: string;
   roleHint: 'super_admin' | 'client_admin';
 }
 
 async function addSpecificSampleUser(
-  userId: string,
+  userIdentifier: string,
   plainPassword: string,
-  roleHint: 'super_admin' | 'client_admin'
+  roleHint: 'super_admin' | 'client_admin',
+  fullName?: string,
+  email?: string
 ): Promise<SampleUserCredentials | null> {
   const conn = await getDbConnection();
   const [rows] = await conn.execute<mysql.RowDataPacket[]>(
-    'SELECT user_Id FROM Login WHERE user_Id = ?',
-    [userId]
+    'SELECT user_identifier FROM Users WHERE user_identifier = ?',
+    [userIdentifier]
   );
 
   if (rows.length > 0) {
-    console.log(`User '${userId}' already exists.`);
-    return { userId, plainPassword_DO_NOT_USE_IN_PROD: plainPassword, roleHint };
+    console.log(`User '${userIdentifier}' already exists in Users table.`);
+    return { userIdentifier, plainPassword_DO_NOT_USE_IN_PROD: plainPassword, roleHint };
   }
 
   const hashedPassword = await bcrypt.hash(plainPassword, 10);
   await conn.execute(
-    'INSERT INTO Login (user_Id, password) VALUES (?, ?)',
-    [userId, hashedPassword]
+    'INSERT INTO Users (user_identifier, password_hash, full_name, email) VALUES (?, ?, ?, ?)',
+    [userIdentifier, hashedPassword, fullName || userIdentifier, email || `${userIdentifier}@example.com`]
   );
-  console.log(`User '${userId}' added.`);
-  return { userId, plainPassword_DO_NOT_USE_IN_PROD: plainPassword, roleHint };
+  console.log(`User '${userIdentifier}' added to Users table.`);
+  return { userIdentifier, plainPassword_DO_NOT_USE_IN_PROD: plainPassword, roleHint };
 }
 
 export async function initializeDatabase(): Promise<void> {
   try {
-    await initializeLoginTable();
+    // Drop the old Login table if it exists to avoid confusion
+    const conn = await getDbConnection();
+    await conn.execute('DROP TABLE IF EXISTS Login;');
+    console.log("Old 'Login' table dropped if it existed.");
+    
+    await initializeUsersTable();
 
-    const superAdminUser = await addSpecificSampleUser('testUser', 'password123', 'super_admin');
-    const clientAdminUser = await addSpecificSampleUser('clientTestUser', 'password123', 'client_admin');
+    const superAdminUser = await addSpecificSampleUser('testUser', 'password123', 'super_admin', 'Test Super Admin', 'superadmin@example.com');
+    const clientAdminUser = await addSpecificSampleUser('clientTestUser', 'password123', 'client_admin', 'Test Client Admin', 'clientadmin@example.com');
 
-    console.log("--- Sample Users ---");
+    console.log("--- Sample Users (credentials for new Users table) ---");
     if (superAdminUser) {
-      console.log(`Super Admin: ${superAdminUser.userId}, Password: ${superAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
+      console.log(`Super Admin: ${superAdminUser.userIdentifier}, Password: ${superAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
     }
     if (clientAdminUser) {
-      console.log(`Client Admin: ${clientAdminUser.userId}, Password: ${clientAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
+      console.log(`Client Admin: ${clientAdminUser.userIdentifier}, Password: ${clientAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
     }
   } catch (err) {
     console.error("DB init failed:", err);

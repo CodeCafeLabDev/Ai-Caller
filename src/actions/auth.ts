@@ -7,7 +7,7 @@ import { getDbConnection } from '@/lib/db';
 import type { RowDataPacket } from 'mysql2';
 
 const signInSchema = z.object({
-  user_Id: z.string().min(1, { message: "User ID is required." }),
+  user_Id: z.string().min(1, { message: "User ID is required." }), // Will map to user_identifier
   password: z.string().min(1, { message: "Password is required." }),
 });
 
@@ -18,12 +18,13 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>) {
       return { success: false, message: 'Invalid input.', user: null };
     }
 
-    const { user_Id, password: inputPassword } = validatedFields.data;
+    const { user_Id: userIdentifier, password: inputPassword } = validatedFields.data;
 
     const db = await getDbConnection();
+    // Query the new Users table and select password_hash
     const [rows] = await db.execute<RowDataPacket[]>(
-      'SELECT password FROM Login WHERE user_Id = ?',
-      [user_Id]
+      'SELECT user_identifier, password_hash FROM Users WHERE user_identifier = ?',
+      [userIdentifier]
     );
 
     if (rows.length === 0) {
@@ -31,7 +32,8 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>) {
     }
 
     const userFromDb = rows[0];
-    const storedPasswordHash = userFromDb.password;
+    // Access the stored hash from password_hash column
+    const storedPasswordHash = userFromDb.password_hash; 
 
     const passwordMatches = await bcrypt.compare(inputPassword, storedPasswordHash);
 
@@ -39,35 +41,41 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>) {
       return { success: false, message: 'Invalid User ID or password.', user: null };
     }
 
-    // Role determination (current limitation: based on known test user_Ids)
+    // Role determination (current limitation: based on known test user_identifiers)
+    // This will be enhanced once Roles and UserRoles tables are fully integrated.
     let userRole: string | null = null;
     let successMessage: string = 'Sign in successful!';
 
-    if (user_Id === 'testUser') {
+    if (userIdentifier === 'testUser') {
       userRole = 'super_admin';
       successMessage = 'Sign in successful! (Super Admin)';
-    } else if (user_Id === 'clientTestUser') {
+    } else if (userIdentifier === 'clientTestUser') {
       userRole = 'client_admin';
       successMessage = 'Sign in successful! (Client Admin)';
     } else {
-      // For other DB users, role cannot be determined from Login table alone
-      // This indicates a need for DB schema enhancement for roles.
-      return { 
-        success: false, 
-        message: 'User authenticated, but role determination is not configured for this user.', 
-        user: null 
+      // For other DB users, role needs to be fetched from UserRoles table eventually
+      // For now, if they exist in Users and password matches, but aren't the test users,
+      // we can acknowledge authentication but not assign a specific app role yet.
+      console.warn(`User '${userIdentifier}' authenticated but role determination via UserRoles table is not yet implemented.`);
+      successMessage = `User '${userIdentifier}' authenticated. Role assignment pending full implementation.`;
+      // To prevent login without a known role for now, let's consider this a setup phase.
+      // You might want to allow login and assign a default "user" role if one exists in your future Roles table.
+       return { 
+        success: false, // Or true, if you want to allow login with a generic role
+        message: 'User authenticated, but role determination is not fully configured for this user type.', 
+        user: { userId: userIdentifier, role: 'unknown' } // Or null
       };
     }
 
     return {
       success: true,
       message: successMessage,
-      user: { userId: user_Id, role: userRole },
+      user: { userId: userIdentifier, role: userRole },
     };
 
-  } catch (error) {
+  } catch (error)
+ {
     console.error('Sign in action error:', error);
-    // Check for specific MySQL errors if needed, e.g., connection errors
     if (error instanceof Error && error.message.includes('connect ECONNREFUSED')) {
         return { success: false, message: 'Database connection failed. Please ensure the database server is running and accessible.', user: null };
     }
