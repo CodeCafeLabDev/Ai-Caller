@@ -1,17 +1,18 @@
 
 'use server';
 
-import dotenv from 'dotenv';
-dotenv.config({ path: '.env.localexample' }); 
+// Removed: import dotenv from 'dotenv';
+// Next.js automatically loads .env.local and other .env files.
+// Ensure your DB_HOST, DB_USER, DB_PASSWORD, DB_NAME are in .env.local
 
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
 
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'mydatabase',
+  host: process.env.DB_HOST || '193.203.166.175',
+  user: process.env.DB_USER || 'u406732176_aicaller',
+  password: process.env.DB_PASSWORD || 'Aicaller@1234',
+  database: process.env.DB_NAME || 'u406732176_aicaller',
 };
 
 let connection: mysql.Connection | null = null;
@@ -33,9 +34,11 @@ export async function getDbConnection(): Promise<mysql.Connection> {
   }
 
   try {
-    console.log('Connecting to DB...');
+    // Log the configuration being used, but mask password for security in logs.
+    const loggableConfig = { ...dbConfig, password: dbConfig.password ? '********' : undefined };
+    console.log('Attempting to connect to DB with config:', loggableConfig);
     connection = await mysql.createConnection(dbConfig);
-    console.log('Connected.');
+    console.log(`Successfully connected to database '${dbConfig.database}' on host '${dbConfig.host}'.`);
     return connection;
   } catch (error) {
     console.error('DB connection error:', error);
@@ -57,8 +60,6 @@ export async function closeDbConnection(): Promise<void> {
 
 async function initializeUsersTable(): Promise<void> {
   const conn = await getDbConnection();
-  // User has already created this table as per their message.
-  // The IF NOT EXISTS clause makes this safe to run.
   await conn.execute(`
     CREATE TABLE IF NOT EXISTS Users (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -70,7 +71,7 @@ async function initializeUsersTable(): Promise<void> {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     );
   `);
-  console.log("Users table checked/created.");
+  console.log("Users table checked/created successfully.");
 }
 
 interface SampleUserCredentials {
@@ -102,31 +103,36 @@ async function addSpecificSampleUser(
     'INSERT INTO Users (user_identifier, password_hash, full_name, email) VALUES (?, ?, ?, ?)',
     [userIdentifier, hashedPassword, fullName || userIdentifier, email || `${userIdentifier}@example.com`]
   );
-  console.log(`User '${userIdentifier}' added to Users table.`);
+  console.log(`User '${userIdentifier}' added to Users table successfully.`);
   return { userIdentifier, plainPassword_DO_NOT_USE_IN_PROD: plainPassword, roleHint };
 }
 
 export async function initializeDatabase(): Promise<void> {
   try {
-    // Drop the old Login table if it exists to avoid confusion
+    console.log("Starting database initialization...");
     const conn = await getDbConnection();
+    
+    console.log("Dropping old 'Login' table if it exists...");
     await conn.execute('DROP TABLE IF EXISTS Login;');
-    console.log("Old 'Login' table dropped if it existed.");
+    console.log("Old 'Login' table dropped successfully (or did not exist).");
     
     await initializeUsersTable();
 
+    console.log("Adding sample users...");
     const superAdminUser = await addSpecificSampleUser('testUser', 'password123', 'super_admin', 'Test Super Admin', 'superadmin@example.com');
     const clientAdminUser = await addSpecificSampleUser('clientTestUser', 'password123', 'client_admin', 'Test Client Admin', 'clientadmin@example.com');
 
-    console.log("--- Sample Users (credentials for new Users table) ---");
+    console.log("--- Sample User Credentials (for Users table) ---");
     if (superAdminUser) {
-      console.log(`Super Admin: ${superAdminUser.userIdentifier}, Password: ${superAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
+      console.log(`Super Admin -> User Identifier: ${superAdminUser.userIdentifier}, Password: ${superAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
     }
     if (clientAdminUser) {
-      console.log(`Client Admin: ${clientAdminUser.userIdentifier}, Password: ${clientAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
+      console.log(`Client Admin -> User Identifier: ${clientAdminUser.userIdentifier}, Password: ${clientAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
     }
+    console.log("Database initialization process completed.");
   } catch (err) {
-    console.error("DB init failed:", err);
-    throw err;
+    console.error("DB initialization failed:", err);
+    // It's important to re-throw or handle this, so `src/ai/dev.ts` can catch it.
+    throw err; 
   }
 }
