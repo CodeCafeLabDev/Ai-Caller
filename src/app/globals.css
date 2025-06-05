@@ -10,77 +10,91 @@ body {
 @layer base {
   :root {
     --background: 0 0% 100%; /* white */
-    --foreground: 0 0% 0%; /* black */
+    --foreground: 213 79% 10%; /* Dark blue, derived from primary */
     --card: 0 0% 100%; /* white */
-    --card-foreground: 0 0% 0%; /* black */
+    --card-foreground: 213 79% 10%; /* Dark blue */
     --popover: 0 0% 100%; /* white */
-    --popover-foreground: 0 0% 0%; /* black */
-    --primary: 0 0% 0%; /* black */
+    --popover-foreground: 213 79% 10%; /* Dark blue */
+    
+    --primary: 213 79% 40%; /* #1655b5 */
     --primary-foreground: 0 0% 100%; /* white */
-    --secondary: 0 0% 90%; /* light grey */
-    --secondary-foreground: 0 0% 0%; /* black */
+    
+    --secondary: 235 57% 38%; /* #292f9b - Using this for secondary as it's a distinct color */
+    --secondary-foreground: 0 0% 100%; /* white */
+    
     --muted: 0 0% 96%; /* very light grey */
     --muted-foreground: 0 0% 40%; /* mid-dark grey */
-    --accent: 0 0% 15%; /* dark grey for hover/active states on white bg */
+    
+    --accent: 235 57% 48%; /* Lighter version of #292f9b for hover/active on light bg */
     --accent-foreground: 0 0% 100%; /* white */
-    --destructive: 0 0% 10%; /* very dark grey / almost black */
+    
+    --destructive: 0 84% 60%; /* Standard destructive red */
     --destructive-foreground: 0 0% 100%; /* white */
+    
     --border: 0 0% 87%; /* light grey */
     --input: 0 0% 87%; /* light grey border for input */
-    --ring: 0 0% 0%; /* black for focus rings */
-    --chart-1: 0 0% 20%;
-    --chart-2: 0 0% 35%;
-    --chart-3: 0 0% 50%;
-    --chart-4: 0 0% 65%;
-    --chart-5: 0 0% 80%;
+    --ring: 213 79% 40%; /* #1655b5 for focus rings */
+    
+    --chart-1: 213 79% 40%; /* Primary */
+    --chart-2: 235 57% 38%; /* Secondary */
+    --chart-3: 213 79% 60%; /* Lighter Primary */
+    --chart-4: 235 57% 58%; /* Lighter Secondary */
+    --chart-5: 0 0% 50%;   /* Neutral Grey */
     --radius: 0.5rem;
 
     /* Sidebar specific colors for light theme (dark sidebar) */
-    --sidebar-background: 0 0% 8%; /* very dark grey / almost black */
+    --sidebar-background: 235 57% 15%; /* Darker variant of #292f9b for sidebar bg */
     --sidebar-foreground: 0 0% 95%; /* off-white */
-    --sidebar-primary: 0 0% 90%; /* light grey for active item background */
-    --sidebar-primary-foreground: 0 0% 0%; /* black text on active item */
-    --sidebar-accent: 0 0% 25%; /* mid-dark grey for hover */
+    --sidebar-primary: 213 79% 40%; /* #1655b5 for active item background */
+    --sidebar-primary-foreground: 0 0% 100%; /* white text on active item */
+    --sidebar-accent: 213 79% 30%; /* Slightly darker/muted #1655b5 for hover */
     --sidebar-accent-foreground: 0 0% 98%; /* white text on hover */
-    --sidebar-border: 0 0% 15%; /* dark grey */
-    --sidebar-ring: 0 0% 90%; /* light grey */
+    --sidebar-border: 235 57% 20%; /* Border for sidebar elements */
+    --sidebar-ring: 213 79% 40%; /* #1655b5 */
   }
 
   .dark {
-    --background: 0 0% 0%; /* black */
-    --foreground: 0 0% 100%; /* white */
-    --card: 0 0% 10%; /* very dark grey */
-    --card-foreground: 0 0% 100%; /* white */
-    --popover: 0 0% 8%; /* very dark grey */
-    --popover-foreground: 0 0% 100%; /* white */
-    --primary: 0 0% 100%; /* white */
-    --primary-foreground: 0 0% 0%; /* black */
-    --secondary: 0 0% 20%; /* dark grey */
-    --secondary-foreground: 0 0% 100%; /* white */
-    --muted: 0 0% 15%; /* dark grey */
+    --background: 235 20% 12%; /* Dark blue-grey */
+    --foreground: 0 0% 95%; /* Off-white */
+    --card: 235 20% 18%; /* Slightly lighter dark blue-grey */
+    --card-foreground: 0 0% 95%; /* Off-white */
+    --popover: 235 20% 15%; /* Darker blue-grey */
+    --popover-foreground: 0 0% 95%; /* Off-white */
+    
+    --primary: 213 79% 55%; /* Brighter #1655b5 for dark mode */
+    --primary-foreground: 213 79% 10%; /* Dark blue text on primary */
+    
+    --secondary: 235 57% 48%; /* Brighter #292f9b for dark mode */
+    --secondary-foreground: 0 0% 98%; /* Almost white text on secondary */
+    
+    --muted: 235 20% 22%; /* Muted dark blue-grey */
     --muted-foreground: 0 0% 70%; /* light grey */
-    --accent: 0 0% 85%; /* light grey for hover/active states on black bg */
-    --accent-foreground: 0 0% 0%; /* black */
-    --destructive: 0 0% 90%; /* very light grey / almost white */
-    --destructive-foreground: 0 0% 0%; /* black */
-    --border: 0 0% 25%; /* dark grey */
-    --input: 0 0% 25%; /* dark grey border for input */
-    --ring: 0 0% 100%; /* white for focus rings */
-    --chart-1: 0 0% 80%;
-    --chart-2: 0 0% 65%;
-    --chart-3: 0 0% 50%;
-    --chart-4: 0 0% 35%;
-    --chart-5: 0 0% 20%;
+    
+    --accent: 213 79% 45%; /* #1655b5 variant for hover/active on dark bg */
+    --accent-foreground: 0 0% 100%; /* white */
+    
+    --destructive: 0 72% 51%; /* Dark mode destructive red */
+    --destructive-foreground: 0 0% 100%; /* white */
+    
+    --border: 235 20% 30%; /* Border for dark mode */
+    --input: 235 20% 30%; /* Input border for dark mode */
+    --ring: 213 79% 55%; /* Brighter #1655b5 for focus rings */
+    
+    --chart-1: 213 79% 55%; /* Brighter Primary */
+    --chart-2: 235 57% 48%; /* Brighter Secondary */
+    --chart-3: 213 79% 70%; /* Even Brighter Primary */
+    --chart-4: 235 57% 68%; /* Even Brighter Secondary */
+    --chart-5: 0 0% 80%;   /* Light Grey */
 
     /* Sidebar specific colors for dark theme (also dark, but distinct) */
-    --sidebar-background: 0 0% 5%; /* slightly darker than main dark bg */
+    --sidebar-background: 235 20% 8%; /* Very dark blue-grey for sidebar bg */
     --sidebar-foreground: 0 0% 92%; /* off-white */
-    --sidebar-primary: 0 0% 20%; /* dark grey for active item background */
-    --sidebar-primary-foreground: 0 0% 100%; /* white text on active item */
-    --sidebar-accent: 0 0% 15%; /* slightly lighter dark grey for hover */
+    --sidebar-primary: 213 79% 50%; /* Brighter #1655b5 for active item background */
+    --sidebar-primary-foreground: 213 79% 5%; /* Very dark blue text on active item */
+    --sidebar-accent: 213 79% 40%; /* Muted #1655b5 for hover */
     --sidebar-accent-foreground: 0 0% 95%; /* off-white text on hover */
-    --sidebar-border: 0 0% 10%; /* very dark grey */
-    --sidebar-ring: 0 0% 25%; /* dark grey */
+    --sidebar-border: 235 20% 15%; /* Border for sidebar elements */
+    --sidebar-ring: 213 79% 50%; /* Brighter #1655b5 */
   }
 }
 
