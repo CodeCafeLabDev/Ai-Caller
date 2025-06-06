@@ -2,13 +2,19 @@
 'use server';
 
 import { z } from 'zod';
-import bcrypt from 'bcryptjs';
-import { getDbConnection } from '@/lib/db';
-import type { RowDataPacket } from 'mysql2';
+// bcrypt and getDbConnection are no longer needed for API key-only auth
+// import bcrypt from 'bcryptjs';
+// import { getDbConnection } from '@/lib/db';
+// import type { RowDataPacket } from 'mysql2';
 
+// Define the expected API key
+const VALID_API_KEY = "12345678910";
+const API_USER_ROLE = "super_admin"; // Assuming this key grants super_admin
+const API_USER_ID = "api_admin_user";
+
+// Updated schema for API key input
 const signInSchema = z.object({
-  user_Id: z.string().min(1, { message: "User ID is required." }), // Will map to user_identifier
-  password: z.string().min(1, { message: "Password is required." }),
+  apiKey: z.string().min(1, { message: "API Key is required." }),
 });
 
 export async function signInUserAction(values: z.infer<typeof signInSchema>) {
@@ -18,66 +24,25 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>) {
       return { success: false, message: 'Invalid input.', user: null };
     }
 
-    const { user_Id: userIdentifier, password: inputPassword } = validatedFields.data;
+    const { apiKey } = validatedFields.data;
 
-    const db = await getDbConnection();
-    // Query the new Users table and select password_hash
-    const [rows] = await db.execute<RowDataPacket[]>(
-      'SELECT user_identifier, password_hash FROM Users WHERE user_identifier = ?',
-      [userIdentifier]
-    );
-
-    if (rows.length === 0) {
-      return { success: false, message: 'Invalid User ID or password.', user: null };
-    }
-
-    const userFromDb = rows[0];
-    // Access the stored hash from password_hash column
-    const storedPasswordHash = userFromDb.password_hash; 
-
-    const passwordMatches = await bcrypt.compare(inputPassword, storedPasswordHash);
-
-    if (!passwordMatches) {
-      return { success: false, message: 'Invalid User ID or password.', user: null };
-    }
-
-    // Role determination (current limitation: based on known test user_identifiers)
-    // This will be enhanced once Roles and UserRoles tables are fully integrated.
-    let userRole: string | null = null;
-    let successMessage: string = 'Sign in successful!';
-
-    if (userIdentifier === 'testUser') {
-      userRole = 'super_admin';
-      successMessage = 'Sign in successful! (Super Admin)';
-    } else if (userIdentifier === 'clientTestUser') {
-      userRole = 'client_admin';
-      successMessage = 'Sign in successful! (Client Admin)';
-    } else {
-      // For other DB users, role needs to be fetched from UserRoles table eventually
-      // For now, if they exist in Users and password matches, but aren't the test users,
-      // we can acknowledge authentication but not assign a specific app role yet.
-      console.warn(`User '${userIdentifier}' authenticated but role determination via UserRoles table is not yet implemented.`);
-      successMessage = `User '${userIdentifier}' authenticated. Role assignment pending full implementation.`;
-      // To prevent login without a known role for now, let's consider this a setup phase.
-      // You might want to allow login and assign a default "user" role if one exists in your future Roles table.
-       return { 
-        success: false, // Or true, if you want to allow login with a generic role
-        message: 'User authenticated, but role determination is not fully configured for this user type.', 
-        user: { userId: userIdentifier, role: 'unknown' } // Or null
+    if (apiKey === VALID_API_KEY) {
+      // API Key matches
+      return {
+        success: true,
+        message: 'Sign in successful! (API Key Authenticated)',
+        user: { userId: API_USER_ID, role: API_USER_ROLE },
       };
+    } else {
+      // API Key does not match
+      return { success: false, message: 'Invalid API Key.', user: null };
     }
 
-    return {
-      success: true,
-      message: successMessage,
-      user: { userId: userIdentifier, role: userRole },
-    };
-
-  } catch (error)
- {
+  } catch (error) {
     console.error('Sign in action error:', error);
+    // Keep general error handling, though DB errors are less likely now for auth
     if (error instanceof Error && error.message.includes('connect ECONNREFUSED')) {
-        return { success: false, message: 'Database connection failed. Please ensure the database server is running and accessible.', user: null };
+        return { success: false, message: 'Database connection failed (though not used for this auth type). Please ensure the database server is running and accessible for other app functions.', user: null };
     }
     return { success: false, message: 'An unexpected error occurred during sign in.', user: null };
   }

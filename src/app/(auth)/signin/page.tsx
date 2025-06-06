@@ -22,8 +22,7 @@ import { signInUserAction } from '@/actions/auth';
 import { useState, useTransition } from 'react';
 
 const formSchema = z.object({
-  user_Id: z.string().min(1, { message: "User ID is required." }),
-  password: z.string().min(1, { message: "Password is required." }),
+  apiKey: z.string().min(1, { message: "API Key is required." }),
 });
 
 export default function SignInPage() {
@@ -34,33 +33,33 @@ export default function SignInPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      user_Id: "",
-      password: "",
+      apiKey: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     startTransition(async () => {
-      const result = await signInUserAction(values);
+      // Pass the entire values object which now contains apiKey
+      const result = await signInUserAction(values); 
        
       if (result.success && result.user) {
         toast({
           title: "Sign In Successful",
           description: result.message,
         });
+        // Role-based redirection can remain if the API key implies a role
         if (result.user.role === 'super_admin') {
           router.push("/dashboard");
         } else if (result.user.role === 'client_admin') {
-          router.push("/client-admin/dashboard");
+          // This case might be less relevant if only one API key grants super_admin
+          router.push("/client-admin/dashboard"); 
         } else {
-          // Fallback, though the action should always assign a role on success
-          console.warn("User role not determined, defaulting to super admin dashboard.");
-          router.push("/dashboard");
+          router.push("/dashboard"); // Default fallback
         }
       } else {
         toast({
           title: "Sign In Failed",
-          description: result.message || "An unexpected error occurred.",
+          description: result.message || "Invalid API Key or an unexpected error occurred.",
           variant: "destructive",
         });
       }
@@ -70,9 +69,9 @@ export default function SignInPage() {
   return (
     <Card className="w-full max-w-md shadow-xl mx-auto">
       <CardHeader>
-        <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
+        <CardTitle className="text-3xl font-headline text-center">Sign In with API Key</CardTitle>
         <CardDescription className="text-center">
-          Access your Voxaiomni account.
+          Enter your API key to access Voxaiomni.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -80,25 +79,12 @@ export default function SignInPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="user_Id"
+              name="apiKey"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>User ID</FormLabel>
+                  <FormLabel>API Key</FormLabel>
                   <FormControl>
-                    <Input placeholder="testUser or your_client_username" {...field} disabled={isPending} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="password123" {...field} disabled={isPending} />
+                    <Input type="password" placeholder="Enter your API Key" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
