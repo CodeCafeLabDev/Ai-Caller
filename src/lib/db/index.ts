@@ -111,10 +111,8 @@ export async function initializeDatabase(): Promise<void> {
     console.log("Starting database initialization...");
     const conn = await getDbConnection();
     
-    // It's generally safer to let the table creation fail if it exists, or handle it more gracefully.
-    // For now, to ensure a clean state for testing, we'll drop and recreate.
     console.log("Dropping 'Users' table if it exists for a clean setup...");
-    await conn.execute('DROP TABLE IF EXISTS Users;'); // Changed from Login to Users
+    await conn.execute('DROP TABLE IF EXISTS Users;');
     console.log("'Users' table dropped successfully (or did not exist).");
     
     await initializeUsersTable();
@@ -122,6 +120,8 @@ export async function initializeDatabase(): Promise<void> {
     console.log("Adding sample users...");
     const superAdminUser = await addSpecificSampleUser('testUser', 'password123', 'super_admin', 'Test Super Admin', 'superadmin@example.com');
     const clientAdminUser = await addSpecificSampleUser('clientTestUser', 'password123', 'client_admin', 'Test Client Admin', 'clientadmin@example.com');
+    const dineshUser = await addSpecificSampleUser('dineshUser', 'password123', 'client_admin', 'Dinesh', 'dinesh@example.com');
+
 
     console.log("--- Sample User Credentials (for Users table) ---");
     if (superAdminUser) {
@@ -129,6 +129,9 @@ export async function initializeDatabase(): Promise<void> {
     }
     if (clientAdminUser) {
       console.log(`Client Admin -> User Identifier: ${clientAdminUser.userIdentifier}, Password: ${clientAdminUser.plainPassword_DO_NOT_USE_IN_PROD}`);
+    }
+    if (dineshUser) {
+      console.log(`Client Admin (Dinesh) -> User Identifier: ${dineshUser.userIdentifier}, Password: ${dineshUser.plainPassword_DO_NOT_USE_IN_PROD}`);
     }
     console.log("Database initialization process completed.");
   } catch (err) {
