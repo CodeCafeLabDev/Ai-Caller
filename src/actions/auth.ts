@@ -2,12 +2,11 @@
 'use server';
 
 import { z } from 'zod';
-// bcryptjs is no longer needed as we are not hashing/comparing passwords from a DB
-// import bcrypt from 'bcryptjs';
-// No need for Supabase or MySQL client here anymore
+import bcrypt from 'bcryptjs';
+import { getDbConnection, closeDbConnection } from '@/lib/db'; // Assuming db utilities are in lib/db
 
 const signInSchema = z.object({
-  userId: z.string().min(1, { message: "User ID is required." }), // Changed from email to userId
+  userId: z.string().min(1, { message: "User ID is required." }),
   password: z.string().min(1, { message: "Password is required." }),
 });
 
@@ -15,28 +14,11 @@ interface SignInResult {
   success: boolean;
   message: string;
   user: { userId: string; email: string | undefined; fullName: string | null; role: string; } | null;
-  error?: Error | null; // Generic error type
+  error?: Error | null;
 }
 
-// Hardcoded mock users
-const mockUsers = [
-  {
-    userId: 'admin',
-    password: 'password123', // In a real app, never store plain text passwords
-    fullName: 'Super Admin',
-    role: 'super_admin',
-    email: 'admin@example.com',
-  },
-  {
-    userId: 'clientadmin',
-    password: 'password123',
-    fullName: 'Client Admin User',
-    role: 'client_admin',
-    email: 'clientadmin@example.com',
-  },
-];
-
 export async function signInUserAction(values: z.infer<typeof signInSchema>): Promise<SignInResult> {
+  let connection;
   try {
     const validatedFields = signInSchema.safeParse(values);
     if (!validatedFields.success) {
@@ -45,14 +27,22 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>): Pr
 
     const { userId, password } = validatedFields.data;
 
-    const foundUser = mockUsers.find(u => u.userId === userId);
+    connection = await getDbConnection();
 
-    if (!foundUser) {
+    const [rows] = await connection.execute(
+      'SELECT * FROM Users WHERE user_identifier = ?',
+      [userId]
+    );
+
+    const users = rows as any[];
+    if (users.length === 0) {
       return { success: false, message: 'User ID not found.', user: null };
     }
 
-    // Direct password comparison (NOT FOR PRODUCTION if passwords were hashed)
-    if (foundUser.password !== password) {
+    const userFromDb = users[0];
+
+    const passwordMatch = await bcrypt.compare(password, userFromDb.password_hash);
+    if (!passwordMatch) {
       return { success: false, message: 'Incorrect password.', user: null };
     }
 
@@ -60,20 +50,29 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>): Pr
     return {
       success: true,
       message: 'Sign in successful!',
-      user: { 
-        userId: foundUser.userId, 
-        email: foundUser.email, 
-        fullName: foundUser.fullName, 
-        role: foundUser.role 
+      user: {
+        userId: userFromDb.user_identifier,
+        email: userFromDb.email,
+        fullName: userFromDb.full_name,
+        role: userFromDb.role,
       },
     };
 
   } catch (error) {
-    console.error('Sign in action unexpected error:', error);
+    console.error('Sign in action error:', error);
     let errorMessage = 'An unexpected error occurred during sign in.';
     if (error instanceof Error) {
+      // Check for specific MySQL connection errors
+      if ((error as any).code === 'ECONNREFUSED' || (error as any).code === 'ER_ACCESS_DENIED_ERROR') {
+        errorMessage = `Database connection error: ${error.message}. Please check DB credentials and accessibility.`;
+      } else {
         errorMessage = `Sign in failed: ${error.message}`;
+      }
     }
-    return { success: false, message: errorMessage, user: null, error };
+    return { success: false, message: errorMessage, user: null, error: error instanceof Error ? error : new Error(String(error)) };
+  } finally {
+    if (connection) {
+      await closeDbConnection(connection);
+    }
   }
 }

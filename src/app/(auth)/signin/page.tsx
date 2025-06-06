@@ -22,7 +22,7 @@ import { signInUserAction } from '@/actions/auth';
 import { useState, useTransition } from 'react';
 
 const formSchema = z.object({
-  userId: z.string().min(1, { message: "User ID is required." }), // Changed from email to userId
+  userId: z.string().min(1, { message: "User ID is required." }),
   password: z.string().min(1, { message: "Password is required." }),
 });
 
@@ -34,7 +34,7 @@ export default function SignInPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      userId: "", // Changed from email
+      userId: "",
       password: "",
     },
   });
@@ -49,11 +49,13 @@ export default function SignInPage() {
           description: result.message,
         });
         
+        // Role-based redirection
         if (result.user.role === 'super_admin') {
           router.push("/dashboard");
         } else if (result.user.role === 'client_admin') {
           router.push("/client-admin/dashboard"); 
         } else {
+          // Fallback for any other roles, or if role is not defined
           router.push("/dashboard"); 
         }
       } else {
@@ -71,7 +73,7 @@ export default function SignInPage() {
       <CardHeader>
         <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
         <CardDescription className="text-center">
-          Enter your credentials to access Voxaiomni.
+          Enter your User ID and password to access Voxaiomni.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -79,12 +81,12 @@ export default function SignInPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="userId" // Changed from email
+              name="userId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>User ID</FormLabel> {/* Changed from Email */}
+                  <FormLabel>User ID</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter your User ID" {...field} disabled={isPending} /> {/* Changed placeholder */}
+                    <Input placeholder="Enter your User ID" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
