@@ -20,36 +20,35 @@ console.log("DEBUG supabaseClient.ts: Attempting to read NEXT_PUBLIC_SUPABASE_UR
 console.log("DEBUG supabaseClient.ts: Attempting to read NEXT_PUBLIC_SUPABASE_ANON_KEY. Value found:", supabaseAnonKeyFromEnv);
 
 if (!supabaseUrlFromEnv) {
-  console.error(
-    "CRITICAL ERROR in supabaseClient.ts: NEXT_PUBLIC_SUPABASE_URL is not set or is an empty string. " +
-    "This variable MUST be defined in your .env.local file in the project root. " +
-    "Please verify the file exists, is correctly named ('.env.local'), is in the project root directory, contains the variable, and that the Next.js server was RESTARTED after any changes to this file. " +
-    `Current value retrieved for NEXT_PUBLIC_SUPABASE_URL: '${supabaseUrlFromEnv}' (Type: ${typeof supabaseUrlFromEnv})`
-  );
-  throw new Error(
+  const availableKeys = Object.keys(process.env).filter(key => key.startsWith('NEXT_PUBLIC_')).join(', ') || 'None';
+  const errorMsg =
     "Missing environment variable NEXT_PUBLIC_SUPABASE_URL. " +
-    "Please ensure it is set in your .env.local file in the root of your project."
-  );
+    "Please ensure it is set in your .env.local file in the project root AND that your Next.js server was RESTARTED after any changes. " +
+    "If using a cloud IDE like Firebase Studio, check its specific settings for environment variables as they might override .env.local. " +
+    `Current value retrieved for NEXT_PUBLIC_SUPABASE_URL: '${supabaseUrlFromEnv}' (Type: ${typeof supabaseUrlFromEnv}). ` +
+    `Available NEXT_PUBLIC_ keys found by the server: [${availableKeys}].`;
+  console.error("CRITICAL ERROR in supabaseClient.ts: " + errorMsg);
+  throw new Error(errorMsg);
 }
 
 if (!supabaseAnonKeyFromEnv) {
-  console.error(
-    "CRITICAL ERROR in supabaseClient.ts: NEXT_PUBLIC_SUPABASE_ANON_KEY is not set or is an empty string. " +
-    "This variable MUST be defined in your .env.local file in the project root. " +
-    "Please verify the file exists, is correctly named ('.env.local'), is in the project root directory, contains the variable, and that the Next.js server was RESTARTED after any changes to this file. " +
-    `Current value retrieved for NEXT_PUBLIC_SUPABASE_ANON_KEY: '${supabaseAnonKeyFromEnv}' (Type: ${typeof supabaseAnonKeyFromEnv})`
-  );
-  throw new Error(
+  const availableKeys = Object.keys(process.env).filter(key => key.startsWith('NEXT_PUBLIC_')).join(', ') || 'None';
+  const errorMsg =
     "Missing environment variable NEXT_PUBLIC_SUPABASE_ANON_KEY. " +
-    "Please ensure it is set in your .env.local file in the root of your project."
-  );
+    "Please ensure it is set in your .env.local file in the project root AND that your Next.js server was RESTARTED after any changes. " +
+    "If using a cloud IDE like Firebase Studio, check its specific settings for environment variables. " +
+    `Current value retrieved for NEXT_PUBLIC_SUPABASE_ANON_KEY: '${supabaseAnonKeyFromEnv}' (Type: ${typeof supabaseAnonKeyFromEnv}). ` +
+    `Available NEXT_PUBLIC_ keys found by the server: [${availableKeys}].`;
+  console.error("CRITICAL ERROR in supabaseClient.ts: " + errorMsg);
+  throw new Error(errorMsg);
 }
 
 // Additional check to ensure that createClient is not called with empty strings
 // although the checks above should catch undefined or empty.
 if (supabaseUrlFromEnv === '' || supabaseAnonKeyFromEnv === '') {
-    console.error("CRITICAL ERROR: Supabase URL or Anon Key is an empty string after initial checks. This indicates a serious configuration problem.");
-    throw new Error("Supabase URL or Anon Key resolved to an empty string. Please check your .env.local configuration.");
+    const detailMsg = `Supabase URL: '${supabaseUrlFromEnv}', Anon Key: '${supabaseAnonKeyFromEnv.substring(0, 10)}...' (keys are non-empty strings, but resolved to empty which is invalid).`;
+    console.error("CRITICAL ERROR: Supabase URL or Anon Key is an empty string after initial checks. This indicates a serious configuration problem. " + detailMsg);
+    throw new Error("Supabase URL or Anon Key resolved to an empty string. Please check your .env.local configuration and server logs for more details. " + detailMsg);
 }
 
 export const supabase: SupabaseClient = createClient(supabaseUrlFromEnv, supabaseAnonKeyFromEnv);
