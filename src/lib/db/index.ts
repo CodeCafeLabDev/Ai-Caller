@@ -1,13 +1,10 @@
 
 'use server';
-import dotenv from 'dotenv';
-// Removed: import dotenv from 'dotenv';
 // Next.js automatically loads .env.local and other .env files.
 // Ensure your DB_HOST, DB_USER, DB_PASSWORD, DB_NAME are in .env.local
 
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
-dotenv.config({ path: 'env.local' });
 
 const dbConfig = {
   host: process.env.DB_HOST|| '193.203.166.175',
@@ -19,9 +16,13 @@ const dbConfig = {
 let connection: mysql.Connection | null = null;
 
 export async function getDbConnection(): Promise<mysql.Connection> {
+  const loggableConfig = { ...dbConfig, password: dbConfig.password ? '********' : undefined };
+  console.log('Effective DB config being used for connection attempt:', loggableConfig);
+
   if (connection){
     try {
       await connection.ping();
+      console.log('DB connection ping successful.');
       return connection;
     } catch (pingError) {
       console.warn('DB ping failed. Reconnecting...', pingError);
@@ -35,9 +36,6 @@ export async function getDbConnection(): Promise<mysql.Connection> {
   }
 
   try {
-    // Log the configuration being used, but mask password for security in logs.
-    const loggableConfig = { ...dbConfig, password: dbConfig.password ? '********' : undefined };
-    console.log('Attempting to connect to DB with config:', loggableConfig);
     connection = await mysql.createConnection(dbConfig);
     console.log(`Successfully connected to database '${dbConfig.database}' on host '${dbConfig.host}'.`);
     return connection;
@@ -113,9 +111,11 @@ export async function initializeDatabase(): Promise<void> {
     console.log("Starting database initialization...");
     const conn = await getDbConnection();
     
-    console.log("Dropping old 'Login' table if it exists...");
-    await conn.execute('DROP TABLE IF EXISTS Users;');
-    console.log("Old 'Login' table dropped successfully (or did not exist).");
+    // It's generally safer to let the table creation fail if it exists, or handle it more gracefully.
+    // For now, to ensure a clean state for testing, we'll drop and recreate.
+    console.log("Dropping 'Users' table if it exists for a clean setup...");
+    await conn.execute('DROP TABLE IF EXISTS Users;'); // Changed from Login to Users
+    console.log("'Users' table dropped successfully (or did not exist).");
     
     await initializeUsersTable();
 
@@ -133,7 +133,6 @@ export async function initializeDatabase(): Promise<void> {
     console.log("Database initialization process completed.");
   } catch (err) {
     console.error("DB initialization failed:", err);
-    // It's important to re-throw or handle this, so `src/ai/dev.ts` can catch it.
     throw err; 
   }
 }
