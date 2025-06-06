@@ -2,7 +2,9 @@
 'use server';
 
 import mysql from 'mysql2/promise';
-import bcrypt from 'bcryptjs';
+// bcrypt is no longer needed here if Supabase handles password hashing.
+// If you still need MySQL for other purposes and store passwords, keep bcrypt.
+// For now, assuming Supabase handles all auth.
 
 const dbConfig = {
   host: process.env.DB_HOST || '193.203.166.175',
@@ -35,57 +37,46 @@ export async function closeDbConnection(connection: mysql.Connection | null): Pr
   }
 }
 
-async function initializeUsersTable(conn: mysql.Connection): Promise<void> {
-  await conn.execute('DROP TABLE IF EXISTS Users;');
-  console.log("'Users' table dropped successfully (or did not exist).");
-
+// This function might still be needed if you use the MySQL DB for other application data.
+// However, for user authentication, Supabase will be the source of truth.
+// The 'Users' table schema might be different if managed by Supabase or if you sync Supabase users to it.
+async function initializeUsersTableIfUsed(conn: mysql.Connection): Promise<void> {
+  // If you are NOT using this MySQL 'Users' table for anything other than the old login,
+  // you can comment out or remove this table creation logic.
+  // If you ARE using it for other user-related app data (not auth), ensure the schema is appropriate.
+  // For now, let's assume it might still be used for other user details, but not for auth.
   await conn.execute(`
     CREATE TABLE IF NOT EXISTS Users (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      user_identifier VARCHAR(255) NOT NULL UNIQUE,
-      password_hash VARCHAR(255) NOT NULL,
+      user_identifier VARCHAR(255) NOT NULL UNIQUE, -- Could be Supabase user ID or a separate app-specific ID
+      -- password_hash VARCHAR(255) NOT NULL, -- Password hash managed by Supabase
       full_name VARCHAR(255),
-      email VARCHAR(255) UNIQUE,
+      email VARCHAR(255) UNIQUE, -- Email managed by Supabase auth
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      role VARCHAR(50) DEFAULT 'user'
+      role VARCHAR(50) DEFAULT 'user' -- Role might come from Supabase (e.g., via a profiles table)
     );
   `);
-  console.log("Users table schema checked/created successfully (with role column).");
+  console.log("MySQL 'Users' table schema checked/created (if still used for non-auth purposes).");
 }
 
-async function addSampleUsers(conn: mysql.Connection): Promise<void> {
-  const users = [
-    { user_identifier: 'testUser', password: 'password123', full_name: 'Test User', email: 'testuser@example.com', role: 'super_admin' },
-    { user_identifier: 'clientTestUser', password: 'password123', full_name: 'Client Test User', email: 'clienttest@example.com', role: 'client_admin' },
-    { user_identifier: 'dineshUser', password: 'password123', full_name: 'Dinesh', email: 'dinesh@example.com', role: 'client_admin' },
-  ];
-
-  for (const user of users) {
-    try {
-      const hashedPassword = await bcrypt.hash(user.password, 10);
-      await conn.execute(
-        'INSERT INTO Users (user_identifier, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), full_name = VALUES(full_name), email = VALUES(email), role = VALUES(role)',
-        [user.user_identifier, hashedPassword, user.full_name, user.email, user.role]
-      );
-      console.log(`User '${user.user_identifier}' added/updated successfully with role '${user.role}'.`);
-    } catch (error) {
-      console.error(`Error adding/updating user ${user.user_identifier}:`, error);
-    }
-  }
-}
+// Sample users are no longer added here as authentication is handled by Supabase.
+// async function addSampleUsers(conn: mysql.Connection): Promise<void> { ... }
 
 export async function initializeDatabase(): Promise<void> {
   let conn: mysql.Connection | null = null;
   try {
-    console.log("Starting database initialization...");
+    console.log("Starting database initialization (MySQL, if still used)...");
     conn = await getDbConnection();
-    await initializeUsersTable(conn);
-    await addSampleUsers(conn);
-    console.log("Database initialization process completed.");
+    // Decide if you still need this Users table in MySQL.
+    // If Supabase is your single source of truth for users, you might not.
+    await initializeUsersTableIfUsed(conn); 
+    // Sample user creation is removed as Supabase handles users.
+    console.log("MySQL Database initialization process completed (if applicable).");
   } catch (err) {
-    console.error("DB initialization failed:", err);
-    throw err; 
+    console.error("MySQL DB initialization failed (if applicable):", err);
+    // Not throwing error here if MySQL is secondary and Supabase is primary for auth.
+    // throw err; 
   } finally {
     if (conn) {
       await closeDbConnection(conn);

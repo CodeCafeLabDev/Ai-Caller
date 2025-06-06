@@ -21,9 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import { signInUserAction } from '@/actions/auth'; 
 import { useState, useTransition } from 'react';
 
-// Updated schema for User ID and Password
 const formSchema = z.object({
-  user_Id: z.string().min(1, { message: "User ID is required." }),
+  email: z.string().email({ message: "Please enter a valid email address." }),
   password: z.string().min(1, { message: "Password is required." }),
 });
 
@@ -35,7 +34,7 @@ export default function SignInPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      user_Id: "",
+      email: "",
       password: "",
     },
   });
@@ -49,11 +48,15 @@ export default function SignInPage() {
           title: "Sign In Successful",
           description: result.message,
         });
+        // Store user session or token here if needed
+        // e.g., await supabase.auth.setSession(...) if using cookies, or manage token
+
         if (result.user.role === 'super_admin') {
           router.push("/dashboard");
         } else if (result.user.role === 'client_admin') {
           router.push("/client-admin/dashboard"); 
         } else {
+           // Default redirection for other roles or if role is simply 'user'
           router.push("/dashboard"); 
         }
       } else {
@@ -79,12 +82,12 @@ export default function SignInPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="user_Id"
+              name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>User ID</FormLabel>
+                  <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter your User ID" {...field} disabled={isPending} />
+                    <Input placeholder="Enter your email address" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -1,76 +1,88 @@
 
 'use server';
 
-import type { RowDataPacket } from 'mysql2';
 import { z } from 'zod';
-import bcrypt from 'bcryptjs';
-import { getDbConnection, closeDbConnection } from '@/lib/db';
-import type mysql from 'mysql2/promise';
+import { supabase } from '@/lib/supabaseClient';
+import type { AuthError, User } from '@supabase/supabase-js';
 
 const signInSchema = z.object({
-  user_Id: z.string().min(1, { message: "User ID is required." }),
+  email: z.string().email({ message: "Valid email is required." }),
   password: z.string().min(1, { message: "Password is required." }),
 });
 
-interface UserFromDb extends RowDataPacket {
-  id: number;
-  user_identifier: string;
-  password_hash: string;
-  full_name: string | null;
-  email: string | null;
-  role: string; 
+interface SignInResult {
+  success: boolean;
+  message: string;
+  user: { userId: string; email: string | undefined; fullName: string | null; role: string; } | null;
+  error?: AuthError | null;
 }
 
-export async function signInUserAction(values: z.infer<typeof signInSchema>) {
-  let conn: mysql.Connection | null = null;
+interface SupabaseProfile {
+  id: string;
+  full_name: string | null;
+  role: string;
+  // Add other profile fields if necessary
+}
+
+export async function signInUserAction(values: z.infer<typeof signInSchema>): Promise<SignInResult> {
   try {
     const validatedFields = signInSchema.safeParse(values);
     if (!validatedFields.success) {
       return { success: false, message: 'Invalid input.', user: null };
     }
 
-    const { user_Id, password } = validatedFields.data;
+    const { email, password } = validatedFields.data;
 
-    conn = await getDbConnection();
-    const [rows] = await conn.execute<UserFromDb[]>(
-      'SELECT id, user_identifier, password_hash, full_name, email, role FROM Users WHERE user_identifier = ?',
-      [user_Id]
-    );
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    });
 
-    if (rows.length === 0) {
-      return { success: false, message: 'Invalid User ID or Password.', user: null };
+    if (authError) {
+      console.error('Supabase auth error:', authError);
+      return { success: false, message: authError.message || 'Authentication failed.', user: null, error: authError };
     }
 
-    const user = rows[0];
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    if (!authData.user) {
+      return { success: false, message: 'Authentication failed. User not found.', user: null };
+    }
 
-    if (!passwordMatch) {
-      return { success: false, message: 'Invalid User ID or Password.', user: null };
+    // Fetch user profile to get the role
+    // This assumes you have a 'profiles' table with 'id' (matching auth.users.id) and 'role' columns.
+    let userRole = 'user'; // Default role
+    let fullName = authData.user.user_metadata?.full_name || null;
+
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('role, full_name')
+      .eq('id', authData.user.id)
+      .single<SupabaseProfile>();
+
+    if (profileError && profileError.code !== 'PGRST116') { // PGRST116: 0 rows
+      console.warn('Error fetching user profile for role:', profileError.message);
+      // Proceed with default role if profile fetching fails but auth succeeded
+    }
+
+    if (profileData) {
+      userRole = profileData.role || 'user';
+      fullName = profileData.full_name || fullName;
+    } else {
+        console.warn(`No profile found for user ${authData.user.id}. Defaulting to role 'user'. Consider creating a profile entry.`);
     }
     
-    // Use the role directly from the database
-    const userRole = user.role || 'user'; // Fallback to 'user' if role is somehow null/empty
 
     return {
       success: true,
       message: 'Sign in successful!',
-      user: { userId: user.user_identifier, email: user.email, fullName: user.full_name, role: userRole },
+      user: { userId: authData.user.id, email: authData.user.email, fullName: fullName, role: userRole },
     };
 
   } catch (error) {
-    console.error('Sign in action error:', error);
+    console.error('Sign in action unexpected error:', error);
     let errorMessage = 'An unexpected error occurred during sign in.';
     if (error instanceof Error) {
-        if (error.message.includes('connect ECONNREFUSED')) {
-             errorMessage = 'Database connection failed. Please ensure the database server is running and accessible.';
-        } else {
-            errorMessage = `Sign in failed: ${error.message}`;
-        }
+        errorMessage = `Sign in failed: ${error.message}`;
     }
     return { success: false, message: errorMessage, user: null };
-  } finally {
-    if (conn) {
-      await closeDbConnection(conn);
-    }
   }
 }
