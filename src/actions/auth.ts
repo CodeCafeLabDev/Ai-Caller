@@ -2,20 +2,24 @@
 'use server';
 
 import { z } from 'zod';
-// bcrypt and getDbConnection are no longer needed for API key-only auth
-// import bcrypt from 'bcryptjs';
-// import { getDbConnection } from '@/lib/db';
-// import type { RowDataPacket } from 'mysql2';
+import bcrypt from 'bcryptjs';
+import { getDbConnection } from '@/lib/db';
+import type { RowDataPacket } from 'mysql2';
 
-// Define the expected API key
-const VALID_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqcHVpdmFobmFjcnBtd3dsdmJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxOTIwNjgsImV4cCI6MjA2NDc2ODA2OH0.IUXrdiSIx3SFCjTiaKmAqHPsv9FRrPQlZmBE9-UBB8U";
-const API_USER_ROLE = "super_admin"; // Assuming this key grants super_admin
-const API_USER_ID = "api_admin_user";
-
-// Updated schema for API key input
+// Schema for User ID and Password
 const signInSchema = z.object({
-  apiKey: z.string().min(1, { message: "API Key is required." }),
+  user_Id: z.string().min(1, { message: "User ID is required." }),
+  password: z.string().min(1, { message: "Password is required." }),
 });
+
+interface UserFromDb extends RowDataPacket {
+  id: number;
+  user_identifier: string;
+  password_hash: string;
+  full_name: string | null;
+  email: string | null;
+  role?: string; // Role will be fetched or inferred
+}
 
 export async function signInUserAction(values: z.infer<typeof signInSchema>) {
   try {
@@ -24,27 +28,52 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>) {
       return { success: false, message: 'Invalid input.', user: null };
     }
 
-    const { apiKey } = validatedFields.data;
+    const { user_Id, password } = validatedFields.data;
+    let conn;
 
-    if (apiKey === VALID_API_KEY) {
-      // API Key matches
+    try {
+      conn = await getDbConnection();
+      const [rows] = await conn.execute<UserFromDb[]>(
+        'SELECT * FROM Users WHERE user_identifier = ?',
+        [user_Id]
+      );
+
+      if (rows.length === 0) {
+        return { success: false, message: 'Invalid User ID or Password.', user: null };
+      }
+
+      const user = rows[0];
+      const passwordMatch = await bcrypt.compare(password, user.password_hash);
+
+      if (!passwordMatch) {
+        return { success: false, message: 'Invalid User ID or Password.', user: null };
+      }
+
+      // Infer role for specific test users - in a real scenario, fetch role from DB
+      let role = user.role || 'user'; // Default role if not specified
+      if (user.user_identifier === 'testUser') {
+        role = 'super_admin';
+      } else if (user.user_identifier === 'clientTestUser' || user.user_identifier === 'dineshUser') {
+        role = 'client_admin';
+      }
+      // For a more robust system, you'd fetch roles from the UserRoles table based on user.id
+
       return {
         success: true,
-        message: 'Sign in successful! (API Key Authenticated)',
-        user: { userId: API_USER_ID, role: API_USER_ROLE },
+        message: 'Sign in successful!',
+        user: { userId: user.user_identifier, email: user.email, fullName: user.full_name, role: role },
       };
-    } else {
-      // API Key does not match
-      return { success: false, message: 'Invalid API Key.', user: null };
+
+    } catch (dbError) {
+      console.error('Database error during sign in:', dbError);
+      if (dbError instanceof Error && dbError.message.includes('connect ECONNREFUSED')) {
+          return { success: false, message: 'Database connection failed. Please ensure the database server is running and accessible.', user: null };
+      }
+      return { success: false, message: 'An error occurred while trying to sign in.', user: null };
     }
 
   } catch (error) {
     console.error('Sign in action error:', error);
-    // Keep general error handling, though DB errors are less likely now for auth
-    if (error instanceof Error && error.message.includes('connect ECONNREFUSED')) {
-        return { success: false, message: 'Database connection failed (though not used for this auth type). Please ensure the database server is running and accessible for other app functions.', user: null };
-    }
     return { success: false, message: 'An unexpected error occurred during sign in.', user: null };
   }
 }
-
