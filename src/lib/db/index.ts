@@ -5,18 +5,18 @@ import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
 
 const dbConfig = {
-  host: process.env.DB_HOST || '193.203.166.175', // Default to your provided host
-  user: process.env.DB_USER || 'u406732176_aicaller', // Default to your provided user
-  password: process.env.DB_PASSWORD || 'Aicaller@1234', // Default to your provided password
-  database: process.env.DB_NAME || 'u406732176_aicaller', // Default to your provided database
+  host: process.env.DB_HOST || '193.203.166.175',
+  user: process.env.DB_USER || 'u406732176_aicaller',
+  password: process.env.DB_PASSWORD || 'Aicaller@1234',
+  database: process.env.DB_NAME || 'u406732176_aicaller',
 };
 
 export async function getDbConnection(): Promise<mysql.Connection> {
   const loggableConfig = { ...dbConfig, password: dbConfig.password ? '********' : undefined };
-  console.log('Attempting to create new DB connection with config:', loggableConfig);
+  // console.log('Attempting to create new DB connection with config:', loggableConfig); // Reduced verbosity
   try {
     const newConnection = await mysql.createConnection(dbConfig);
-    console.log(`Successfully created new connection to database '${dbConfig.database}' on host '${dbConfig.host}'.`);
+    // console.log(`Successfully created new connection to database '${dbConfig.database}' on host '${dbConfig.host}'.`); // Reduced verbosity
     return newConnection;
   } catch (error) {
     console.error('DB connection error during createConnection:', error);
@@ -28,7 +28,7 @@ export async function closeDbConnection(connection: mysql.Connection | null): Pr
   if (connection) {
     try {
       await connection.end();
-      console.log('DB Connection closed successfully.');
+      // console.log('DB Connection closed successfully.'); // Reduced verbosity
     } catch (error) {
       console.error('Error closing DB connection:', error);
     }
@@ -36,7 +36,7 @@ export async function closeDbConnection(connection: mysql.Connection | null): Pr
 }
 
 async function initializeUsersTable(conn: mysql.Connection): Promise<void> {
-  await conn.execute(`
+  const createTableSQL = `
     CREATE TABLE IF NOT EXISTS Users (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_identifier VARCHAR(255) NOT NULL UNIQUE,
@@ -47,11 +47,14 @@ async function initializeUsersTable(conn: mysql.Connection): Promise<void> {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     );
-  `);
+  `;
+  console.log("Executing SQL to create Users table if it doesn't exist:\n", createTableSQL);
+  await conn.execute(createTableSQL);
   console.log("MySQL 'Users' table schema checked/created successfully.");
 }
 
 async function addSampleUsers(conn: mysql.Connection): Promise<void> {
+  console.log("Attempting to add sample users...");
   const users = [
     { userId: 'admin', pass: 'password123', fullName: 'Super Admin', email: 'admin@example.com', role: 'super_admin' },
     { userId: 'clientadmin', pass: 'password123', fullName: 'Client Admin User', email: 'clientadmin@example.com', role: 'client_admin' },
@@ -65,11 +68,12 @@ async function addSampleUsers(conn: mysql.Connection): Promise<void> {
         'INSERT INTO Users (user_identifier, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, ?)',
         [user.userId, passwordHash, user.fullName, user.email, user.role]
       );
-      console.log(`Sample user '${user.userId}' added to the database.`);
+      console.log(`SUCCESS: Sample user '${user.userId}' added to the database.`);
     } else {
-      console.log(`Sample user '${user.userId}' already exists.`);
+      console.log(`INFO: Sample user '${user.userId}' already exists in the database.`);
     }
   }
+  console.log("Finished attempting to add sample users.");
 }
 
 export async function initializeDatabase(): Promise<void> {
@@ -77,11 +81,21 @@ export async function initializeDatabase(): Promise<void> {
   try {
     console.log("Starting database initialization (MySQL)...");
     conn = await getDbConnection();
+    console.log("Successfully connected to MySQL for initialization.");
+    
     await initializeUsersTable(conn);
     await addSampleUsers(conn);
-    console.log("MySQL Database initialization process completed.");
+    
+    console.log("MySQL Database initialization process completed successfully.");
   } catch (err) {
-    console.error("MySQL DB initialization failed:", err);
+    console.error("**************************************************");
+    console.error("FATAL: MySQL DB initialization FAILED.");
+    console.error("Error details:", err);
+    console.error("Possible reasons: ");
+    console.error("  1. Incorrect DB credentials in .env.local (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME).");
+    console.error("  2. MySQL server not running or inaccessible from the application.");
+    console.error("  3. The database user lacks permissions (e.g., CREATE TABLE, INSERT, SELECT).");
+    console.error("**************************************************");
     throw err; 
   } finally {
     if (conn) {
