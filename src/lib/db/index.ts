@@ -9,18 +9,26 @@ const dbConfig = {
   user: process.env.DB_USER || 'u406732176_aicaller',
   password: process.env.DB_PASSWORD || 'Aicaller@1234',
   database: process.env.DB_NAME || 'u406732176_aicaller',
+  connectTimeout: 10000 // Added a 10-second connection timeout
 };
 
 export async function getDbConnection(): Promise<mysql.Connection> {
   const loggableConfig = { ...dbConfig, password: dbConfig.password ? '********' : undefined };
-  // console.log('Attempting to create new DB connection with config:', loggableConfig); // Reduced verbosity
   try {
     const newConnection = await mysql.createConnection(dbConfig);
-    // console.log(`Successfully created new connection to database '${dbConfig.database}' on host '${dbConfig.host}'.`); // Reduced verbosity
     return newConnection;
   } catch (error) {
     console.error('DB connection error during createConnection:', error);
-    throw new Error(`Could not connect to DB. Host: ${dbConfig.host}, User: ${dbConfig.user}, DB: ${dbConfig.database}. Error: ${(error as Error).message}`);
+    let detailedErrorMessage = `Could not connect to DB. Host: ${dbConfig.host}, User: ${dbConfig.user}, DB: ${dbConfig.database}. Error: ${(error as Error).message}`;
+    if ((error as any).code === 'ETIMEDOUT') {
+      detailedErrorMessage += `\n\nETIMEDOUT errors usually indicate a network connectivity issue:
+1. Check if the database server at '${dbConfig.host}' is running and accessible from your application environment.
+2. Verify that the firewall on the database server (and any intermediary firewalls) allows connections from your application's IP address/range on port 3306 (or the configured MySQL port).
+3. Ensure the MySQL server's 'bind-address' configuration is not restricted to localhost or specific IPs if you're connecting remotely.
+4. If using a cloud database (AWS RDS, Google Cloud SQL, Azure), check its specific network security group or VPC settings.
+5. Confirm there are no egress network restrictions from your application's hosting environment (Firebase Studio).`;
+    }
+    throw new Error(detailedErrorMessage);
   }
 }
 
@@ -28,7 +36,6 @@ export async function closeDbConnection(connection: mysql.Connection | null): Pr
   if (connection) {
     try {
       await connection.end();
-      // console.log('DB Connection closed successfully.'); // Reduced verbosity
     } catch (error) {
       console.error('Error closing DB connection:', error);
     }
@@ -48,13 +55,13 @@ async function initializeUsersTable(conn: mysql.Connection): Promise<void> {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     );
   `;
-  console.log("Executing SQL to create Users table if it doesn't exist:\n", createTableSQL);
+  console.log("DEBUG DB: Executing SQL to create Users table if it doesn't exist:\n", createTableSQL);
   await conn.execute(createTableSQL);
-  console.log("MySQL 'Users' table schema checked/created successfully.");
+  console.log("DEBUG DB: MySQL 'Users' table schema checked/created successfully.");
 }
 
 async function addSampleUsers(conn: mysql.Connection): Promise<void> {
-  console.log("Attempting to add sample users...");
+  console.log("DEBUG DB: Attempting to add sample users...");
   const users = [
     { userId: 'admin', pass: 'password123', fullName: 'Super Admin', email: 'admin@example.com', role: 'super_admin' },
     { userId: 'clientadmin', pass: 'password123', fullName: 'Client Admin User', email: 'clientadmin@example.com', role: 'client_admin' },
@@ -68,32 +75,32 @@ async function addSampleUsers(conn: mysql.Connection): Promise<void> {
         'INSERT INTO Users (user_identifier, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, ?)',
         [user.userId, passwordHash, user.fullName, user.email, user.role]
       );
-      console.log(`SUCCESS: Sample user '${user.userId}' added to the database.`);
+      console.log(`DEBUG DB: Sample user '${user.userId}' added to the database.`);
     } else {
-      console.log(`INFO: Sample user '${user.userId}' already exists in the database.`);
+      console.log(`DEBUG DB: Sample user '${user.userId}' already exists in the database.`);
     }
   }
-  console.log("Finished attempting to add sample users.");
+  console.log("DEBUG DB: Finished attempting to add sample users.");
 }
 
 export async function initializeDatabase(): Promise<void> {
   let conn: mysql.Connection | null = null;
   try {
-    console.log("Starting database initialization (MySQL)...");
+    console.log("DEBUG DB: Starting database initialization (MySQL)...");
     conn = await getDbConnection();
-    console.log("Successfully connected to MySQL for initialization.");
+    console.log("DEBUG DB: Successfully connected to MySQL for initialization.");
     
     await initializeUsersTable(conn);
     await addSampleUsers(conn);
     
-    console.log("MySQL Database initialization process completed successfully.");
+    console.log("DEBUG DB: MySQL Database initialization process completed successfully.");
   } catch (err) {
     console.error("**************************************************");
     console.error("FATAL: MySQL DB initialization FAILED.");
     console.error("Error details:", err);
     console.error("Possible reasons: ");
     console.error("  1. Incorrect DB credentials in .env.local (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME).");
-    console.error("  2. MySQL server not running or inaccessible from the application.");
+    console.error("  2. MySQL server not running or inaccessible from the application (check firewalls, bind-address, cloud provider network settings).");
     console.error("  3. The database user lacks permissions (e.g., CREATE TABLE, INSERT, SELECT).");
     console.error("**************************************************");
     throw err; 
