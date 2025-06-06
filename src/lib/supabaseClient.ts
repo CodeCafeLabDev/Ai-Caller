@@ -1,6 +1,17 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+// Log the current Node environment
+console.log("DEBUG supabaseClient.ts: Current NODE_ENV:", process.env.NODE_ENV);
+
+// Log all NEXT_PUBLIC_ prefixed environment variables
+console.log("DEBUG supabaseClient.ts: Available NEXT_PUBLIC_ environment variables:");
+Object.keys(process.env).forEach(key => {
+  if (key.startsWith('NEXT_PUBLIC_')) {
+    console.log(`  ${key}: ${process.env[key]}`);
+  }
+});
+
 const supabaseUrlFromEnv = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKeyFromEnv = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
