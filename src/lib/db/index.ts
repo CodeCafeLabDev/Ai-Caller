@@ -1,15 +1,16 @@
 
 'use server';
-
+import dotenv from 'dotenv';
 // Removed: import dotenv from 'dotenv';
 // Next.js automatically loads .env.local and other .env files.
 // Ensure your DB_HOST, DB_USER, DB_PASSWORD, DB_NAME are in .env.local
 
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
+dotenv.config({ path: 'env.local' });
 
 const dbConfig = {
-  host: process.env.DB_HOST || '193.203.166.175',
+  host: process.env.DB_HOST|| '193.203.166.175',
   user: process.env.DB_USER || 'u406732176_aicaller',
   password: process.env.DB_PASSWORD || 'Aicaller@1234',
   database: process.env.DB_NAME || 'u406732176_aicaller',
@@ -18,7 +19,7 @@ const dbConfig = {
 let connection: mysql.Connection | null = null;
 
 export async function getDbConnection(): Promise<mysql.Connection> {
-  if (connection && connection.connection && connection.connection.stream.readable && !connection.connection.stream.destroyed) {
+  if (connection){
     try {
       await connection.ping();
       return connection;
@@ -113,7 +114,7 @@ export async function initializeDatabase(): Promise<void> {
     const conn = await getDbConnection();
     
     console.log("Dropping old 'Login' table if it exists...");
-    await conn.execute('DROP TABLE IF EXISTS Login;');
+    await conn.execute('DROP TABLE IF EXISTS Users;');
     console.log("Old 'Login' table dropped successfully (or did not exist).");
     
     await initializeUsersTable();

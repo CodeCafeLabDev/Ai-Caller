@@ -42,7 +42,7 @@ export default function SignInPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     startTransition(async () => {
       const result = await signInUserAction(values);
-      
+       
       if (result.success && result.user) {
         toast({
           title: "Sign In Successful",
@@ -85,7 +85,7 @@ export default function SignInPage() {
                 <FormItem>
                   <FormLabel>User ID</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., testUser or your_client_username" {...field} disabled={isPending} />
+                    <Input placeholder="testUser or your_client_username" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -98,7 +98,7 @@ export default function SignInPage() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="e.g., password123" {...field} disabled={isPending} />
+                    <Input type="password" placeholder="password123" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
