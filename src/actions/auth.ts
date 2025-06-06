@@ -2,11 +2,12 @@
 'use server';
 
 import { z } from 'zod';
-import { supabase } from '@/lib/supabaseClient';
-import type { AuthError, User } from '@supabase/supabase-js';
+// bcryptjs is no longer needed as we are not hashing/comparing passwords from a DB
+// import bcrypt from 'bcryptjs';
+// No need for Supabase or MySQL client here anymore
 
 const signInSchema = z.object({
-  email: z.string().email({ message: "Valid email is required." }),
+  userId: z.string().min(1, { message: "User ID is required." }), // Changed from email to userId
   password: z.string().min(1, { message: "Password is required." }),
 });
 
@@ -14,15 +15,26 @@ interface SignInResult {
   success: boolean;
   message: string;
   user: { userId: string; email: string | undefined; fullName: string | null; role: string; } | null;
-  error?: AuthError | null;
+  error?: Error | null; // Generic error type
 }
 
-interface SupabaseProfile {
-  id: string;
-  full_name: string | null;
-  role: string;
-  // Add other profile fields if necessary
-}
+// Hardcoded mock users
+const mockUsers = [
+  {
+    userId: 'admin',
+    password: 'password123', // In a real app, never store plain text passwords
+    fullName: 'Super Admin',
+    role: 'super_admin',
+    email: 'admin@example.com',
+  },
+  {
+    userId: 'clientadmin',
+    password: 'password123',
+    fullName: 'Client Admin User',
+    role: 'client_admin',
+    email: 'clientadmin@example.com',
+  },
+];
 
 export async function signInUserAction(values: z.infer<typeof signInSchema>): Promise<SignInResult> {
   try {
@@ -31,50 +43,29 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>): Pr
       return { success: false, message: 'Invalid input.', user: null };
     }
 
-    const { email, password } = validatedFields.data;
+    const { userId, password } = validatedFields.data;
 
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    });
+    const foundUser = mockUsers.find(u => u.userId === userId);
 
-    if (authError) {
-      console.error('Supabase auth error:', authError);
-      return { success: false, message: authError.message || 'Authentication failed.', user: null, error: authError };
+    if (!foundUser) {
+      return { success: false, message: 'User ID not found.', user: null };
     }
 
-    if (!authData.user) {
-      return { success: false, message: 'Authentication failed. User not found.', user: null };
+    // Direct password comparison (NOT FOR PRODUCTION if passwords were hashed)
+    if (foundUser.password !== password) {
+      return { success: false, message: 'Incorrect password.', user: null };
     }
 
-    // Fetch user profile to get the role
-    // This assumes you have a 'profiles' table with 'id' (matching auth.users.id) and 'role' columns.
-    let userRole = 'user'; // Default role
-    let fullName = authData.user.user_metadata?.full_name || null;
-
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, full_name')
-      .eq('id', authData.user.id)
-      .single<SupabaseProfile>();
-
-    if (profileError && profileError.code !== 'PGRST116') { // PGRST116: 0 rows
-      console.warn('Error fetching user profile for role:', profileError.message);
-      // Proceed with default role if profile fetching fails but auth succeeded
-    }
-
-    if (profileData) {
-      userRole = profileData.role || 'user';
-      fullName = profileData.full_name || fullName;
-    } else {
-        console.warn(`No profile found for user ${authData.user.id}. Defaulting to role 'user'. Consider creating a profile entry.`);
-    }
-    
-
+    // Authentication successful
     return {
       success: true,
       message: 'Sign in successful!',
-      user: { userId: authData.user.id, email: authData.user.email, fullName: fullName, role: userRole },
+      user: { 
+        userId: foundUser.userId, 
+        email: foundUser.email, 
+        fullName: foundUser.fullName, 
+        role: foundUser.role 
+      },
     };
 
   } catch (error) {
@@ -83,6 +74,6 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>): Pr
     if (error instanceof Error) {
         errorMessage = `Sign in failed: ${error.message}`;
     }
-    return { success: false, message: errorMessage, user: null };
+    return { success: false, message: errorMessage, user: null, error };
   }
 }
