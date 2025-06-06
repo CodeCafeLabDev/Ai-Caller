@@ -8,7 +8,7 @@ import { z } from 'zod';
 // import type { RowDataPacket } from 'mysql2';
 
 // Define the expected API key
-const VALID_API_KEY = "12345678910";
+const VALID_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqcHVpdmFobmFjcnBtd3dsdmJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxOTIwNjgsImV4cCI6MjA2NDc2ODA2OH0.IUXrdiSIx3SFCjTiaKmAqHPsv9FRrPQlZmBE9-UBB8U";
 const API_USER_ROLE = "super_admin"; // Assuming this key grants super_admin
 const API_USER_ID = "api_admin_user";
 
@@ -47,3 +47,4 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>) {
     return { success: false, message: 'An unexpected error occurred during sign in.', user: null };
   }
 }
+
