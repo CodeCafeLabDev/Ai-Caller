@@ -1,8 +1,9 @@
+
 "use client";
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks, CheckSquare, FileText } from 'lucide-react';
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks, CheckSquare, FileText, Database } from 'lucide-react'; // Added Database icon
 import {
   Sidebar,
   SidebarHeader,
@@ -84,6 +85,7 @@ const initialNavItems: NavItemType[] = [
     basePath: '/ai-templates',
     subItems: [
         { href: '/ai-templates', label: 'Manage Templates', icon: Bot },
+        { href: '/ai-templates/create', label: 'Create Template', icon: UserPlus }, // Added create link
         { href: '/ai-templates/version-history', label: 'Version History', icon: History },
         { href: '/ai-templates/language-settings', label: 'Language Settings', icon: Languages },
         { href: '/ai-templates/import-export', label: 'Import/Export JSON', icon: FileJson },
@@ -97,12 +99,13 @@ const initialNavItems: NavItemType[] = [
       { href: '/reports-analytics/call-reports', label: 'Call Reports', icon: CalendarClock },
       { href: '/reports-analytics/system-usage-trends', label: 'System Usage Trends', icon: TrendingUp },
       { href: '/reports-analytics/error-logs', label: 'Error & Failed Call Logs', icon: AlertTriangle },
+      { href: '/reports-analytics/export-data', label: 'Export Data', icon: FileDown },
     ]
   },
   { 
     label: 'Users & Admins', 
-    icon: UserCog, // New top-level item
-    href: '/users-admins', // Direct link for now, can become a basePath if sub-items are added
+    icon: UserCog, 
+    href: '/users-admins', 
   },
   { 
     label: 'Developer Tools', 
@@ -135,6 +138,12 @@ const initialNavItems: NavItemType[] = [
       { href: '/alerts-logs/login-history', label: 'Login History', icon: History },
       { href: '/alerts-logs/client-activity', label: 'Client Activity Feed', icon: Users },
     ]
+  },
+  { 
+    label: 'Supabase CRUD', // New Top Level Item
+    icon: Database, 
+    href: '/supabase-crud-example',
+    basePath: '/supabase-crud-example',
   },
   { href: '/system-settings', label: 'System Settings', icon: Settings },
   { href: '/profile', label: 'Profile', icon: UserCircle },
@@ -177,7 +186,7 @@ export function SideNavigation() {
               <SidebarMenuButton
                 asChild={!item.subItems} 
                 onClick={item.subItems ? () => toggleSubmenu(item.label) : undefined}
-                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/developer-tools' && item.href !== '/test-lab' && item.href !== '/alerts-logs' && !item.subItems && pathname.startsWith(item.href)) || ((item.href === '/developer-tools' || item.href === '/test-lab' || item.href === '/alerts-logs') && (pathname === item.href && !item.subItems?.some(si => pathname.startsWith(si.href) && si.href !== item.href)))) : false)}
+                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.basePath && pathname.startsWith(item.basePath) && item.href !=='/dashboard')) : false)}
                 tooltip={{ children: item.label, className: "bg-popover text-popover-foreground border-border" }}
                 className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
               >
@@ -249,4 +258,3 @@ export function SideNavigation() {
     </Sidebar>
   );
 }
-
