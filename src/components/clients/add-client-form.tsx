@@ -19,12 +19,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/hooks/use-toast";
+// Removed useToast here, it will be handled by the parent component (AppHeader)
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SheetFooter, SheetClose } from "@/components/ui/sheet"; // Import SheetFooter and SheetClose
 
 const addClientFormSchema = z.object({
   companyName: z.string().min(2, { message: "Company name must be at least 2 characters." }),
@@ -65,13 +66,13 @@ const addClientFormSchema = z.object({
 type AddClientFormValues = z.infer<typeof addClientFormSchema>;
 
 interface AddClientFormProps {
-  onSuccess?: () => void;
+  onSuccess?: (data: AddClientFormValues) => void; // Changed to pass data
+  // Removed onCancel, as SheetClose will handle it
 }
 
 const availablePlans = ["Basic", "Premium", "Enterprise", "Trial"];
 
 export function AddClientForm({ onSuccess }: AddClientFormProps) {
-  const { toast } = useToast();
   const [planComboboxOpen, setPlanComboboxOpen] = React.useState(false);
   const form = useForm<AddClientFormValues>({
     resolver: zodResolver(addClientFormSchema),
@@ -96,14 +97,10 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
   const trialModeEnabled = form.watch("trialMode");
 
   function onSubmit(data: AddClientFormValues) {
-    console.log("New Client Data:", data);
-    toast({
-      title: "Client Added (Simulated)",
-      description: `${data.companyName} has been added successfully.`,
-    });
+    console.log("New Client Data (from AddClientForm):", data);
     form.reset();
     if (onSuccess) {
-      onSuccess();
+      onSuccess(data); // Pass the form data to the success handler
     }
   }
 
@@ -111,7 +108,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
         <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-4 px-2">
+          <div className="space-y-4 px-2 py-4"> {/* Added py-4 for top/bottom padding */}
             <FormField
               control={form.control}
               name="companyName"
@@ -259,7 +256,6 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               )}
             />
 
-
             <FormField
               control={form.control}
               name="apiAccess"
@@ -384,12 +380,16 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
               )}
             />
           </div>
-          <div className="pt-4 px-2 mt-auto"> 
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+        </ScrollArea>
+        {/* SheetFooter will manage cancel and submit */}
+        <SheetFooter className="pt-4 px-2 mt-auto border-t">
+            <SheetClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+            </SheetClose>
+            <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Adding Client..." : "Add Client"}
             </Button>
-          </div>
-        </ScrollArea>
+        </SheetFooter>
       </form>
     </Form>
   );
