@@ -65,16 +65,15 @@ export function AppHeader() {
       title: "Client Added",
       description: `Client "${data.companyName}" has been successfully submitted for creation.`,
     });
+    // In a real app, you might want to refresh the client list or navigate to the new client's page.
   };
 
   const quickActionItems = [
     { text: "Add Client", icon: UserPlus, action: () => setIsAddClientSheetOpen(true) },
     { text: "New Plan", icon: FilePlus, action: () => {
-        toast({title: "New Plan", description: "Navigating to create new plan page (Not yet implemented)."});
-        router.push('/plans-billing');
+        router.push('/plans-billing'); // Assuming this is where new plans are created or managed
     } },
     { text: "Create Template", icon: FileTextIcon, action: () => {
-        toast({title: "Create Template", description: "Navigating to create template page."});
         router.push('/ai-templates/create');
     } },
   ];
@@ -206,7 +205,6 @@ export function AppHeader() {
         </div>
       </header>
 
-      {/* Add Client Sheet */}
       <Sheet open={isAddClientSheetOpen} onOpenChange={setIsAddClientSheetOpen}>
         <SheetContent className="sm:max-w-lg w-full flex flex-col" side="right">
             <SheetHeader>
@@ -217,6 +215,7 @@ export function AppHeader() {
             </SheetHeader>
             <AddClientForm 
                 onSuccess={handleAddClientSuccessInHeader}
+                onCancel={() => setIsAddClientSheetOpen(false)} // Pass the onCancel handler
             />
         </SheetContent>
       </Sheet>

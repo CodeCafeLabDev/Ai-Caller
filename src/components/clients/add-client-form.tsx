@@ -66,11 +66,12 @@ export type AddClientFormValues = z.infer<typeof addClientFormSchema>;
 
 interface AddClientFormProps {
   onSuccess: (data: AddClientFormValues) => void;
+  onCancel: () => void; // Added onCancel prop
 }
 
 const availablePlans = ["Basic", "Premium", "Enterprise", "Trial"];
 
-export function AddClientForm({ onSuccess }: AddClientFormProps) {
+export function AddClientForm({ onSuccess, onCancel }: AddClientFormProps) {
   const [planComboboxOpen, setPlanComboboxOpen] = React.useState(false);
   const form = useForm<AddClientFormValues>({
     resolver: zodResolver(addClientFormSchema),
@@ -96,8 +97,8 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
 
   function onSubmit(data: AddClientFormValues) {
     console.log("New Client Data (from AddClientForm):", data);
-    onSuccess(data); // Call parent's success handler which also closes the sheet
-    form.reset(); // Reset form for next time
+    onSuccess(data);
+    form.reset();
   }
 
   return (
@@ -379,7 +380,7 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
         </ScrollArea>
         <SheetFooter className="pt-4 px-2 mt-auto border-t">
             <SheetClose asChild>
-                <Button type="button" variant="outline">Cancel</Button>
+                <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
             </SheetClose>
             <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Adding Client..." : "Add Client"}
