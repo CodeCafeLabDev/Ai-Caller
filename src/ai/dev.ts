@@ -15,7 +15,35 @@ import type { UserRole } from '@/actions/auth'; // Assuming UserRole is exported
 const PROFILES_TABLE_SQL = `
 -- Ensure you run this SQL in your Supabase SQL Editor ONE TIME to create the 'profiles' table.
 -- This table stores additional user information linked to Supabase Auth users.
+-- LOGIN TO YOUR SUPABASE DASHBOARD AND RUN THIS IN THE "SQL Editor".
 
+-- If you encounter "ERROR: 42501: must be owner of relation users" when running the CREATE TABLE below:
+-- 1. Ensure you are running this SQL as the 'postgres' user (default in Supabase SQL Editor).
+-- 2. Try creating the table via the Supabase Dashboard UI (Table Editor):
+--    - Create a table named 'profiles' in the 'public' schema.
+--    - Add an 'id' column of type 'uuid', make it the Primary Key.
+--    - Set its default value to 'uuid_generate_v4()' or leave blank if linking directly.
+--    - Add a Foreign Key relation from 'profiles.id' to 'auth.users.id'.
+--    - When setting up the foreign key, choose 'CASCADE' for 'ON DELETE' action.
+--    - Add other columns: 'full_name' (text, nullable), 'email' (text, unique, nullable), 'role' (text, default 'user'), 'created_at' (timestamptz, default now()), 'updated_at' (timestamptz, default now()).
+-- 3. As an alternative SQL method if the direct CREATE TABLE fails, try this two-step approach:
+--    -- Step 1: Create table without FK initially
+--    -- CREATE TABLE IF NOT EXISTS public.profiles (
+--    --   id uuid NOT NULL PRIMARY KEY,
+--    --   full_name text,
+--    --   email text UNIQUE,
+--    --   role text DEFAULT 'user'::text,
+--    --   created_at timestamptz DEFAULT now(),
+--    --   updated_at timestamptz DEFAULT now()
+--    -- );
+--    -- Step 2: Add the foreign key constraint separately
+--    -- ALTER TABLE public.profiles
+--    -- ADD CONSTRAINT profiles_id_fkey
+--    -- FOREIGN KEY (id)
+--    -- REFERENCES auth.users(id)
+--    -- ON DELETE CASCADE;
+
+-- Primary recommended SQL:
 -- 1. Create the 'profiles' table
 CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -40,20 +68,25 @@ CREATE POLICY "Users can view their own profile."
   USING (auth.uid() = id);
 
 -- Policy: Allow users to update their own profile.
+-- Also allows them to insert their own profile row if the 'id' matches their auth.uid().
+-- This is important for the seeding script to work with the anon key.
 CREATE POLICY "Users can update their own profile."
   ON public.profiles FOR UPDATE
   TO authenticated
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
+CREATE POLICY "Users can insert their own profile"
+  ON public.profiles FOR INSERT
+  TO authenticated
+  WITH CHECK (auth.uid() = id);
+
+
 -- Policy: Allow service_role (e.g., server-side actions using service key) to manage all profiles.
--- THIS IS IMPORTANT FOR THE AUTH ACTION TO READ ROLES IF USING SERVICE KEY,
--- OR FOR ADMINS TO MANAGE PROFILES.
--- If your auth.ts uses the anon key for profile fetching, the authenticated user needs SELECT on their own profile (covered above).
--- If an admin needs to manage roles, they would need broader permissions or use a service_role key.
+-- THIS IS IMPORTANT FOR ADMINS TO MANAGE PROFILES OR FOR CERTAIN SERVER-SIDE OPERATIONS.
 CREATE POLICY "Admins (service_role) can manage all profiles"
   ON public.profiles FOR ALL
-  TO service_role -- Or a specific admin role if you have one
+  TO service_role
   USING (true)
   WITH CHECK (true);
 
@@ -63,16 +96,21 @@ CREATE POLICY "Admins (service_role) can manage all profiles"
 -- CREATE OR REPLACE FUNCTION public.handle_new_user()
 -- RETURNS trigger
 -- LANGUAGE plpgsql
--- SECURITY DEFINER SET search_path = public
+-- SECURITY DEFINER SET search_path = public -- IMPORTANT: SECURITY DEFINER
 -- AS $$
 -- BEGIN
 --   INSERT INTO public.profiles (id, email, full_name, role)
---   VALUES (new.id, new.email, COALESCE(new.raw_user_meta_data->>'full_name', new.email), COALESCE(new.raw_user_meta_data->>'role', 'user')::text);
+--   VALUES (
+--     new.id, 
+--     new.email, 
+--     COALESCE(new.raw_user_meta_data->>'full_name', new.email), 
+--     COALESCE(new.raw_user_meta_data->>'role', 'user')::text
+--   );
 --   RETURN new;
 -- END;
 -- $$;
 
--- Example Trigger:
+-- Example Trigger (ensure the function above is created first):
 -- CREATE TRIGGER on_auth_user_created
 --   AFTER INSERT ON auth.users
 --   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
@@ -170,31 +208,39 @@ async function seedUser(user: TestUser) {
   //    This uses the standard Supabase client with your anon key and respects RLS.
   //    The `id` must match the `id` from `auth.users`.
   //    Using `upsert` is good for seeding scripts.
-  const profileData = {
-    id: authUserId, // This might be undefined if user already existed and we couldn't fetch ID
-    email: authUserEmail, // Use email for matching if ID is not available
+  const profileDataToUpsert = {
+    // id is the primary key and foreign key to auth.users.id
+    // It MUST be set for the upsert to correctly link or update the profile.
+    id: authUserId, 
+    email: authUserEmail, 
     full_name: user.fullName,
     role: user.role,
   };
-
-  // If authUserId is available, use it for upsert. Otherwise, try to match on email.
-  // Note: Upserting on email requires 'email' to be a unique constraint in 'profiles'.
-  const upsertOptions = authUserId ? { onConflict: 'id' } : { onConflict: 'email', ignoreDuplicates: false };
-  const profileToInsert = authUserId ? profileData : { email: authUserEmail, full_name: user.fullName, role: user.role };
+  
+  if (!profileDataToUpsert.id) {
+    console.error(`CRITICAL: Cannot seed profile for ${user.email} without a valid auth.users ID. Upsert will likely fail or create an unlinked profile.`);
+    // If you want to try upserting on email as a fallback (requires email to be unique in profiles and might not link to auth.users correctly without id)
+    // delete profileDataToUpsert.id; // Then set onConflict: 'email'
+    // However, for profiles linked to auth.users, 'id' is the correct conflict target.
+    return;
+  }
 
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .upsert(profileToInsert, upsertOptions) // Upsert based on 'id' or 'email'
+    .upsert(profileDataToUpsert, { onConflict: 'id' }) 
     .select()
     .single();
 
   if (profileError) {
-    console.error(`Error seeding profile for ${user.email}:`, profileError.message);
+    console.error(`Error seeding profile for ${user.email} (Auth ID: ${authUserId}):`, profileError.message);
     if (profileError.message.includes('violates foreign key constraint')) {
-        console.error(`  HINT: This often means the user with ID '${authUserId}' or email '${authUserEmail}' does not exist in 'auth.users' table, or the 'profiles' table RLS is preventing the insert/update.`);
+        console.error(`  HINT: This often means the user with ID '${authUserId}' does not exist in 'auth.users' table, or the 'profiles' table RLS is preventing the insert/update for this ID.`);
+        console.error(`  Ensure you have run the SQL from PROFILES_TABLE_SQL in your Supabase SQL editor to create the 'profiles' table with the correct foreign key to auth.users.`);
     } else if (profileError.message.includes('duplicate key value violates unique constraint "profiles_email_key"')) {
-        console.error(`  HINT: A profile with email '${authUserEmail}' already exists. The upsert on 'email' might need adjustment or ensure 'id' is correctly passed if the auth user exists.`);
+        console.error(`  HINT: A profile with email '${authUserEmail}' already exists but possibly with a different ID. Ensure 'id' is correctly passed and matches the auth.users ID for upsert.`);
+    } else if (profileError.message.includes('permission denied for table profiles') || profileError.message.includes('violates row-level security policy')) {
+        console.error(`  HINT: RLS on 'profiles' table is preventing this operation. Ensure your 'Users can insert their own profile' and 'Users can update their own profile' policies are active and correctly defined to allow upsert based on auth.uid() = id.`);
     }
   } else if (profile) {
     console.log(`Successfully seeded profile for ${user.email} (Role: ${profile.role}, Full Name: ${profile.full_name}).`);
@@ -218,11 +264,11 @@ async function main() {
   console.log(PROFILES_TABLE_SQL);
   console.log("--------------------------------------------------------------------------");
   console.log("The RLS policies in the SQL above are examples. Adjust them to your app's needs.");
-  console.log("Especially review policies if you want to allow users to update their own roles or if admins manage roles.");
-  console.log("For this seeding script to work best, ensure your 'profiles' table allows inserts from authenticated users or has permissive RLS for seeding, or use a service_role key for seeding in production.");
+  console.log("The 'Users can insert their own profile' and 'Users can update their own profile' policies are important for this seeding script to work with the anon key.");
+  console.log("For this seeding script to work best, ensure your 'profiles' table allows inserts/updates from authenticated users based on their auth.uid() matching the profile id.");
 
   console.log("\n--- Attempting to Seed Test Users and Profiles ---");
-  console.log("This script will try to sign up test users and add their profiles.");
+  console.log("This script will try to sign up test users and add/update their profiles.");
   console.log("If users already exist in Supabase Auth, sign-up will be skipped, and it will attempt to create/update their profile.");
   console.log("Check your Supabase console (Authentication & Database->profiles table) to verify.");
   console.log("For new users, Supabase might send confirmation emails. Configure auto-confirmation in Supabase settings for easier testing if needed.");
@@ -241,3 +287,6 @@ main().catch(error => {
   console.error("\nFATAL: Supabase dev script FAILED:", error);
   console.error("Check connection to Supabase, .env.local variables, and if the 'profiles' table SQL has been run.");
 });
+
+
+    
