@@ -4,6 +4,9 @@
 import { z } from 'zod';
 import { supabase } from '@/lib/supabaseClient'; // Import Supabase client
 
+// Define UserRole type - ensure this matches roles in your 'profiles' table
+export type UserRole = 'super_admin' | 'client_admin' | 'user' | 'agent' | 'analyst' | 'viewer'; // Add any other roles you use
+
 const signInSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(1, { message: "Password is required." }),
@@ -12,7 +15,7 @@ const signInSchema = z.object({
 interface SignInResult {
   success: boolean;
   message: string;
-  user: { userId: string; email: string; fullName: string | null; role: string; } | null; // userId will be Supabase user ID
+  user: { userId: string; email: string; fullName: string | null; role: UserRole; } | null;
   error?: Error | null;
 }
 
@@ -43,7 +46,7 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>): Pr
     // This table should have an 'id' column that is a foreign key to 'auth.users.id'
     // and a 'role' column (e.g., 'super_admin', 'client_admin', 'user')
     // and a 'full_name' column.
-    let userRole = 'user'; // Default role
+    let userRole: UserRole = 'user'; // Default role
     let userFullName: string | null = authData.user.user_metadata?.full_name || null;
 
     const { data: profileData, error: profileError } = await supabase
@@ -52,17 +55,20 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>): Pr
       .eq('id', authData.user.id)
       .single();
 
-    if (profileError && profileError.code !== 'PGRST116') { // PGRST116: no rows found
-      console.warn('Error fetching user profile from Supabase:', profileError.message);
-      // Not a fatal error for login, but role might be default
+    if (profileError && profileError.code !== 'PGRST116') { // PGRST116: no rows found (profile might not exist yet)
+      console.warn(`Warning fetching user profile from Supabase for user ${authData.user.id}: ${profileError.message}. This might be okay if profile is created later or RLS prevents access.`);
+      // Not a fatal error for login, but role might be default and full name might be missing.
+      // Consider if a missing profile should prevent login or assign a default role.
     }
 
     if (profileData) {
-      userRole = profileData.role || userRole;
+      userRole = profileData.role as UserRole || userRole; // Cast to UserRole, provide fallback
       userFullName = profileData.full_name || userFullName;
     }
-     if (!userFullName && authData.user.email) {
-        userFullName = authData.user.email.split('@')[0]; // Fallback to part of email if no full_name
+    
+    // Fallback for full name if not in metadata or profiles
+    if (!userFullName && authData.user.email) {
+        userFullName = authData.user.email.split('@')[0]; 
     }
 
 
@@ -71,7 +77,7 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>): Pr
       success: true,
       message: 'Sign in successful!',
       user: {
-        userId: authData.user.id, // Use Supabase user ID
+        userId: authData.user.id,
         email: authData.user.email!,
         fullName: userFullName,
         role: userRole,
