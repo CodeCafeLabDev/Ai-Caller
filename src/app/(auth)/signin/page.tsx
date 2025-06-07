@@ -21,9 +21,11 @@ import { useToast } from "@/hooks/use-toast";
 import { signInUserAction } from '@/actions/auth'; 
 import { useState, useTransition } from 'react';
 
+// For this temporary bypass, the user can enter any non-empty string
+// into the "Email" field (acting as a User ID) and any non-empty string for "Password".
 const formSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
-  password: z.string().min(1, { message: "Password is required." }),
+  email: z.string().min(1, { message: "Please enter any text for User ID." }),
+  password: z.string().min(1, { message: "Please enter any text for Password." }),
 });
 
 export default function SignInPage() {
@@ -45,30 +47,17 @@ export default function SignInPage() {
        
       if (result.success && result.user) {
         toast({
-          title: "Sign In Successful",
+          title: "Sign In Successful (Bypass Mode)",
           description: result.message,
         });
         
-        // Role-based redirection
-        // Ensure your Supabase 'profiles' table has a 'role' column with these exact values
-        if (result.user.role === 'super_admin') {
-          router.push("/dashboard");
-        } else if (result.user.role === 'client_admin') {
-          router.push("/client-admin/dashboard"); 
-        } else {
-          // Fallback for any other roles or if role is not defined as expected
-          toast({
-            title: "Signed In, Role Unclear",
-            description: `Logged in as ${result.user.email}, but role '${result.user.role}' has no specific redirect. Defaulting to dashboard.`,
-            variant: "default", 
-            duration: 6000,
-          });
-          router.push("/dashboard"); 
-        }
+        // Redirect to dashboard as 'super_admin' is hardcoded in the bypass
+        router.push("/dashboard");
+
       } else {
         toast({
           title: "Sign In Failed",
-          description: result.message || "Invalid credentials or an unexpected error occurred.",
+          description: result.message || "Invalid input.",
           variant: "destructive",
         });
       }
@@ -78,9 +67,9 @@ export default function SignInPage() {
   return (
     <Card className="w-full max-w-md shadow-xl mx-auto">
       <CardHeader>
-        <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
+        <CardTitle className="text-3xl font-headline text-center">Sign In (Test Mode)</CardTitle>
         <CardDescription className="text-center">
-          Enter your Email and password to access Voxaiomni.
+          Enter any non-empty User ID (in Email field) and Password to proceed.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -91,9 +80,9 @@ export default function SignInPage() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>User ID (Enter any text)</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="Enter your email address" {...field} disabled={isPending} />
+                    <Input type="text" placeholder="Enter any User ID" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -104,19 +93,22 @@ export default function SignInPage() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>Password (Enter any text)</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="Enter your password" {...field} disabled={isPending} />
+                    <Input type="password" placeholder="Enter any password" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? "Signing In..." : "Sign In"}
+              {isPending ? "Signing In..." : "Sign In (Bypass)"}
             </Button>
           </form>
         </Form>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          This is a temporary bypass mode. No actual authentication is performed.
+        </p>
       </CardContent>
     </Card>
   );
