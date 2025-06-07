@@ -3,10 +3,10 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import * as React from 'react'; // Import React
+import * as React from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon, UserCircle as UserProfileIcon, LogOut, Languages } from 'lucide-react'; // Renamed UserCircle to UserProfileIcon
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon, UserCircle as UserProfileIcon, LogOut, Languages } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -22,8 +22,8 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-} from "@/components/ui/sheet"; // Import Sheet components
-import { AddClientForm } from '@/components/clients/add-client-form'; // Import AddClientForm
+} from "@/components/ui/sheet";
+import { AddClientForm, type AddClientFormValues } from '@/components/clients/add-client-form';
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
@@ -39,7 +39,7 @@ export function AppHeader() {
   const router = useRouter();
   const { toast } = useToast();
   const isDashboard = pathname === '/dashboard';
-  const [isAddClientSheetOpen, setIsAddClientSheetOpen] = React.useState(false); // State for Add Client sheet
+  const [isAddClientSheetOpen, setIsAddClientSheetOpen] = React.useState(false);
 
   const totalNotifications = notificationItems.reduce((sum, item) => sum + item.count, 0);
 
@@ -59,21 +59,19 @@ export function AppHeader() {
     });
   };
 
-  const handleAddClientSuccess = () => {
+  const handleAddClientSuccessInHeader = (data: AddClientFormValues) => {
     setIsAddClientSheetOpen(false);
     toast({
       title: "Client Added",
-      description: "The new client has been successfully submitted for creation.",
+      description: `Client "${data.companyName}" has been successfully submitted for creation.`,
     });
-    // Optionally, you might want to trigger a data refresh here if the client list is displayed on the current page.
   };
 
-  // Define quick action items, with "Add Client" toggling the sheet
   const quickActionItems = [
     { text: "Add Client", icon: UserPlus, action: () => setIsAddClientSheetOpen(true) },
     { text: "New Plan", icon: FilePlus, action: () => {
         toast({title: "New Plan", description: "Navigating to create new plan page (Not yet implemented)."});
-        router.push('/plans-billing'); // Or a specific create plan page
+        router.push('/plans-billing');
     } },
     { text: "Create Template", icon: FileTextIcon, action: () => {
         toast({title: "Create Template", description: "Navigating to create template page."});
@@ -218,11 +216,7 @@ export function AppHeader() {
                 </SheetDescription>
             </SheetHeader>
             <AddClientForm 
-                onSuccess={handleAddClientSuccess} 
-                // The AddClientForm already has a cancel button via SheetClose if it's inside its own SheetFooter
-                // So, a specific onCancel prop might not be needed if AddClientForm manages its own closure.
-                // If AddClientForm's cancel needs to trigger onOpenChange(false), then pass:
-                // onCancel={() => setIsAddClientSheetOpen(false)} 
+                onSuccess={handleAddClientSuccessInHeader}
             />
         </SheetContent>
       </Sheet>

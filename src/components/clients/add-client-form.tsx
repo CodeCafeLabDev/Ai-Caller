@@ -19,13 +19,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-// Removed useToast here, it will be handled by the parent component (AppHeader)
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SheetFooter, SheetClose } from "@/components/ui/sheet"; // Import SheetFooter and SheetClose
+import { SheetFooter, SheetClose } from "@/components/ui/sheet";
 
 const addClientFormSchema = z.object({
   companyName: z.string().min(2, { message: "Company name must be at least 2 characters." }),
@@ -63,11 +62,10 @@ const addClientFormSchema = z.object({
   path: ["trialCallLimit"],
 });
 
-type AddClientFormValues = z.infer<typeof addClientFormSchema>;
+export type AddClientFormValues = z.infer<typeof addClientFormSchema>;
 
 interface AddClientFormProps {
-  onSuccess?: (data: AddClientFormValues) => void; // Changed to pass data
-  // Removed onCancel, as SheetClose will handle it
+  onSuccess: (data: AddClientFormValues) => void;
 }
 
 const availablePlans = ["Basic", "Premium", "Enterprise", "Trial"];
@@ -98,17 +96,15 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
 
   function onSubmit(data: AddClientFormValues) {
     console.log("New Client Data (from AddClientForm):", data);
-    form.reset();
-    if (onSuccess) {
-      onSuccess(data); // Pass the form data to the success handler
-    }
+    onSuccess(data); // Call parent's success handler which also closes the sheet
+    form.reset(); // Reset form for next time
   }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
         <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-4 px-2 py-4"> {/* Added py-4 for top/bottom padding */}
+          <div className="space-y-4 px-2 py-4">
             <FormField
               control={form.control}
               name="companyName"
@@ -381,7 +377,6 @@ export function AddClientForm({ onSuccess }: AddClientFormProps) {
             />
           </div>
         </ScrollArea>
-        {/* SheetFooter will manage cancel and submit */}
         <SheetFooter className="pt-4 px-2 mt-auto border-t">
             <SheetClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
