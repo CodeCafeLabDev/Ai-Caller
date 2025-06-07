@@ -1,112 +1,72 @@
-
-'use server';
-
-import mysql from 'mysql2/promise';
-import bcrypt from 'bcryptjs';
-
-const dbConfig = {
-  host: process.env.DB_HOST || '193.203.166.175',
-  user: process.env.DB_USER || 'u406732176_aicaller',
-  password: process.env.DB_PASSWORD || 'Aicaller@1234',
-  database: process.env.DB_NAME || 'u406732176_aicaller',
-  connectTimeout: 10000 // Added a 10-second connection timeout
-};
-
-export async function getDbConnection(): Promise<mysql.Connection> {
-  const loggableConfig = { ...dbConfig, password: dbConfig.password ? '********' : undefined };
-  try {
-    const newConnection = await mysql.createConnection(dbConfig);
-    return newConnection;
-  } catch (error) {
-    console.error('DB connection error during createConnection:', error);
-    let detailedErrorMessage = `Could not connect to DB. Host: ${dbConfig.host}, User: ${dbConfig.user}, DB: ${dbConfig.database}. Error: ${(error as Error).message}`;
-    if ((error as any).code === 'ETIMEDOUT') {
-      detailedErrorMessage += `\n\nETIMEDOUT errors usually indicate a network connectivity issue:
-1. Check if the database server at '${dbConfig.host}' is running and accessible from your application environment.
-2. Verify that the firewall on the database server (and any intermediary firewalls) allows connections from your application's IP address/range on port 3306 (or the configured MySQL port).
-3. Ensure the MySQL server's 'bind-address' configuration is not restricted to localhost or specific IPs if you're connecting remotely.
-4. If using a cloud database (AWS RDS, Google Cloud SQL, Azure), check its specific network security group or VPC settings.
-5. Confirm there are no egress network restrictions from your application's hosting environment (Firebase Studio).`;
-    }
-    throw new Error(detailedErrorMessage);
-  }
-}
-
-export async function closeDbConnection(connection: mysql.Connection | null): Promise<void> {
-  if (connection) {
-    try {
-      await connection.end();
-    } catch (error) {
-      console.error('Error closing DB connection:', error);
-    }
-  }
-}
-
-async function initializeUsersTable(conn: mysql.Connection): Promise<void> {
-  const createTableSQL = `
-    CREATE TABLE IF NOT EXISTS Users (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_identifier VARCHAR(255) NOT NULL UNIQUE,
-      password_hash VARCHAR(255) NOT NULL,
-      full_name VARCHAR(255),
-      email VARCHAR(255) UNIQUE,
-      role VARCHAR(50) NOT NULL DEFAULT 'user',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    );
-  `;
-  console.log("DEBUG DB: Executing SQL to create Users table if it doesn't exist:\n", createTableSQL);
-  await conn.execute(createTableSQL);
-  console.log("DEBUG DB: MySQL 'Users' table schema checked/created successfully.");
-}
-
-async function addSampleUsers(conn: mysql.Connection): Promise<void> {
-  console.log("DEBUG DB: Attempting to add sample users...");
-  const users = [
-    { userId: 'admin', pass: 'password123', fullName: 'Super Admin', email: 'admin@example.com', role: 'super_admin' },
-    { userId: 'clientadmin', pass: 'password123', fullName: 'Client Admin User', email: 'clientadmin@example.com', role: 'client_admin' },
-  ];
-
-  for (const user of users) {
-    const [rows] = await conn.execute('SELECT * FROM Users WHERE user_identifier = ?', [user.userId]);
-    if ((rows as any[]).length === 0) {
-      const passwordHash = await bcrypt.hash(user.pass, 10);
-      await conn.execute(
-        'INSERT INTO Users (user_identifier, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, ?)',
-        [user.userId, passwordHash, user.fullName, user.email, user.role]
-      );
-      console.log(`DEBUG DB: Sample user '${user.userId}' added to the database.`);
-    } else {
-      console.log(`DEBUG DB: Sample user '${user.userId}' already exists in the database.`);
-    }
-  }
-  console.log("DEBUG DB: Finished attempting to add sample users.");
-}
-
-export async function initializeDatabase(): Promise<void> {
-  let conn: mysql.Connection | null = null;
-  try {
-    console.log("DEBUG DB: Starting database initialization (MySQL)...");
-    conn = await getDbConnection();
-    console.log("DEBUG DB: Successfully connected to MySQL for initialization.");
-    
-    await initializeUsersTable(conn);
-    await addSampleUsers(conn);
-    
-    console.log("DEBUG DB: MySQL Database initialization process completed successfully.");
-  } catch (err) {
-    console.error("**************************************************");
-    console.error("FATAL: MySQL DB initialization FAILED.");
-    console.error("Error details:", err);
-    console.error("Possible reasons: ");
-    console.error("  1. Incorrect DB credentials in .env.local (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME).");
-    console.error("  2. MySQL server not running or inaccessible from the application (check firewalls, bind-address, cloud provider network settings).");
-    console.error("  3. The database user lacks permissions (e.g., CREATE TABLE, INSERT, SELECT).");
-    console.error("**************************************************");
-    throw err; 
-  } finally {
-    if (conn) {
-      await closeDbConnection(conn);
-    }
+{
+  "name": "nextn",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
+    "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@genkit-ai/googleai": "^1.8.0",
+    "@genkit-ai/next": "^1.8.0",
+    "@hookform/resolvers": "^4.1.3",
+    "@radix-ui/react-accordion": "^1.2.3",
+    "@radix-ui/react-alert-dialog": "^1.1.6",
+    "@radix-ui/react-avatar": "^1.1.3",
+    "@radix-ui/react-checkbox": "^1.1.4",
+    "@radix-ui/react-dialog": "^1.1.6",
+    "@radix-ui/react-dropdown-menu": "^2.1.6",
+    "@radix-ui/react-label": "^2.1.2",
+    "@radix-ui/react-menubar": "^1.1.6",
+    "@radix-ui/react-popover": "^1.1.6",
+    "@radix-ui/react-progress": "^1.1.2",
+    "@radix-ui/react-radio-group": "^1.2.3",
+    "@radix-ui/react-scroll-area": "^1.2.3",
+    "@radix-ui/react-select": "^2.1.6",
+    "@radix-ui/react-separator": "^1.1.2",
+    "@radix-ui/react-slider": "^1.2.3",
+    "@radix-ui/react-slot": "^1.1.2",
+    "@radix-ui/react-switch": "^1.1.3",
+    "@radix-ui/react-tabs": "^1.1.3",
+    "@radix-ui/react-toast": "^1.2.6",
+    "@radix-ui/react-tooltip": "^1.1.8",
+    "@supabase/supabase-js": "^2.49.10",
+    "@tanstack-query-firebase/react": "^1.0.5",
+    "@tanstack/react-query": "^5.66.0",
+    "bcryptjs": "^2.4.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.0.0",
+    "date-fns": "^3.6.0",
+    "dotenv": "^16.5.0",
+    "firebase": "^11.8.1",
+    "genkit": "^1.8.0",
+    "lucide-react": "^0.475.0",
+    "next": "^15.3.3",
+    "patch-package": "^8.0.0",
+    "react": "^18.3.1",
+    "react-day-picker": "^8.10.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.54.2",
+    "recharts": "^2.15.1",
+    "tailwind-merge": "^3.0.1",
+    "tailwindcss-animate": "^1.0.7",
+    "xlsx-populate": "^1.21.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "genkit-cli": "^1.8.0",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
   }
 }

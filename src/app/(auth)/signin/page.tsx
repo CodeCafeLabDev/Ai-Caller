@@ -22,7 +22,7 @@ import { signInUserAction } from '@/actions/auth';
 import { useState, useTransition } from 'react';
 
 const formSchema = z.object({
-  userId: z.string().min(1, { message: "User ID is required." }),
+  email: z.string().email({ message: "Please enter a valid email address." }),
   password: z.string().min(1, { message: "Password is required." }),
 });
 
@@ -34,7 +34,7 @@ export default function SignInPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      userId: "",
+      email: "",
       password: "",
     },
   });
@@ -50,12 +50,19 @@ export default function SignInPage() {
         });
         
         // Role-based redirection
+        // Ensure your Supabase 'profiles' table has a 'role' column with these exact values
         if (result.user.role === 'super_admin') {
           router.push("/dashboard");
         } else if (result.user.role === 'client_admin') {
           router.push("/client-admin/dashboard"); 
         } else {
-          // Fallback for any other roles, or if role is not defined
+          // Fallback for any other roles or if role is not defined as expected
+          toast({
+            title: "Signed In, Role Unclear",
+            description: `Logged in as ${result.user.email}, but role '${result.user.role}' has no specific redirect. Defaulting to dashboard.`,
+            variant: "default", 
+            duration: 6000,
+          });
           router.push("/dashboard"); 
         }
       } else {
@@ -73,7 +80,7 @@ export default function SignInPage() {
       <CardHeader>
         <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
         <CardDescription className="text-center">
-          Enter your User ID and password to access Voxaiomni.
+          Enter your Email and password to access Voxaiomni.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -81,12 +88,12 @@ export default function SignInPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="userId"
+              name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>User ID</FormLabel>
+                  <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter your User ID" {...field} disabled={isPending} />
+                    <Input type="email" placeholder="Enter your email address" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
