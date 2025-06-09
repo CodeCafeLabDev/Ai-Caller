@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon, UserCircle as UserProfileIcon, LogOut, Languages } from 'lucide-react';
+import { Search, Bell, Users, CreditCard, AlertCircle, Megaphone, PlusCircle, UserPlus, FilePlus, FileTextIcon, UserCircle as UserProfileIcon, LogOut, Languages, PhoneOff } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -28,10 +28,10 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
 const notificationItems = [
-  { text: "Failed call reports", icon: AlertCircle, count: 0 },
-  { text: "New client signups", icon: Users, count: 2 },
-  { text: "Payment failures", icon: CreditCard, count: 0 },
-  { text: "Campaign limit alerts", icon: Megaphone, count: 1 },
+  { text: "Failed call reports", icon: PhoneOff, count: 0, href: "/reports-analytics/failed-call-reports" }, // Updated Icon and added href
+  { text: "New client signups", icon: Users, count: 2, href: "/clients/list" },
+  { text: "Payment failures", icon: CreditCard, count: 0, href: "/plans-billing/invoices" },
+  { text: "Campaign limit alerts", icon: Megaphone, count: 1, href: "/campaigns/active-paused" },
 ];
 
 export function AppHeader() {
@@ -65,16 +65,15 @@ export function AppHeader() {
       title: "Client Added",
       description: `Client "${data.companyName}" has been successfully submitted for creation.`,
     });
-    // In a real app, you might want to refresh the client list or navigate to the new client's page.
   };
 
   const quickActionItems = [
     { text: "Add Client", icon: UserPlus, action: () => setIsAddClientSheetOpen(true) },
     { text: "New Plan", icon: FilePlus, action: () => {
-        router.push('/plans-billing/create'); // Navigate to the new create plan page
+        router.push('/plans-billing/create');
     } },
     { text: "Create Template", icon: FileTextIcon, action: () => {
-        router.push('/ai-templates/create'); // Navigate to the AI template creation page
+        router.push('/ai-templates/create');
     } },
   ];
 
@@ -143,14 +142,16 @@ export function AppHeader() {
                 notificationItems.map((item, index) => {
                   const IconComponent = item.icon;
                   return (
-                    <DropdownMenuItem key={index} className="flex justify-between items-center cursor-pointer">
-                      <div className="flex items-center">
-                        <IconComponent className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <span>{item.text}</span>
-                      </div>
-                      {item.count > 0 && (
-                        <Badge variant="destructive" className="ml-auto">{item.count}</Badge>
-                      )}
+                    <DropdownMenuItem key={index} asChild className="flex justify-between items-center cursor-pointer">
+                      <Link href={item.href || "#!"}>
+                        <div className="flex items-center">
+                          <IconComponent className="mr-2 h-4 w-4 text-muted-foreground" />
+                          <span>{item.text}</span>
+                        </div>
+                        {item.count > 0 && (
+                          <Badge variant="destructive" className="ml-auto">{item.count}</Badge>
+                        )}
+                      </Link>
                     </DropdownMenuItem>
                   );
                 })
@@ -215,7 +216,7 @@ export function AppHeader() {
             </SheetHeader>
             <AddClientForm 
                 onSuccess={handleAddClientSuccessInHeader}
-                onCancel={() => setIsAddClientSheetOpen(false)} // Pass the onCancel handler
+                onCancel={() => setIsAddClientSheetOpen(false)}
             />
         </SheetContent>
       </Sheet>

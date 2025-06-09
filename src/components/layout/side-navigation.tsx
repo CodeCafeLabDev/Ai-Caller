@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks, CheckSquare, FileText, Database } from 'lucide-react'; // Added Database icon
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks, CheckSquare, FileText, Database, PhoneOff } from 'lucide-react'; // Added PhoneOff
 import {
   Sidebar,
   SidebarHeader,
@@ -85,7 +85,7 @@ const initialNavItems: NavItemType[] = [
     basePath: '/ai-templates',
     subItems: [
         { href: '/ai-templates', label: 'Manage Templates', icon: Bot },
-        { href: '/ai-templates/create', label: 'Create Template', icon: UserPlus }, // Added create link
+        { href: '/ai-templates/create', label: 'Create Template', icon: UserPlus }, 
         { href: '/ai-templates/version-history', label: 'Version History', icon: History },
         { href: '/ai-templates/language-settings', label: 'Language Settings', icon: Languages },
         { href: '/ai-templates/import-export', label: 'Import/Export JSON', icon: FileJson },
@@ -98,7 +98,8 @@ const initialNavItems: NavItemType[] = [
     subItems: [
       { href: '/reports-analytics/call-reports', label: 'Call Reports', icon: CalendarClock },
       { href: '/reports-analytics/system-usage-trends', label: 'System Usage Trends', icon: TrendingUp },
-      { href: '/reports-analytics/error-logs', label: 'Error & Failed Call Logs', icon: AlertTriangle },
+      { href: '/reports-analytics/error-logs', label: 'Error & System Logs', icon: AlertTriangle }, // Renamed
+      { href: '/reports-analytics/failed-call-reports', label: 'Failed Call Reports', icon: PhoneOff }, // New
       { href: '/reports-analytics/export-data', label: 'Export Data', icon: FileDown },
     ]
   },
@@ -140,7 +141,7 @@ const initialNavItems: NavItemType[] = [
     ]
   },
   { 
-    label: 'Supabase CRUD', // New Top Level Item
+    label: 'Supabase CRUD', 
     icon: Database, 
     href: '/supabase-crud-example',
     basePath: '/supabase-crud-example',
@@ -154,7 +155,6 @@ export function SideNavigation() {
   const router = useRouter();
   const { toast } = useToast();
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>(() => {
-    // Initialize openSubmenus based on current path
     const activeParent = initialNavItems.find(item => item.basePath && pathname.startsWith(item.basePath));
     if (activeParent) {
       return { [activeParent.label]: true };
