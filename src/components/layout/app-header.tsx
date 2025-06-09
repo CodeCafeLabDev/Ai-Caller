@@ -71,7 +71,7 @@ export function AppHeader() {
   const quickActionItems = [
     { text: "Add Client", icon: UserPlus, action: () => setIsAddClientSheetOpen(true) },
     { text: "New Plan", icon: FilePlus, action: () => {
-        router.push('/plans-billing'); // Assuming this is where new plans are created or managed
+        router.push('/plans-billing/create'); // Navigate to the new create plan page
     } },
     { text: "Create Template", icon: FileTextIcon, action: () => {
         router.push('/ai-templates/create');

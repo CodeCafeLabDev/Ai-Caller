@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link"; // Import Link
 import {
   Table,
   TableBody,
@@ -29,14 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+// Removed Sheet imports as form is now on a dedicated page
 import {
   Search,
   PlusCircle,
@@ -57,7 +51,7 @@ import {
   FileDown, 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { AddPlanForm } from "@/components/plans/add-plan-form";
+// Removed AddPlanForm import
 import { EditPlanForm } from "@/components/plans/edit-plan-form";
 import type { Metadata } from 'next';
 
@@ -187,7 +181,7 @@ export default function PlansBillingPage() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planTypeFilter, setPlanTypeFilter] = React.useState("all"); 
-  const [isAddPlanSheetOpen, setIsAddPlanSheetOpen] = React.useState(false);
+  // Removed isAddPlanSheetOpen state
   const [isEditPlanSheetOpen, setIsEditPlanSheetOpen] = React.useState(false);
   const [editingPlan, setEditingPlan] = React.useState<Plan | null>(null);
 
@@ -219,11 +213,7 @@ export default function PlansBillingPage() {
     toast({ title: "Plan Updated", description: `The plan "${updatedPlan.name}" has been successfully updated.` });
   };
   
-  const handleAddPlanSuccess = (newPlan: Plan) => {
-    setPlans(prevPlans => [newPlan, ...prevPlans]);
-    setIsAddPlanSheetOpen(false);
-    toast({ title: "Plan Added", description: `The new plan "${newPlan.name}" has been successfully added.` });
-  };
+  // Removed handleAddPlanSuccess as form is now on a dedicated page
 
   const filteredPlans = plans.filter((plan) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
@@ -257,26 +247,13 @@ export default function PlansBillingPage() {
           <h1 className="text-3xl font-bold font-headline">Subscription Plans</h1>
           <p className="text-muted-foreground">Manage service tiers and plan configurations.</p>
         </div>
-        <Sheet open={isAddPlanSheetOpen} onOpenChange={setIsAddPlanSheetOpen}>
-          <SheetTrigger asChild>
-            <Button size="lg">
-              <PlusCircle className="mr-2 h-5 w-5" />
-              Add New Plan
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="sm:max-w-lg w-full flex flex-col" side="right">
-            <SheetHeader>
-              <SheetTitle>Add New Plan</SheetTitle>
-              <SheetDescription>
-                Fill in the details below to create a new subscription plan.
-              </SheetDescription>
-            </SheetHeader>
-            <AddPlanForm 
-              onSuccess={handleAddPlanSuccess} 
-              onCancel={() => setIsAddPlanSheetOpen(false)}
-            />
-          </SheetContent>
-        </Sheet>
+        {/* Changed Button to Link for navigating to create page */}
+        <Button size="lg" asChild>
+          <Link href="/plans-billing/create">
+            <PlusCircle className="mr-2 h-5 w-5" />
+            Add New Plan
+          </Link>
+        </Button>
       </div>
 
       <Card className="shadow-lg">

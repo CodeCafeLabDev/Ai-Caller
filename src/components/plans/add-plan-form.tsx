@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { SheetFooter } from "@/components/ui/sheet"; 
+// Removed SheetFooter as action buttons will be on the page
 import type { Plan, PlanStatus } from "@/app/(app)/plans-billing/page";
 
 const planStatusOptions: PlanStatus[] = ["Active", "Draft", "Archived"];
@@ -115,8 +115,9 @@ export function AddPlanForm({ onSuccess, onCancel }: AddPlanFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+        {/* Use ScrollArea if the form content is expected to be long, otherwise it might not be necessary */}
         <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-4 px-2 py-4">
+          <div className="space-y-4 p-1"> {/* Reduced padding if used directly on page */}
             <h3 className="text-lg font-medium text-foreground border-b pb-2 mb-4">Basic Info</h3>
             <FormField
               control={form.control}
@@ -351,15 +352,14 @@ export function AddPlanForm({ onSuccess, onCancel }: AddPlanFormProps) {
             <p className="text-xs text-muted-foreground pt-2">* Required fields</p>
           </div>
         </ScrollArea>
-        <SheetFooter className="pt-4 px-2 mt-auto border-t">
+        {/* Buttons are now handled by the parent page */}
+        <div className="pt-6 flex justify-end gap-3">
             <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
             <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Adding Plan..." : "Add Plan"}
+            {form.formState.isSubmitting ? "Saving Plan..." : "Save Plan"}
             </Button>
-        </SheetFooter>
+        </div>
       </form>
     </Form>
   );
 }
-
-    
