@@ -74,7 +74,7 @@ export function AppHeader() {
         router.push('/plans-billing/create'); // Navigate to the new create plan page
     } },
     { text: "Create Template", icon: FileTextIcon, action: () => {
-        router.push('/ai-templates/create');
+        router.push('/ai-templates/create'); // Navigate to the AI template creation page
     } },
   ];
 
