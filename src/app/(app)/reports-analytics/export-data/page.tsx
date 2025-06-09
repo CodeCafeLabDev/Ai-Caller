@@ -1,20 +1,31 @@
 
+"use client"; // Add this directive
+
 import type { Metadata } from 'next';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, CalendarRange, ListFilter } from "lucide-react";
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 
-export const metadata: Metadata = {
-  title: 'Export Data | Reports & Analytics - Voxaiomni',
-  description: 'Export various types of data, including call logs, campaign performance, and client information, in CSV or PDF formats.',
-  keywords: ['export data', 'csv export', 'pdf export', 'data download', 'voxaiomni reports', 'admin panel'],
-};
+// Since this is now a Client Component, metadata should be handled by the nearest parent Server Component (e.g., layout.tsx or page.tsx at a higher level if this were a child component).
+// For a top-level page like this, metadata export here might not be picked up as expected for Client Components.
+// We'll comment it out for now, assuming it would be handled by a server-side layout or if this component were refactored.
+// export const metadata: Metadata = {
+//   title: 'Export Data | Reports & Analytics - Voxaiomni',
+//   description: 'Export various types of data, including call logs, campaign performance, and client information, in CSV or PDF formats.',
+//   keywords: ['export data', 'csv export', 'pdf export', 'data download', 'voxaiomni reports', 'admin panel'],
+// };
 
 export default function ExportDataPage() {
-  // Mock export function - in a real app, this would trigger a download
+  const { toast } = useToast(); // Initialize toast
+
   const handleExport = (dataType: string, format: string) => {
-    alert(`Simulating export of ${dataType} as ${format}.`);
+    toast({ // Use the toast hook
+        title: "Export Initiated (Simulated)",
+        description: `Simulating export of ${dataType} as ${format}.`,
+    });
     // Here you would implement the actual data fetching and file generation/download logic.
+    console.log(`Simulating export of ${dataType} as ${format}.`);
   };
 
   return (
