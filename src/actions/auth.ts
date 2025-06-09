@@ -33,14 +33,24 @@ export async function signInUserAction(values: z.infer<typeof signInSchema>): Pr
   // --- Temporary Bypass Logic ---
   if (email.trim() !== "" && password.trim() !== "") {
     console.log("Temporary bypass: Credentials provided. Simulating successful login.");
+    
+    let userRole: UserRole = 'super_admin';
+    let userFullName = 'Test Bypass Super Admin';
+    
+    if (email.toLowerCase().includes('clientadmin')) {
+      userRole = 'client_admin';
+      userFullName = 'Test Bypass Client Admin';
+      console.log("Bypass: Detected 'clientadmin' in User ID. Assigning client_admin role.");
+    }
+
     return {
       success: true,
       message: 'Sign in successful (Bypass Mode)!',
       user: {
-        userId: 'test_user_bypass',
+        userId: `test_user_bypass_${userRole}`,
         email: email, // Use the entered value as email for consistency
-        fullName: 'Test Bypass User',
-        role: 'super_admin', // Grant super_admin role for dashboard access
+        fullName: userFullName,
+        role: userRole, 
       },
     };
   } else {

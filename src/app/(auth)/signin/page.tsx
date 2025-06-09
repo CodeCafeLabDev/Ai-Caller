@@ -48,11 +48,14 @@ export default function SignInPage() {
       if (result.success && result.user) {
         toast({
           title: "Sign In Successful (Bypass Mode)",
-          description: result.message,
+          description: `${result.message} Logged in as ${result.user.role}.`,
         });
         
-        // Redirect to dashboard as 'super_admin' is hardcoded in the bypass
-        router.push("/dashboard");
+        if (result.user.role === 'client_admin') {
+          router.push("/client-admin/dashboard");
+        } else { // Default to super_admin or any other role
+          router.push("/dashboard");
+        }
 
       } else {
         toast({
@@ -69,7 +72,7 @@ export default function SignInPage() {
       <CardHeader>
         <CardTitle className="text-3xl font-headline text-center">Sign In (Test Mode)</CardTitle>
         <CardDescription className="text-center">
-          Enter any non-empty User ID (in Email field) and Password to proceed.
+          Enter any non-empty User ID (in Email field) and Password. Use "clientadmin" in User ID for client panel.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -82,7 +85,7 @@ export default function SignInPage() {
                 <FormItem>
                   <FormLabel>User ID (Enter any text)</FormLabel>
                   <FormControl>
-                    <Input type="text" placeholder="Enter any User ID" {...field} disabled={isPending} />
+                    <Input type="text" placeholder="e.g., admin or clientadmin" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
