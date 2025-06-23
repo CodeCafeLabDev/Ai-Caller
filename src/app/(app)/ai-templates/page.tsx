@@ -54,9 +54,9 @@ import { cn } from "@/lib/utils";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'AI Script Templates - Voxaiomni',
+//   title: 'AI Script Templates - AI Caller',
 //   description: 'Manage global AI conversation templates for various use cases and languages.',
-//   keywords: ['ai templates', 'script templates', 'conversation flow', 'bot scripts', 'voxaiomni'],
+//   keywords: ['ai templates', 'script templates', 'conversation flow', 'bot scripts', 'AI Caller'],
 // };
 
 export type AITemplateStatus = "Draft" | "Published" | "Archived";

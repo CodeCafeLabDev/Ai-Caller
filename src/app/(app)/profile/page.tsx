@@ -22,9 +22,9 @@ import { Separator } from "@/components/ui/separator";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'User Profile - Voxaiomni',
+//   title: 'User Profile - AI Caller',
 //   description: 'Manage your account settings, personal information, and change your password.',
-//   keywords: ['user profile', 'account settings', 'change password', 'personal information', 'voxaiomni'],
+//   keywords: ['user profile', 'account settings', 'change password', 'personal information', 'AI Caller'],
 // };
 
 const profileFormSchema = z.object({
@@ -49,8 +49,8 @@ export default function ProfilePage() {
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
       fullName: "Admin User",
-      email: "admin@voxaiomni.com",
-      bio: "Platform administrator for Voxaiomni.",
+      email: "admin@AI Caller.com",
+      bio: "Platform administrator for AI Caller.",
     },
   });
 

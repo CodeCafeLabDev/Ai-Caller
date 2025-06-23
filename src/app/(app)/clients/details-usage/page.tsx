@@ -22,9 +22,9 @@ import type { Metadata } from 'next';
 // We can add a comment here indicating what the metadata *would* be.
 // Potential Metadata:
 // export const metadata: Metadata = {
-//   title: 'Client Details & Usage - Voxaiomni',
+//   title: 'Client Details & Usage - AI Caller',
 //   description: 'View detailed information, usage statistics, and plan details for a specific client.',
-//   keywords: ['client details', 'client usage', 'customer analytics', 'subscription', 'voxaiomni'],
+//   keywords: ['client details', 'client usage', 'customer analytics', 'subscription', 'AI Caller'],
 // };
 
 const mockClient = {

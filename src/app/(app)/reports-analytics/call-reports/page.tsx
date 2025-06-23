@@ -82,9 +82,9 @@ import {
 // Removed: import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Call Reports - Voxaiomni',
+//   title: 'Call Reports - AI Caller',
 //   description: 'Analyze call performance, track trends, and gain insights into your calling operations with daily and monthly reports.',
-//   keywords: ['call reports', 'call analytics', 'performance tracking', 'voxaiomni reports'],
+//   keywords: ['call reports', 'call analytics', 'performance tracking', 'AI Caller reports'],
 // };
 
 type CallStatus = "Completed" | "Failed" | "Missed" | "Answered" | "All";

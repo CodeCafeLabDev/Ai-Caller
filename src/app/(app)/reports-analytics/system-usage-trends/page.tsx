@@ -26,9 +26,9 @@ import {
 // Removed: import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'System Usage Trends - Voxaiomni',
+//   title: 'System Usage Trends - AI Caller',
 //   description: 'Monitor overall system performance, resource utilization, call volumes, and AI model costs over time.',
-//   keywords: ['system usage', 'performance trends', 'resource utilization', 'call volume', 'ai costs', 'voxaiomni analytics'],
+//   keywords: ['system usage', 'performance trends', 'resource utilization', 'call volume', 'ai costs', 'AI Caller analytics'],
 // };
 
 export default function SystemUsageTrendsPage() {

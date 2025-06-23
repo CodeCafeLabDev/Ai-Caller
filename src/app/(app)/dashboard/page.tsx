@@ -6,9 +6,9 @@ import Image from "next/image";
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Dashboard - Voxaiomni',
-  description: 'Overview and key metrics for your Voxaiomni AI calling system.',
-  keywords: ['dashboard', 'analytics', 'metrics', 'ai calling', 'voxaiomni'],
+  title: 'Dashboard - AI Caller',
+  description: 'Overview and key metrics for your AI Caller AI calling system.',
+  keywords: ['dashboard', 'analytics', 'metrics', 'ai calling', 'AI Caller'],
 };
 
 const statCardsData = [

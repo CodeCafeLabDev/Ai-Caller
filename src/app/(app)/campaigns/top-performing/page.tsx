@@ -26,9 +26,9 @@ import { Award, ArrowUpDown, TrendingUp, ListChecks, BarChart2 } from "lucide-re
 // Removed: import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Top Performing Campaigns - Voxaiomni',
+//   title: 'Top Performing Campaigns - AI Caller',
 //   description: 'Identify standout campaigns based on success rate, conversion, call volume, and feedback. Analyze factors for success.',
-//   keywords: ['top campaigns', 'campaign performance', 'analytics', 'best campaigns', 'voxaiomni'],
+//   keywords: ['top campaigns', 'campaign performance', 'analytics', 'best campaigns', 'AI Caller'],
 // };
 
 type TopPerformingCampaign = {

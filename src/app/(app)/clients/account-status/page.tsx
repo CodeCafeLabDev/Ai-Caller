@@ -18,9 +18,9 @@ import { cn } from "@/lib/utils";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Client Account Status - Voxaiomni',
+//   title: 'Client Account Status - AI Caller',
 //   description: 'Manage client account access, trial periods, and log status changes.',
-//   keywords: ['client status', 'account management', 'suspend client', 'trial management', 'voxaiomni'],
+//   keywords: ['client status', 'account management', 'suspend client', 'trial management', 'AI Caller'],
 // };
 
 

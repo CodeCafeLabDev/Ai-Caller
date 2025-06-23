@@ -60,9 +60,9 @@ import { ArrowRightLeft, PlusCircle, MoreHorizontal, Edit, Trash2, Play, Pause, 
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Webhooks Management - Voxaiomni',
-//   description: 'Configure and manage webhook endpoints for real-time event notifications from Voxaiomni.',
-//   keywords: ['webhooks', 'event notifications', 'api integration', 'developer tools', 'voxaiomni'],
+//   title: 'Webhooks Management - AI Caller',
+//   description: 'Configure and manage webhook endpoints for real-time event notifications from AI Caller.',
+//   keywords: ['webhooks', 'event notifications', 'api integration', 'developer tools', 'AI Caller'],
 // };
 
 type WebhookStatus = "Active" | "Inactive";
@@ -100,7 +100,7 @@ const generateSecretKey = () => `whsec_${[...Array(32)].map(() => Math.random().
 
 const initialWebhooks: WebhookEntry[] = [
   { id: "wh_1", clientId: "client_1", clientName: "Innovate Corp", endpointUrl: "https://api.innovatecorp.com/webhooks/vox", eventTypes: ["onCallEnd", "onCallFailed"], status: "Active", lastTriggerTime: new Date(Date.now() - 3600000), successCount: 120, failureCount: 2, secretKey: generateSecretKey() },
-  { id: "wh_2", clientId: "client_2", clientName: "Solutions Ltd", endpointUrl: "https://hooks.solutions.io/voxaiomni", eventTypes: ["onCampaignStatusChange", "onPaymentSuccess"], status: "Inactive", successCount: 50, failureCount: 0, secretKey: generateSecretKey() },
+  { id: "wh_2", clientId: "client_2", clientName: "Solutions Ltd", endpointUrl: "https://hooks.solutions.io/AI Caller", eventTypes: ["onCampaignStatusChange", "onPaymentSuccess"], status: "Inactive", successCount: 50, failureCount: 0, secretKey: generateSecretKey() },
   { id: "wh_3", clientId: "client_1", clientName: "Innovate Corp", endpointUrl: "https://notify.innovatecorp.com/events", eventTypes: ["onIntentMatch"], status: "Active", lastTriggerTime: new Date(Date.now() - 86400000), successCount: 300, failureCount: 15, secretKey: generateSecretKey() },
 ];
 
@@ -304,9 +304,9 @@ export default function WebhooksPage() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
             <p><strong>Secure Your Endpoint:</strong> Always use HTTPS for your webhook URLs.</p>
-            <p><strong>Validate Payloads:</strong> Use the provided Secret Key to generate an HMAC signature of the payload and verify it on your server to ensure requests are genuinely from Voxaiomni.</p>
+            <p><strong>Validate Payloads:</strong> Use the provided Secret Key to generate an HMAC signature of the payload and verify it on your server to ensure requests are genuinely from AI Caller.</p>
             <p><strong>Respond Quickly:</strong> Your endpoint should acknowledge receipt of a webhook by returning a 2xx HTTP status code within a few seconds. Process complex logic asynchronously.</p>
-            <p><strong>Handle Retries:</strong> Be prepared for Voxaiomni to retry sending webhooks if your endpoint doesn't respond successfully. Ensure your processing is idempotent.</p>
+            <p><strong>Handle Retries:</strong> Be prepared for AI Caller to retry sending webhooks if your endpoint doesn't respond successfully. Ensure your processing is idempotent.</p>
         </CardContent>
       </Card>
 

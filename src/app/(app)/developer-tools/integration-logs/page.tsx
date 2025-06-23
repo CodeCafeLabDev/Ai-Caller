@@ -74,9 +74,9 @@ import {
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'API Integration Logs - Voxaiomni',
+//   title: 'API Integration Logs - AI Caller',
 //   description: 'Monitor and review all API interactions and webhook deliveries. Filter logs by date, client, endpoint, status, method, and type.',
-//   keywords: ['integration logs', 'api logs', 'webhook logs', 'developer tools', 'voxaiomni'],
+//   keywords: ['integration logs', 'api logs', 'webhook logs', 'developer tools', 'AI Caller'],
 // };
 
 type LogType = "API Call" | "Webhook";

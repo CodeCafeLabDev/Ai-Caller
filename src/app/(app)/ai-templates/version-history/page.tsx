@@ -52,9 +52,9 @@ import { format } from "date-fns";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'AI Template Version History - Voxaiomni',
+//   title: 'AI Template Version History - AI Caller',
 //   description: 'Track changes, view previous versions, and manage the version history of your AI script templates.',
-//   keywords: ['version history', 'ai templates', 'script versions', 'change tracking', 'voxaiomni'],
+//   keywords: ['version history', 'ai templates', 'script versions', 'change tracking', 'AI Caller'],
 // };
 
 interface AITemplateSummary {
@@ -82,7 +82,7 @@ const mockTemplateVersionsData: Record<string, TemplateVersion[]> = {
   "tpl_1": [
     { id: "v1a", versionNumber: "1.0", modifiedBy: "Admin User", modifiedDate: "2024-07-10", notes: "Initial release.", content: "BOT: Hello, is this {{contact_name}}?\nUSER_EXPECTS: Yes/No", isActive: false },
     { id: "v1b", versionNumber: "1.1", modifiedBy: "AI System", modifiedDate: "2024-07-12", notes: "Added fallback for no response.", content: "BOT: Hello, is this {{contact_name}}?\nUSER_EXPECTS: Yes/No\nFALLBACK: Sorry, I didn't catch that.", isActive: false },
-    { id: "v1c", versionNumber: "1.2", modifiedBy: "Admin User", modifiedDate: "2024-07-15", notes: "Updated greeting message.", content: "BOT: Hi {{contact_name}}, hope you're having a great day! This is a call from Voxaiomni.\nUSER_EXPECTS: Greeting Response", isActive: true },
+    { id: "v1c", versionNumber: "1.2", modifiedBy: "Admin User", modifiedDate: "2024-07-15", notes: "Updated greeting message.", content: "BOT: Hi {{contact_name}}, hope you're having a great day! This is a call from AI Caller.\nUSER_EXPECTS: Greeting Response", isActive: true },
   ],
   "tpl_2": [
     { id: "v2a", versionNumber: "1.0", modifiedBy: "System", modifiedDate: "2024-06-20", notes: "Basic reminder template.", content: "BOT: Hi {{name}}, this is a reminder for your appointment on {{appointment_date}} at {{appointment_time}}.\nUSER_EXPECTS: Confirmation", isActive: true },

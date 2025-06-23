@@ -4,8 +4,8 @@ import { Logo } from '@/components/logo';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Authenticate - Voxaiomni',
-  description: 'Sign in or sign up to Voxaiomni',
+  title: 'Authenticate - AI Caller',
+  description: 'Sign in or sign up to AI Caller',
 };
 
 export default function AuthLayout({

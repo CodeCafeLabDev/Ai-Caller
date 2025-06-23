@@ -77,9 +77,9 @@ import {
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Error & Failed Call Logs - Voxaiomni',
+//   title: 'Error & Failed Call Logs - AI Caller',
 //   description: 'Investigate system errors, failed calls, and manage resolutions. Filter logs by date, client, campaign, and error type.',
-//   keywords: ['error logs', 'failed calls', 'call troubleshooting', 'system errors', 'voxaiomni logs'],
+//   keywords: ['error logs', 'failed calls', 'call troubleshooting', 'system errors', 'AI Caller logs'],
 // };
 
 type ErrorType = "Timeout" | "No Answer" | "Network Error" | "TTS Error" | "Bot Crash" | "Validation Error" | "API Limit Exceeded" | "Authentication Failed" | "Permission Denied";

@@ -39,9 +39,9 @@ import {
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Payment Settings - Voxaiomni',
+//   title: 'Payment Settings - AI Caller',
 //   description: 'Configure payment gateway integrations, invoice settings, and billing notifications.',
-//   keywords: ['payment gateway', 'stripe', 'razorpay', 'invoice settings', 'billing notifications', 'voxaiomni'],
+//   keywords: ['payment gateway', 'stripe', 'razorpay', 'invoice settings', 'billing notifications', 'AI Caller'],
 // };
 
 const apiConfigSchema = z.object({

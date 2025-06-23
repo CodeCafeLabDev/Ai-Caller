@@ -13,9 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 // Removed: import type { Metadata } from 'next';
 // Potential Metadata (if this were a server component or handled by layout):
 // export const metadata: Metadata = {
-//   title: 'Create New Plan - Voxaiomni',
+//   title: 'Create New Plan - AI Caller',
 //   description: 'Define and configure a new subscription plan for your services.',
-//   keywords: ['create plan', 'new subscription', 'pricing tier setup', 'voxaiomni admin'],
+//   keywords: ['create plan', 'new subscription', 'pricing tier setup', 'AI Caller admin'],
 // };
 
 export default function CreatePlanPage() {

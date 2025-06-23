@@ -5,8 +5,8 @@ import { Logo } from '@/components/logo'; // Assuming logo component will be cre
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Voxaiomni - Omni-Channel Communication Management',
-  description: 'Welcome to Voxaiomni, the next generation platform for seamless voice integration and omni-channel communication management.',
+  title: 'AI Caller - Omni-Channel Communication Management',
+  description: 'Welcome to AI Caller, the next generation platform for seamless voice integration and omni-channel communication management.',
   keywords: ['voice integration', 'omni-channel', 'communication', 'ai calling', 'platform'],
 };
 
@@ -18,7 +18,7 @@ export default function HomePage() {
           <Logo className="text-primary" />
         </div>
         <h1 className="text-5xl font-bold font-headline text-foreground">
-          Welcome to Voxaiomni
+          Welcome to AI Caller
         </h1>
         <p className="text-xl text-muted-foreground max-w-xl">
           The next generation platform for seamless voice integration and omni-channel communication management.
@@ -30,7 +30,7 @@ export default function HomePage() {
         </div>
       </div>
       <footer className="absolute bottom-8 text-sm text-muted-foreground">
-        © {new Date().getFullYear()} Voxaiomni. All rights reserved.
+        © {new Date().getFullYear()} AI Caller. All rights reserved.
       </footer>
     </div>
   );

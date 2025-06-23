@@ -34,9 +34,9 @@ import { format, subDays, addDays } from "date-fns";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Active & Paused Campaigns - Voxaiomni',
+//   title: 'Active & Paused Campaigns - AI Caller',
 //   description: 'View and manage currently running or paused campaigns and their key real-time metrics.',
-//   keywords: ['active campaigns', 'paused campaigns', 'live campaigns', 'campaign status', 'voxaiomni'],
+//   keywords: ['active campaigns', 'paused campaigns', 'live campaigns', 'campaign status', 'AI Caller'],
 // };
 
 type CampaignStatus = "Active" | "Paused" | "Completed"; 

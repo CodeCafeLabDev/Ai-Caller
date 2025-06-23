@@ -61,11 +61,11 @@ interface AdminRole {
 }
 
 const initialMockAdminUsers: AdminUser[] = [
-  { id: "admin_1", name: "Super Admin", email: "super@voxaiomni.com", roleName: "Super Administrator", lastLogin: "2024-07-22", status: "Active", createdOn: "2023-01-01" },
-  { id: "admin_2", name: "Operations Lead", email: "ops@voxaiomni.com", roleName: "Operations Manager", lastLogin: "2024-07-20", status: "Active", createdOn: "2023-02-15" },
-  { id: "admin_3", name: "Support Admin", email: "support_admin@voxaiomni.com", roleName: "Support Supervisor", lastLogin: "2024-07-15", status: "Suspended", createdOn: "2023-03-10" },
-  { id: "admin_4", name: "Billing Admin", email: "billing@voxaiomni.com", roleName: "Billing Specialist", lastLogin: "2024-07-21", status: "Active", createdOn: "2023-04-01" },
-  { id: "admin_5", name: "Read Only User", email: "readonly@voxaiomni.com", roleName: "Read-Only Analyst", lastLogin: "2024-07-18", status: "Active", createdOn: "2023-05-20" },
+  { id: "admin_1", name: "Super Admin", email: "super@AI Caller.com", roleName: "Super Administrator", lastLogin: "2024-07-22", status: "Active", createdOn: "2023-01-01" },
+  { id: "admin_2", name: "Operations Lead", email: "ops@AI Caller.com", roleName: "Operations Manager", lastLogin: "2024-07-20", status: "Active", createdOn: "2023-02-15" },
+  { id: "admin_3", name: "Support Admin", email: "support_admin@AI Caller.com", roleName: "Support Supervisor", lastLogin: "2024-07-15", status: "Suspended", createdOn: "2023-03-10" },
+  { id: "admin_4", name: "Billing Admin", email: "billing@AI Caller.com", roleName: "Billing Specialist", lastLogin: "2024-07-21", status: "Active", createdOn: "2023-04-01" },
+  { id: "admin_5", name: "Read Only User", email: "readonly@AI Caller.com", roleName: "Read-Only Analyst", lastLogin: "2024-07-18", status: "Active", createdOn: "2023-05-20" },
 ];
 
 const mockAdminRoles: AdminRole[] = [

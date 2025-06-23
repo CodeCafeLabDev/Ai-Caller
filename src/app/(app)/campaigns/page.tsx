@@ -75,9 +75,9 @@ import { Label } from "@/components/ui/label";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Manage Campaigns - Voxaiomni',
+//   title: 'Manage Campaigns - AI Caller',
 //   description: 'Oversee, control, and create calling campaigns. Filter and sort campaigns by various criteria.',
-//   keywords: ['campaign management', 'calling campaigns', 'outbound calls', 'lead generation', 'voxaiomni'],
+//   keywords: ['campaign management', 'calling campaigns', 'outbound calls', 'lead generation', 'AI Caller'],
 // };
 
 export type CampaignStatus = "Active" | "Paused" | "Completed";

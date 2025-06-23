@@ -2,9 +2,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'System Settings - Voxaiomni',
-  description: 'Manage general system configurations, integrations, and security settings for Voxaiomni.',
-  keywords: ['system settings', 'configuration', 'integrations', 'security', 'voxaiomni admin'],
+  title: 'System Settings - AI Caller',
+  description: 'Manage general system configurations, integrations, and security settings for AI Caller.',
+  keywords: ['system settings', 'configuration', 'integrations', 'security', 'AI Caller admin'],
 };
 
 export default function SystemSettingsPage() {

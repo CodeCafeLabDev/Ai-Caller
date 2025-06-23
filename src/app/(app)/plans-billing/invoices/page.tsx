@@ -44,9 +44,9 @@ import type { DateRange } from "react-day-picker";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Billing & Invoices - Voxaiomni',
+//   title: 'Billing & Invoices - AI Caller',
 //   description: 'Monitor client transactions, manage invoices, and track payment statuses.',
-//   keywords: ['billing', 'invoices', 'payments', 'transactions', 'saas billing', 'voxaiomni'],
+//   keywords: ['billing', 'invoices', 'payments', 'transactions', 'saas billing', 'AI Caller'],
 // };
 
 type PaymentStatus = "Paid" | "Failed" | "Pending" | "Overdue";

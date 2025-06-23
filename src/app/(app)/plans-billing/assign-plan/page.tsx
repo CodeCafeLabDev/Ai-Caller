@@ -39,9 +39,9 @@ import type { Plan } from "@/app/(app)/plans-billing/page";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Assign Plan to Client - Voxaiomni',
+//   title: 'Assign Plan to Client - AI Caller',
 //   description: 'Manually link a subscription plan to a client account with optional overrides and discounts.',
-//   keywords: ['assign plan', 'client subscription', 'billing management', 'saas billing', 'voxaiomni'],
+//   keywords: ['assign plan', 'client subscription', 'billing management', 'saas billing', 'AI Caller'],
 // };
 
 const mockClients = [

@@ -183,7 +183,7 @@ export function AddClientForm({ onSuccess, onCancel }: AddClientFormProps) {
                 <FormItem>
                   <FormLabel>Domain/Subdomain (Optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="innovate.voxaiomni.com" {...field} className="h-9 text-sm" />
+                    <Input placeholder="innovate.AI Caller.com" {...field} className="h-9 text-sm" />
                   </FormControl>
                   <FormDescription>
                     Relevant for multi-tenant setups.

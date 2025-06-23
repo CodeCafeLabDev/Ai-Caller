@@ -27,9 +27,9 @@ import { Separator } from "@/components/ui/separator";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Import/Export AI Templates - Voxaiomni',
+//   title: 'Import/Export AI Templates - AI Caller',
 //   description: 'Manage AI conversation templates by exporting them for backup or sharing, or importing pre-existing templates in JSON format.',
-//   keywords: ['import templates', 'export templates', 'json templates', 'ai scripts', 'conversation backup', 'voxaiomni'],
+//   keywords: ['import templates', 'export templates', 'json templates', 'ai scripts', 'conversation backup', 'AI Caller'],
 // };
 
 interface MockTemplate {

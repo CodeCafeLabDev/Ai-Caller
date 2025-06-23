@@ -5,8 +5,8 @@ import { SidebarInset } from '@/components/ui/sidebar';
 import { AppHeader } from '@/components/layout/app-header'; // Import the new AppHeader
 
 export const metadata: Metadata = {
-  title: 'Voxaiomni Dashboard',
-  description: 'Admin panel for Voxaiomni',
+  title: 'AI Caller Dashboard',
+  description: 'Admin panel for AI Caller',
 };
 
 export default function AppLayout({

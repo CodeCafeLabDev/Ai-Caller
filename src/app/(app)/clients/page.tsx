@@ -2,9 +2,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Clients Overview | Admin - Voxaiomni',
-  description: 'Client management section of Voxaiomni. View, add, and manage client accounts, statuses, and users.',
-  keywords: ['clients', 'customer relationship', 'account management', 'client users', 'client status', 'voxaiomni admin'],
+  title: 'Clients Overview | Admin - AI Caller',
+  description: 'Client management section of AI Caller. View, add, and manage client accounts, statuses, and users.',
+  keywords: ['clients', 'customer relationship', 'account management', 'client users', 'client status', 'AI Caller admin'],
 };
 
 export default function ClientsPage() {

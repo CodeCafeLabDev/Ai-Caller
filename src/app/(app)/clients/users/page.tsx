@@ -77,9 +77,9 @@ import { cn } from "@/lib/utils";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Client Users Management - Voxaiomni',
+//   title: 'Client Users Management - AI Caller',
 //   description: 'Manage user accounts within client organizations, including roles and statuses.',
-//   keywords: ['client users', 'user management', 'roles', 'permissions', 'voxaiomni'],
+//   keywords: ['client users', 'user management', 'roles', 'permissions', 'AI Caller'],
 // };
 
 type UserRole = "Admin" | "Agent" | "Analyst" | "Viewer";

@@ -4,9 +4,9 @@ import { BookOpen, Link as LinkIcon, KeyRound, ListChecks, Terminal } from "luci
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'API Documentation & Developer Tools - Voxaiomni',
-  description: 'Explore API documentation, manage API keys, webhooks, and view integration logs for Voxaiomni.',
-  keywords: ['api documentation', 'developer tools', 'api keys', 'webhooks', 'integration logs', 'voxaiomni api'],
+  title: 'API Documentation & Developer Tools - AI Caller',
+  description: 'Explore API documentation, manage API keys, webhooks, and view integration logs for AI Caller.',
+  keywords: ['api documentation', 'developer tools', 'api keys', 'webhooks', 'integration logs', 'AI Caller api'],
 };
 
 export default function ApiDocsPage() {
@@ -17,7 +17,7 @@ export default function ApiDocsPage() {
           <BookOpen className="mr-3 h-8 w-8 text-primary" /> API Documentation
         </h1>
         <p className="text-muted-foreground">
-          Explore and understand how to integrate with the Voxaiomni API.
+          Explore and understand how to integrate with the AI Caller API.
         </p>
       </div>
 
@@ -46,7 +46,7 @@ export default function ApiDocsPage() {
           <div>
             <h3 className="font-semibold">3. Base URL</h3>
             <p className="text-sm text-muted-foreground">
-              All API endpoints are prefixed with: <code>https://api.voxaiomni.com/v1/</code>
+              All API endpoints are prefixed with: <code>https://api.AI Caller.com/v1/</code>
             </p>
           </div>
         </CardContent>

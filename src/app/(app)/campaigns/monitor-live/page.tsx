@@ -44,9 +44,9 @@ import { formatDistanceToNow } from "date-fns";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Monitor Live Calls - Voxaiomni',
+//   title: 'Monitor Live Calls - AI Caller',
 //   description: 'Real-time insights into your calling operations, including live call tracking and system logs.',
-//   keywords: ['live calls', 'call monitoring', 'real-time analytics', 'call center', 'voxaiomni'],
+//   keywords: ['live calls', 'call monitoring', 'real-time analytics', 'call center', 'AI Caller'],
 // };
 
 

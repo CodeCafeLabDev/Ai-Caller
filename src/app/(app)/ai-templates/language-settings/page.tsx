@@ -44,9 +44,9 @@ import { PlusCircle, Edit3, Trash2, Languages, Settings, BookOpen, Mic, SlidersH
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'AI Template Language Settings - Voxaiomni',
+//   title: 'AI Template Language Settings - AI Caller',
 //   description: 'Manage language support, TTS configurations, and localization for AI templates.',
-//   keywords: ['language settings', 'tts configuration', 'localization', 'ai templates', 'voxaiomni'],
+//   keywords: ['language settings', 'tts configuration', 'localization', 'ai templates', 'AI Caller'],
 // };
 
 

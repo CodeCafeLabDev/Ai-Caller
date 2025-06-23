@@ -6,9 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CalendarClock, LineChart, AlertTriangle, Download, Users, BarChartBig, TrendingUp, ArrowRight } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Reports & Analytics Overview | Admin - Voxaiomni',
-  description: 'Access various reports, data visualizations, and performance analytics for your Voxaiomni system.',
-  keywords: ['reports', 'analytics', 'data visualization', 'performance metrics', 'voxaiomni admin'],
+  title: 'Reports & Analytics Overview | Admin - AI Caller',
+  description: 'Access various reports, data visualizations, and performance analytics for your AI Caller system.',
+  keywords: ['reports', 'analytics', 'data visualization', 'performance metrics', 'AI Caller admin'],
 };
 
 const reportSections = [
@@ -46,7 +46,7 @@ export default function ReportsAnalyticsPage() {
         <div>
             <h1 className="text-4xl font-bold font-headline">Reports & Analytics</h1>
             <p className="text-xl text-muted-foreground">
-              Gain actionable insights into your Voxaiomni system's performance.
+              Gain actionable insights into your AI Caller system's performance.
             </p>
         </div>
       </div>

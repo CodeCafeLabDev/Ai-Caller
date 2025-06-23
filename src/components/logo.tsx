@@ -13,7 +13,7 @@ export function Logo({ className, iconClassName, textClassName, hideTextOnCollap
   return (
     <Link href="/dashboard" className={`flex items-center gap-2 text-2xl font-bold ${className}`}>
       <MessageSquare className={`h-7 w-7 ${iconClassName ?? 'text-primary group-data-[sidebar=sidebar]:text-sidebar-primary'}`} />
-      <span className={`${textSpanClass} ${textClassName}`}>Voxaiomni</span>
+      <span className={`${textSpanClass} ${textClassName}`}>AI Caller</span>
     </Link>
   );
 }

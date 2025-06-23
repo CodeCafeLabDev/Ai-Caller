@@ -5,8 +5,8 @@ import { SidebarInset } from '@/components/ui/sidebar';
 import { ClientAdminHeader } from '@/components/layout/client-admin-header';
 
 export const metadata: Metadata = {
-  title: 'Client Admin Panel - Voxaiomni',
-  description: 'Manage your Voxaiomni services and account.',
+  title: 'Client Admin Panel - AI Caller',
+  description: 'Manage your AI Caller services and account.',
 };
 
 export default function ClientAdminAppLayout({

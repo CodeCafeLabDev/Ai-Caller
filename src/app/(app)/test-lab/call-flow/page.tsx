@@ -54,7 +54,7 @@ interface CallStep {
 }
 
 const sampleCallFlow: Record<string, CallStep> = {
-  start: { id: "start", type: "BOT_SPEAK", message: "Hello {{name}}! Welcome to Voxaiomni. How can I help you today?" },
+  start: { id: "start", type: "BOT_SPEAK", message: "Hello {{name}}! Welcome to AI Caller. How can I help you today?" },
   step1: { id: "step1", type: "USER_INPUT_EXPECTED", expectedIntents: ["check_balance", "make_payment", "speak_to_agent"], fallbackStepId: "fallback_general" },
   check_balance_branch: { id: "check_balance_branch", type: "AI_DECISION", action: "RetrieveBalance", outputVars: { balance: 500 }, branches: [{ intent: "default", nextStepId: "tell_balance" }] },
   tell_balance: { id: "tell_balance", type: "BOT_SPEAK", message: "Your current balance is ${{balance}}." },

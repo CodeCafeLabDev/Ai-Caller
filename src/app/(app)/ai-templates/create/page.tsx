@@ -32,9 +32,9 @@ import type { AITemplateUseCase, AITemplateLanguage } from "@/app/(app)/ai-templ
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Create AI Template - Voxaiomni',
+//   title: 'Create AI Template - AI Caller',
 //   description: 'Design and configure a new voice conversation flow for your AI caller.',
-//   keywords: ['create ai template', 'conversation flow designer', 'script builder', 'voxaiomni'],
+//   keywords: ['create ai template', 'conversation flow designer', 'script builder', 'AI Caller'],
 // };
 
 

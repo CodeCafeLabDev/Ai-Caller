@@ -4,8 +4,8 @@ import { Toaster } from '@/components/ui/toaster';
 import { SidebarProvider } from '@/components/ui/sidebar';
 
 export const metadata: Metadata = {
-  title: 'Voxaiomni',
-  description: 'Welcome to Voxaiomni',
+  title: 'AI Caller',
+  description: 'Welcome to AI Caller',
 };
 
 export default function RootLayout({

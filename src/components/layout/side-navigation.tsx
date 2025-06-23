@@ -235,7 +235,7 @@ export function SideNavigation() {
               </Avatar>
               <div className="group-data-[collapsible=icon]:hidden flex flex-col items-start">
                 <span className="font-medium">Admin User</span>
-                <span className="text-xs text-sidebar-foreground/70">admin@voxaiomni.com</span>
+                <span className="text-xs text-sidebar-foreground/70">admin@AI Caller.com</span>
               </div>
             </Button>
           </DropdownMenuTrigger>

@@ -67,11 +67,11 @@ interface LoginHistoryEntry {
 }
 
 const initialMockLoginHistory: LoginHistoryEntry[] = [
-  { id: "log_1", timestamp: new Date(), user: "admin@voxaiomni.com", role: "Admin", ipAddress: "192.168.1.100", location: "New York, USA", deviceType: "Desktop", status: "Success", reason: "Successful login", twoFAStatus: "Enabled" },
+  { id: "log_1", timestamp: new Date(), user: "admin@AI Caller.com", role: "Admin", ipAddress: "192.168.1.100", location: "New York, USA", deviceType: "Desktop", status: "Success", reason: "Successful login", twoFAStatus: "Enabled" },
   { id: "log_2", timestamp: subDays(new Date(), 1), user: "client_admin@innovate.com", role: "Client Admin", ipAddress: "10.0.0.5", location: "London, UK", deviceType: "Mobile", status: "Success", reason: "Successful login", twoFAStatus: "Enabled" },
   { id: "log_3", timestamp: subDays(new Date(), 2), user: "unknown_user", role: "N/A", ipAddress: "203.0.113.45", location: "Unknown", deviceType: "Unknown", status: "Failed", reason: "Invalid username or password", twoFAStatus: "Not Attempted" },
-  { id: "log_4", timestamp: subDays(new Date(), 3), user: "agent1@voxaiomni.com", role: "Agent", ipAddress: "172.16.0.10", location: "Paris, France", deviceType: "Tablet", status: "Failed", reason: "Incorrect 2FA code", twoFAStatus: "Enabled" },
-  { id: "log_5", timestamp: subDays(new Date(), 4), user: "support@voxaiomni.com", role: "Support", ipAddress: "198.51.100.2", location: "Berlin, Germany", deviceType: "Desktop", status: "Success", reason: "Successful login", twoFAStatus: "Disabled" },
+  { id: "log_4", timestamp: subDays(new Date(), 3), user: "agent1@AI Caller.com", role: "Agent", ipAddress: "172.16.0.10", location: "Paris, France", deviceType: "Tablet", status: "Failed", reason: "Incorrect 2FA code", twoFAStatus: "Enabled" },
+  { id: "log_5", timestamp: subDays(new Date(), 4), user: "support@AI Caller.com", role: "Support", ipAddress: "198.51.100.2", location: "Berlin, Germany", deviceType: "Desktop", status: "Success", reason: "Successful login", twoFAStatus: "Disabled" },
 ];
 
 const deviceTypeOptions: (DeviceType | "All")[] = ["All", "Desktop", "Mobile", "Tablet", "Unknown"];

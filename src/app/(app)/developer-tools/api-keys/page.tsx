@@ -28,9 +28,9 @@ import { format } from "date-fns";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'API Keys Management - Voxaiomni',
+//   title: 'API Keys Management - AI Caller',
 //   description: 'Generate, manage, and revoke API keys for client integrations. Securely handle API access and permissions.',
-//   keywords: ['api keys', 'developer tools', 'authentication keys', 'api access', 'voxaiomni'],
+//   keywords: ['api keys', 'developer tools', 'authentication keys', 'api access', 'AI Caller'],
 // };
 
 type ApiKeyPermission = "read-only" | "read-write" | "campaigns:read" | "campaigns:write" | "reports:read";

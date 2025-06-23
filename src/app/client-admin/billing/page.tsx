@@ -14,9 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Billing & Invoices | Client Admin - Voxaiomni',
-  description: 'Manage your subscription, payment methods, and view invoices for your Voxaiomni account.',
-  keywords: ['client billing', 'invoices', 'subscription', 'payment methods', 'voxaiomni client'],
+  title: 'Billing & Invoices | Client Admin - AI Caller',
+  description: 'Manage your subscription, payment methods, and view invoices for your AI Caller account.',
+  keywords: ['client billing', 'invoices', 'subscription', 'payment methods', 'AI Caller client'],
 };
 
 // Mock data for client billing

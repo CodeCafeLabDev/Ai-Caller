@@ -1,4 +1,4 @@
-# **App Name**: Voxaiomni
+# **App Name**: AI Caller
 
 ## Core Features:
 

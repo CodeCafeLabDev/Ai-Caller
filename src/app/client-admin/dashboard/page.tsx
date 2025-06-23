@@ -7,9 +7,9 @@ import Image from "next/image";
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Dashboard | Client Admin - Voxaiomni',
-  description: 'Overview of your account activity, campaigns, and usage statistics in the Voxaiomni client admin panel.',
-  keywords: ['client dashboard', 'campaigns', 'usage statistics', 'billing', 'voxaiomni client'],
+  title: 'Dashboard | Client Admin - AI Caller',
+  description: 'Overview of your account activity, campaigns, and usage statistics in the AI Caller client admin panel.',
+  keywords: ['client dashboard', 'campaigns', 'usage statistics', 'billing', 'AI Caller client'],
 };
 
 export default function ClientAdminDashboardPage() {

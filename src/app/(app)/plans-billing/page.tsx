@@ -56,9 +56,9 @@ import { EditPlanForm } from "@/components/plans/edit-plan-form";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Subscription Plans - Voxaiomni',
+//   title: 'Subscription Plans - AI Caller',
 //   description: 'Manage service tiers and subscription plan configurations for clients.',
-//   keywords: ['subscription plans', 'billing', 'pricing tiers', 'saas plans', 'voxaiomni'],
+//   keywords: ['subscription plans', 'billing', 'pricing tiers', 'saas plans', 'AI Caller'],
 // };
 
 export type PlanStatus = "Active" | "Draft" | "Archived";

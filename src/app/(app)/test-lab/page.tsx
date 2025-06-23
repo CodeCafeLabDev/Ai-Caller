@@ -6,9 +6,9 @@ import { Bot, FlaskConical, Languages, ArrowRight, CheckSquare } from "lucide-re
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Test Lab | Admin - Voxaiomni',
+  title: 'Test Lab | Admin - AI Caller',
   description: 'Tools for testing and simulating various aspects of your AI calling system, including call flows, voice bot interactions, and script validation.',
-  keywords: ['test lab', 'call flow simulation', 'voice bot testing', 'script validation', 'ai calling test', 'voxaiomni admin'],
+  keywords: ['test lab', 'call flow simulation', 'voice bot testing', 'script validation', 'ai calling test', 'AI Caller admin'],
 };
 
 export default function TestLabPage() {

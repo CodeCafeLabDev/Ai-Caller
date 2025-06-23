@@ -25,7 +25,7 @@ import { UserCircle } from "lucide-react";
 const mockClientAdminProfile = {
   fullName: "Alice Wonderland",
   email: "alice@innovatecorp.com",
-  bio: "Primary contact and administrator for Innovate Corp's Voxaiomni account.",
+  bio: "Primary contact and administrator for Innovate Corp's AI Caller account.",
   avatarUrl: "https://placehold.co/200x200.png?text=AW",
   companyName: "Innovate Corp",
 };
