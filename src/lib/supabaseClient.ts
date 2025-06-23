@@ -26,7 +26,7 @@ if (!supabaseUrlFromEnv || supabaseUrlFromEnv.trim() === '') {
   const availableKeys = Object.keys(process.env).filter(key => key.startsWith('NEXT_PUBLIC_')).join(', ') || 'NONE VISIBLE';
   const errorMsg =
     "CRITICAL CONFIGURATION ERROR: NEXT_PUBLIC_SUPABASE_URL is missing or empty.\n" +
-    "TROUBLESHOOTING STEPS:\n" +
+    "TROUBLESHOOTING STEPS:\n" +oush
     "1. VERIFY `.env.local` FILE: Ensure it exists in your project ROOT directory and correctly contains `NEXT_PUBLIC_SUPABASE_URL=your_url`.\n" +
     "2. RESTART SERVER: You MUST restart your Next.js server after creating or modifying `.env.local` OR Firebase Studio's environment variable settings.\n" +
     "3. **FIREBASE STUDIO SETTINGS (MOST LIKELY ISSUE): Firebase Studio may override `.env.local`. You MUST check Firebase Studio's specific settings for defining Environment Variables for your Next.js application. Look for a UI or configuration file within Firebase Studio for this.**\n" +
