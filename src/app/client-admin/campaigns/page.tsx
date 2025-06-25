@@ -40,7 +40,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { AddClientCampaignForm } from "@/components/client-admin/campaigns/add-client-campaign-form"; // Import the new form
-import { useToast } from "@/hooks/use-toast"; // Import useToast
+import { useToast } from "@/components/ui/use-toast"; // Import useToast
 
 // Mock data for client campaigns
 const mockClientCampaigns = [

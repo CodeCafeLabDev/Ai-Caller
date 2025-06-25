@@ -50,7 +50,7 @@ import {
   Info,
   FileDown, 
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 // Removed AddPlanForm import
 import { EditPlanForm } from "@/components/plans/edit-plan-form";
 import type { Metadata } from 'next';

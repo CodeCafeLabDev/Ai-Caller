@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { Settings2, BookOpen, ListTree, Tag, Play, Save, UploadCloud } from "lucide-react";
 import type { AITemplateUseCase, AITemplateLanguage } from "@/app/(app)/ai-templates/page";
 import type { Metadata } from 'next';

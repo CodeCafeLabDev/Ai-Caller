@@ -6,7 +6,7 @@ import { getItemsAction, addItemAction, deleteItemAction, type Item } from "@/ac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { Trash2, List, PlusCircle } from "lucide-react";
 import { format } from "date-fns";
 

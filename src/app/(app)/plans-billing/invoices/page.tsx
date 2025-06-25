@@ -37,7 +37,7 @@ import {
   Check,
   DollarSign,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays } from "date-fns";
 import type { DateRange } from "react-day-picker";

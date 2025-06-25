@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, CalendarRange, ListFilter } from "lucide-react";
-import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { useToast } from '@/components/ui/use-toast'; // Import useToast
 
 // Since this is now a Client Component, metadata should be handled by the nearest parent Server Component (e.g., layout.tsx or page.tsx at a higher level if this were a child component).
 // For a top-level page like this, metadata export here might not be picked up as expected for Client Components.

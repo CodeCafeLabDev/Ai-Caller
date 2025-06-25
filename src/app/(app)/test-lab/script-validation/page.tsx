@@ -23,7 +23,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { CheckSquare, Upload, FileText, Loader2, AlertTriangle, Wand2, Edit, Bot, AlertOctagon, ListChecks, Terminal } from "lucide-react";
 import {
   Table,

@@ -63,7 +63,7 @@ import {
 } from "lucide-react";
 import { AddClientForm } from "@/components/clients/add-client-form";
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast"; 
+import { useToast } from "@/components/ui/use-toast"; 
 // Removed: import type { Metadata } from 'next';
 
 // Removed: export const metadata: Metadata = { ... };

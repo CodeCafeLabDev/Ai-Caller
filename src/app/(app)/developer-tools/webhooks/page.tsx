@@ -53,7 +53,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ArrowRightLeft, PlusCircle, MoreHorizontal, Edit, Trash2, Play, Pause, KeyRound, Copy, Eye, EyeOff, RotateCcw, ListChecks, Sparkles } from "lucide-react";

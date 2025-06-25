@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/sheet";
 import { AddClientForm, type AddClientFormValues } from '@/components/clients/add-client-form';
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 
 const notificationItems = [
   { text: "Failed call reports", icon: PhoneOff, count: 0, href: "/reports-analytics/failed-call-reports" }, // Updated Icon and added href

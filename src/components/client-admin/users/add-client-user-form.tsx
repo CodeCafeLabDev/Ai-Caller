@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SheetFooter, SheetClose } from "@/components/ui/sheet"; 
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 
 // Define roles and statuses specific to client users
 const clientUserRoles = ["Admin", "Agent", "Analyst", "Viewer"] as const;

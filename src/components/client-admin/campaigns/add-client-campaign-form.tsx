@@ -31,7 +31,7 @@ import { SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 
 // Mock AI Templates available to clients
 const mockClientAiTemplates = [

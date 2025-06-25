@@ -38,7 +38,7 @@ import {
   PhoneOff,
   PhoneOutgoing
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import type { Metadata } from 'next';
