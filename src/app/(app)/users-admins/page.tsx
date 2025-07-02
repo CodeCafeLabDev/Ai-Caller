@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -34,7 +33,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { UserCog, PlusCircle, MoreHorizontal, Edit2, UserX, UserCheck, ListChecks, ShieldCheck, Activity, Eye, KeyRound, LogOut, Trash2, Search, ListFilterIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { ScrollArea } from "@/components/ui/scroll-area"; 
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useRouter } from "next/navigation";
 
 // Removed: import type { Metadata } from 'next';
 // Removed: export const metadata: Metadata = { ... };
@@ -68,32 +68,10 @@ const initialMockAdminUsers: AdminUser[] = [
   { id: "admin_5", name: "Read Only User", email: "readonly@AI Caller.com", roleName: "Read-Only Analyst", lastLogin: "2024-07-18", status: "Active", createdOn: "2023-05-20" },
 ];
 
-const mockAdminRoles: AdminRole[] = [
-  { id: "role_super", name: "Super Administrator", description: "Full system access and control.", permissionsSummary: "All Permissions", status: "Active" },
-  { id: "role_ops", name: "Operations Manager", description: "Manages campaigns, clients, and daily operations.", permissionsSummary: "Campaigns, Clients, Reports", status: "Active" },
-  { id: "role_support_sup", name: "Support Supervisor", description: "Manages support team and escalations.", permissionsSummary: "Client Support, Basic Reporting", status: "Active" },
-  { id: "role_billing", name: "Billing Specialist", description: "Manages billing, invoices, and payment settings.", permissionsSummary: "Billing, Invoices", status: "Active" },
-  { id: "role_readonly", name: "Read-Only Analyst", description: "View access to reports and system data.", permissionsSummary: "View Reports, View Logs", status: "Archived" },
-];
-
-const adminUserStatusVariants: Record<AdminUserStatus, string> = {
-  Active: "bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100",
-  Suspended: "bg-red-100 text-red-700 dark:bg-red-700 dark:text-red-100",
-};
-
-const adminRoleStatusVariants: Record<AdminRoleStatus, string> = {
-  Active: "bg-blue-100 text-blue-700 dark:bg-blue-700 dark:text-blue-100",
-  Archived: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100",
-};
-
-const uniqueRoles = ["All Roles", ...new Set(initialMockAdminUsers.map(user => user.roleName))];
-const adminStatusOptions: (AdminUserStatus | "All Statuses")[] = ["All Statuses", "Active", "Suspended"];
-
-
 export default function UsersAdminsPage() {
   const { toast } = useToast();
   const [adminUsers, setAdminUsers] = React.useState<AdminUser[]>(initialMockAdminUsers);
-  const [adminRoles, setAdminRoles] = React.useState<AdminRole[]>(mockAdminRoles);
+  const [adminRoles, setAdminRoles] = React.useState<AdminRole[]>([]);
 
   const [searchTerm, setSearchTerm] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState<string>("All Roles");
@@ -101,6 +79,29 @@ export default function UsersAdminsPage() {
   
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 5; 
+
+  const router = useRouter();
+
+  React.useEffect(() => {
+    fetch("http://localhost:5000/api/admin-roles")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setAdminRoles(data.data);
+      });
+  }, []);
+
+  const adminUserStatusVariants: Record<AdminUserStatus, string> = {
+    Active: "bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100",
+    Suspended: "bg-red-100 text-red-700 dark:bg-red-700 dark:text-red-100",
+  };
+
+  const adminRoleStatusVariants: Record<AdminRoleStatus, string> = {
+    Active: "bg-blue-100 text-blue-700 dark:bg-blue-700 dark:text-blue-100",
+    Archived: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100",
+  };
+
+  const uniqueRoles = ["All Roles", ...new Set(initialMockAdminUsers.map(user => user.roleName))];
+  const adminStatusOptions: (AdminUserStatus | "All Statuses")[] = ["All Statuses", "Active", "Suspended"];
 
   const handleAdminUserAction = (actionName: string, userName: string, userId?: string) => {
     if ((actionName === "Suspend User" || actionName === "Activate User") && userId) {
@@ -274,7 +275,7 @@ export default function UsersAdminsPage() {
             <CardTitle>Admin Roles</CardTitle>
             <CardDescription>Define and manage roles with specific permission sets.</CardDescription>
           </div>
-           <Button onClick={() => toast({ title: "Create New Admin Role (Simulated)", description: "Role creation form/dialog to be implemented."})}>
+           <Button onClick={() => router.push("/users-admins/roles-create-page")}>
             <PlusCircle className="mr-2 h-4 w-4" /> Create New Admin Role
           </Button>
         </CardHeader>

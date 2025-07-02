@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -16,6 +15,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { UserCircle, BarChart3, FileBadge, NotebookText, Edit3, Phone, Mail, CalendarDays, Briefcase, Building } from "lucide-react";
 import Image from "next/image"; 
 import type { Metadata } from 'next';
+import { useSearchParams } from "next/navigation";
 
 // Metadata should be defined in a server component or route handler if possible.
 // For client components, the nearest server layout/page handles overall metadata.
@@ -27,61 +27,46 @@ import type { Metadata } from 'next';
 //   keywords: ['client details', 'client usage', 'customer analytics', 'subscription', 'AI Caller'],
 // };
 
-const mockClient = {
-  id: "1",
-  name: "Innovate Corp",
-  contactPerson: "Alice Wonderland",
-  email: "contact@innovatecorp.com",
-  phone: "555-0101",
-  clientId: "CL-INV001",
-  status: "Active" as "Active" | "Suspended" | "Trial",
-  plan: "Premium",
-  totalCallsMade: 1250,
-  monthlyCallLimit: 2000,
-  joinedDate: "2023-01-15",
-  avatarUrl: "https://placehold.co/64x64.png?text=IC",
-  address: "123 Innovation Drive, Techville, USA",
-  voiceMinutesUsed: 7500,
-  voiceMinutesLimit: 10000,
-  templatesUsed: 5,
-  templatesLimit: 10,
-  callSuccessRate: "92%",
-  renewalDate: "2024-12-15",
-  billingCycle: "Monthly",
-  topCampaigns: [
-    { id: "camp1", name: "Q4 Lead Gen", status: "Active", successRate: "95%" },
-    { id: "camp2", name: "New Product Launch", status: "Completed", successRate: "88%" },
-  ],
-  internalNotes: [
-    { id: "note1", user: "Admin", date: "2024-07-10", text: "Client interested in upgrading to Enterprise next quarter." },
-  ],
-  systemLogs: [
-    { id: "log1", date: "2024-07-01", event: "Plan changed to Premium." },
-    { id: "log2", date: "2024-06-15", event: "Payment successful for June." },
-  ]
-};
-
 export default function ClientDetailsUsagePage() {
   const { toast } = useToast();
-  const [clientStatus, setClientStatus] = React.useState(mockClient.status === "Active");
+  const searchParams = useSearchParams();
+  const clientId = searchParams.get("clientId");
+  const [client, setClient] = React.useState<any | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [clientStatus, setClientStatus] = React.useState(true);
   const [newNote, setNewNote] = React.useState("");
 
-  // In a real app, you'd use useSearchParams to get clientId and fetch data
-  // const searchParams = useSearchParams();
-  // const clientId = searchParams.get('clientId');
-  // React.useEffect(() => {
-  //   if (clientId) {
-  //     // Fetch client data based on clientId
-  //     // For now, we continue using mockClient
-  //   }
-  // }, [clientId]);
-
+  React.useEffect(() => {
+    if (!clientId) {
+      setError("No clientId provided in URL.");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    fetch(`http://localhost:5000/api/clients/${clientId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setClient(data.data);
+          setClientStatus(data.data.status === "Active");
+          setError(null);
+        } else {
+          setError(data.message || "Failed to fetch client data.");
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError("Error fetching client data.");
+        setLoading(false);
+      });
+  }, [clientId]);
 
   const handleStatusChange = (checked: boolean) => {
     setClientStatus(checked);
     toast({
       title: "Account Status Updated",
-      description: `${mockClient.name}'s account is now ${checked ? "Active" : "Suspended"}. (Simulated)`,
+      description: `${client?.companyName}'s account is now ${checked ? "Active" : "Suspended"}. (Simulated)`,
     });
     // In a real app, you would call an API to update the status
   };
@@ -91,32 +76,67 @@ export default function ClientDetailsUsagePage() {
       toast({ title: "Note cannot be empty", variant: "destructive" });
       return;
     }
-    console.log("New note saved (simulated):", newNote);
     toast({ title: "Note Saved", description: "Your internal note has been added." });
-    // Add to mockClient.internalNotes or call API
-    mockClient.internalNotes.push({ id: `note${Date.now()}`, user: "Current User", date: new Date().toISOString().split('T')[0], text: newNote });
     setNewNote("");
+    // In a real app, you would call an API to save the note
   };
 
   const handleChangePlan = () => {
-    toast({title: "Change Plan Clicked", description: "Plan change functionality to be implemented."})
+    toast({ title: "Change Plan Clicked", description: "Plan change functionality to be implemented." });
+  };
+
+  if (loading) {
+    return <div className="container mx-auto py-8">Loading client details...</div>;
   }
+  if (error) {
+    return <div className="container mx-auto py-8 text-red-500">{error}</div>;
+  }
+  if (!client) {
+    return <div className="container mx-auto py-8">No client data found.</div>;
+  }
+
+  // Map backend fields to frontend fields for display
+  const displayClient = {
+    id: client.id,
+    name: client.companyName,
+    contactPerson: client.contactPersonName,
+    email: client.companyEmail,
+    phone: client.phoneNumber,
+    clientId: client.id,
+    status: client.status || "Active",
+    plan: client.planName || "",
+    totalCallsMade: client.totalCallsMade || 0,
+    monthlyCallLimit: client.monthlyCallLimit || 0,
+    joinedDate: client.created_at || new Date().toISOString(),
+    avatarUrl: client.avatarUrl || "",
+    address: client.address || "",
+    voiceMinutesUsed: client.voiceMinutesUsed || 0,
+    voiceMinutesLimit: client.voiceMinutesLimit || 0,
+    templatesUsed: client.templatesUsed || 0,
+    templatesLimit: client.templatesLimit || 0,
+    callSuccessRate: client.callSuccessRate || "N/A",
+    renewalDate: client.renewalDate || new Date().toISOString(),
+    billingCycle: client.billingCycle || "Monthly",
+    topCampaigns: client.topCampaigns || [],
+    internalNotes: client.internalNotes || [],
+    systemLogs: client.systemLogs || [],
+  };
 
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Avatar className="h-16 w-16">
-            <AvatarImage src={mockClient.avatarUrl} alt={mockClient.name} data-ai-hint="company logo" />
-            <AvatarFallback>{mockClient.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+            <AvatarImage src={displayClient.avatarUrl} alt={displayClient.name} data-ai-hint="company logo" />
+            <AvatarFallback>{displayClient.name.substring(0, 2).toUpperCase()}</AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-3xl font-bold font-headline">{mockClient.name}</h1>
+            <h1 className="text-3xl font-bold font-headline">{displayClient.name}</h1>
             <p className="text-muted-foreground flex items-center gap-2">
-              <Mail className="h-4 w-4" /> {mockClient.email}
+              <Mail className="h-4 w-4" /> {displayClient.email}
             </p>
             <p className="text-muted-foreground flex items-center gap-2">
-              <Phone className="h-4 w-4" /> {mockClient.phone}
+              <Phone className="h-4 w-4" /> {displayClient.phone}
             </p>
           </div>
         </div>
@@ -139,20 +159,20 @@ export default function ClientDetailsUsagePage() {
           <Card>
             <CardHeader>
               <CardTitle>Client Overview</CardTitle>
-              <CardDescription>General information and status for {mockClient.name}.</CardDescription>
+              <CardDescription>General information and status for {displayClient.name}.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
-                <div><Building className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Company Name:</strong> {mockClient.name}</div>
-                <div><Briefcase className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Contact Person:</strong> {mockClient.contactPerson}</div>
-                <div><Mail className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Email:</strong> {mockClient.email}</div>
-                <div><Phone className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Phone:</strong> {mockClient.phone}</div>
-                <div><CalendarDays className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Joined Date:</strong> {new Date(mockClient.joinedDate).toLocaleDateString()}</div>
-                <div><FileBadge className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Client ID:</strong> {mockClient.clientId}</div>
+                <div><Building className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Company Name:</strong> {displayClient.name}</div>
+                <div><Briefcase className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Contact Person:</strong> {displayClient.contactPerson}</div>
+                <div><Mail className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Email:</strong> {displayClient.email}</div>
+                <div><Phone className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Phone:</strong> {displayClient.phone}</div>
+                <div><CalendarDays className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Joined Date:</strong> {new Date(displayClient.joinedDate).toLocaleDateString()}</div>
+                <div><FileBadge className="inline mr-2 h-4 w-4 text-muted-foreground" /><strong>Client ID:</strong> {displayClient.clientId}</div>
               </div>
               <Separator className="my-4" />
               <div className="grid md:grid-cols-2 gap-4 items-center">
-                 <div><strong>Current Plan:</strong> <Badge variant={mockClient.plan === "Premium" ? "default" : "secondary"}>{mockClient.plan}</Badge></div>
+                 <div><strong>Current Plan:</strong> <Badge variant={displayClient.plan === "Premium" ? "default" : "secondary"}>{displayClient.plan}</Badge></div>
                 <div className="flex items-center space-x-3">
                   <Switch id="account-status" checked={clientStatus} onCheckedChange={handleStatusChange} />
                   <Label htmlFor="account-status" className="text-sm">
@@ -162,7 +182,7 @@ export default function ClientDetailsUsagePage() {
               </div>
                <div className="mt-2">
                 <strong>Address:</strong>
-                <p className="text-sm text-muted-foreground">{mockClient.address}</p>
+                <p className="text-sm text-muted-foreground">{displayClient.address}</p>
               </div>
             </CardContent>
           </Card>
@@ -173,23 +193,23 @@ export default function ClientDetailsUsagePage() {
             <Card>
               <CardHeader><CardTitle>Total Calls</CardTitle></CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold">{mockClient.totalCallsMade} / {mockClient.monthlyCallLimit}</p>
-                <Progress value={(mockClient.totalCallsMade / mockClient.monthlyCallLimit) * 100} className="mt-2 h-2" />
+                <p className="text-3xl font-bold">{displayClient.totalCallsMade} / {displayClient.monthlyCallLimit}</p>
+                <Progress value={(displayClient.totalCallsMade / displayClient.monthlyCallLimit) * 100} className="mt-2 h-2" />
                 <p className="text-xs text-muted-foreground mt-1">Monthly Limit</p>
               </CardContent>
             </Card>
              <Card>
               <CardHeader><CardTitle>Voice Minutes</CardTitle></CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold">{mockClient.voiceMinutesUsed} / {mockClient.voiceMinutesLimit}</p>
-                <Progress value={(mockClient.voiceMinutesUsed / mockClient.voiceMinutesLimit) * 100} className="mt-2 h-2" />
+                <p className="text-3xl font-bold">{displayClient.voiceMinutesUsed} / {displayClient.voiceMinutesLimit}</p>
+                <Progress value={(displayClient.voiceMinutesUsed / displayClient.voiceMinutesLimit) * 100} className="mt-2 h-2" />
                 <p className="text-xs text-muted-foreground mt-1">Monthly Limit</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader><CardTitle>Call Success Rate</CardTitle></CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold">{mockClient.callSuccessRate}</p>
+                <p className="text-3xl font-bold">{displayClient.callSuccessRate}</p>
                  <p className="text-xs text-muted-foreground mt-1">Based on last 30 days</p>
               </CardContent>
             </Card>
@@ -199,17 +219,17 @@ export default function ClientDetailsUsagePage() {
                 <CardTitle>Templates Used</CardTitle>
             </CardHeader>
             <CardContent>
-                <p className="text-2xl font-bold">{mockClient.templatesUsed} / {mockClient.templatesLimit}</p>
-                <Progress value={(mockClient.templatesUsed / mockClient.templatesLimit) * 100} className="mt-2 h-2" />
+                <p className="text-2xl font-bold">{displayClient.templatesUsed} / {displayClient.templatesLimit}</p>
+                <Progress value={(displayClient.templatesUsed / displayClient.templatesLimit) * 100} className="mt-2 h-2" />
                 <p className="text-xs text-muted-foreground mt-1">Monthly Limit</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle>Top Performing Campaigns</CardTitle></CardHeader>
             <CardContent>
-              {mockClient.topCampaigns.length > 0 ? (
+              {displayClient.topCampaigns.length > 0 ? (
                 <ul className="space-y-2">
-                  {mockClient.topCampaigns.map(campaign => (
+                  {displayClient.topCampaigns.map((campaign: any) => (
                     <li key={campaign.id} className="flex justify-between items-center p-2 border rounded-md">
                       <span>{campaign.name}</span>
                       <div className="flex items-center gap-2">
@@ -229,23 +249,23 @@ export default function ClientDetailsUsagePage() {
         <TabsContent value="plan-info" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Current Plan: {mockClient.plan}</CardTitle>
+              <CardTitle>Current Plan: {displayClient.plan}</CardTitle>
               <CardDescription>Details about the client's current subscription plan.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <h3 className="font-semibold mb-1">Limits Overview:</h3>
                 <ul className="list-disc list-inside pl-4 space-y-1 text-sm text-muted-foreground">
-                  <li>Monthly Calls: {mockClient.monthlyCallLimit}</li>
-                  <li>Voice Minutes: {mockClient.voiceMinutesLimit} / month</li>
-                  <li>AI Templates: {mockClient.templatesLimit}</li>
+                  <li>Monthly Calls: {displayClient.monthlyCallLimit}</li>
+                  <li>Voice Minutes: {displayClient.voiceMinutesLimit} / month</li>
+                  <li>AI Templates: {displayClient.templatesLimit}</li>
                 </ul>
               </div>
               <div>
-                <strong>Renewal Date:</strong> {new Date(mockClient.renewalDate).toLocaleDateString()}
+                <strong>Renewal Date:</strong> {new Date(displayClient.renewalDate).toLocaleDateString()}
               </div>
               <div>
-                <strong>Billing Cycle:</strong> {mockClient.billingCycle}
+                <strong>Billing Cycle:</strong> {displayClient.billingCycle}
               </div>
               <Button className="mt-2" onClick={handleChangePlan}>
                 <Edit3 className="mr-2 h-4 w-4" /> Change Plan
@@ -266,7 +286,7 @@ export default function ClientDetailsUsagePage() {
               />
               <Button onClick={handleSaveNote} className="mt-3">Save Note</Button>
               <div className="mt-4 space-y-3">
-                {mockClient.internalNotes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(note => (
+                {displayClient.internalNotes.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((note: any) => (
                   <div key={note.id} className="p-3 border rounded-md bg-muted/50">
                     <p className="text-sm">{note.text}</p>
                     <p className="text-xs text-muted-foreground mt-1">By {note.user} on {new Date(note.date).toLocaleDateString()}</p>
@@ -278,9 +298,9 @@ export default function ClientDetailsUsagePage() {
           <Card>
             <CardHeader><CardTitle>System Logs</CardTitle></CardHeader>
             <CardContent>
-              {mockClient.systemLogs.length > 0 ? (
+              {displayClient.systemLogs.length > 0 ? (
                 <ul className="space-y-2 text-sm">
-                  {mockClient.systemLogs.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(log => (
+                  {displayClient.systemLogs.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log: any) => (
                     <li key={log.id} className="p-2 border rounded-md">
                       <span className="font-medium">{new Date(log.date).toLocaleString()}:</span> {log.event}
                     </li>

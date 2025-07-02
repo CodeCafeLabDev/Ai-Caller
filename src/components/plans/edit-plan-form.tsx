@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -28,18 +27,20 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SheetFooter } from "@/components/ui/sheet";
 import type { Plan, PlanStatus } from "@/app/(app)/plans-billing/page";
+import { toast } from "@/components/ui/use-toast";
+import { useRouter } from "next/navigation";
 
-const planStatusOptions: PlanStatus[] = ["Active", "Draft", "Archived"];
+const planStatusOptions = ["Active", "Draft", "Archived"] as const;
 
 const editPlanFormSchema = z.object({
   name: z.string().min(2, { message: "Plan name must be at least 2 characters." }),
   description: z.string().max(200, { message: "Description must be 200 characters or less." }).optional(),
-  priceMonthly: z.coerce.number().positive({ message: "Monthly price must be positive." }).optional().or(z.literal('')),
-  priceAnnual: z.coerce.number().positive({ message: "Annual price must be positive." }).optional().or(z.literal('')),
+  priceMonthly: z.string().refine((val) => val === '' || !isNaN(Number(val)), { message: "Monthly price must be a number." }),
+  priceAnnual: z.string().refine((val) => val === '' || !isNaN(Number(val)), { message: "Annual price must be a number." }),
   currency: z.string().length(3, { message: "Currency code must be 3 characters (e.g., USD)." }).default("USD"),
-  durationDays: z.coerce.number().int().min(1, { message: "Duration must be at least 1 day." }).optional(),
+  durationDays: z.coerce.number().int().min(1, { message: "Duration must be at least 1 day." }),
   totalCallsAllowedPerMonth: z.string().min(1, { message: "Total calls allowed is required (e.g., '500', 'Unlimited')." }),
-  callDurationPerCallMaxMinutes: z.coerce.number().int().min(1, { message: "Max call duration must be at least 1 minute." }).optional(),
+  callDurationPerCallMaxMinutes: z.coerce.number().int().min(0, { message: "Max call duration must be a non-negative number." }),
   numberOfAgents: z.coerce.number().int().min(1, { message: "Number of agents must be at least 1." }),
   templatesAllowed: z.coerce.number().int().min(0, { message: "Templates allowed must be a non-negative integer." }),
   voicebotUsageCap: z.string().optional(),
@@ -48,10 +49,10 @@ const editPlanFormSchema = z.object({
   reportingAnalytics: z.boolean().default(true),
   liveCallMonitor: z.boolean().default(false),
   overagesAllowed: z.boolean().default(false),
-  overageChargesPer100Calls: z.coerce.number().positive("Overage charge must be positive.").optional().or(z.literal('')),
+  overageChargesPer100Calls: z.string().refine((val) => val === '' || !isNaN(Number(val)), { message: "Overage charge must be a number." }),
   trialEligible: z.boolean().default(false),
   status: z.enum(planStatusOptions).default("Draft"),
-}).refine(data => !data.overagesAllowed || (data.overagesAllowed && data.overageChargesPer100Calls !== undefined && data.overageChargesPer100Calls !== ''), {
+}).refine(data => !data.overagesAllowed || (data.overagesAllowed && data.overageChargesPer100Calls !== ''), {
   message: "Overage charges are required if overages are allowed.",
   path: ["overageChargesPer100Calls"],
 });
@@ -65,55 +66,95 @@ interface EditPlanFormProps {
 }
 
 export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
+  const router = useRouter();
   const form = useForm<EditPlanFormValues>({
     resolver: zodResolver(editPlanFormSchema),
-    // Default values will be overridden by useEffect below
+    defaultValues: {
+      name: "",
+      description: "",
+      priceMonthly: "",
+      priceAnnual: "",
+      currency: "USD",
+      durationDays: 30,
+      totalCallsAllowedPerMonth: "",
+      callDurationPerCallMaxMinutes: 0,
+      numberOfAgents: 1,
+      templatesAllowed: 0,
+      voicebotUsageCap: "",
+      apiAccess: false,
+      customTemplates: false,
+      reportingAnalytics: true,
+      liveCallMonitor: false,
+      overagesAllowed: false,
+      overageChargesPer100Calls: "",
+      trialEligible: false,
+      status: "Draft" as const,
+    }
   });
-  
+
   React.useEffect(() => {
+    // Convert numeric values to strings for form inputs
     form.reset({
-        name: plan.name || "",
-        description: plan.description || "",
-        priceMonthly: plan.priceMonthly || undefined,
-        priceAnnual: plan.priceAnnual || undefined,
-        currency: plan.currency || "USD",
-        durationDays: plan.durationDays || undefined,
-        totalCallsAllowedPerMonth: plan.totalCallsAllowedPerMonth || "",
-        callDurationPerCallMaxMinutes: plan.callDurationPerCallMaxMinutes || undefined,
-        numberOfAgents: plan.numberOfAgents || 1,
-        templatesAllowed: plan.templatesAllowed || 0,
-        voicebotUsageCap: plan.voicebotUsageCap || "",
-        apiAccess: plan.apiAccess || false,
-        customTemplates: plan.customTemplates || false,
-        reportingAnalytics: plan.reportingAnalytics === undefined ? true : plan.reportingAnalytics, // default true if undefined
-        liveCallMonitor: plan.liveCallMonitor || false,
-        overagesAllowed: plan.overagesAllowed || false,
-        overageChargesPer100Calls: plan.overageChargesPer100Calls || undefined,
-        trialEligible: plan.trialEligible || false,
-        status: plan.status || "Draft",
+      name: plan.name || "",
+      description: plan.description || "",
+      priceMonthly: plan.priceMonthly?.toString() || "",
+      priceAnnual: plan.priceAnnual?.toString() || "",
+      currency: plan.currency || "USD",
+      durationDays: plan.durationDays || 30,
+      totalCallsAllowedPerMonth: plan.totalCallsAllowedPerMonth || "",
+      callDurationPerCallMaxMinutes: plan.callDurationPerCallMaxMinutes || 0,
+      numberOfAgents: plan.numberOfAgents || 1,
+      templatesAllowed: plan.templatesAllowed || 0,
+      voicebotUsageCap: plan.voicebotUsageCap || "",
+      apiAccess: plan.apiAccess || false,
+      customTemplates: plan.customTemplates || false,
+      reportingAnalytics: plan.reportingAnalytics === undefined ? true : plan.reportingAnalytics,
+      liveCallMonitor: plan.liveCallMonitor || false,
+      overagesAllowed: plan.overagesAllowed || false,
+      overageChargesPer100Calls: plan.overageChargesPer100Calls?.toString() || "",
+      trialEligible: plan.trialEligible || false,
+      status: plan.status || "Draft",
     });
   }, [plan, form]);
 
   const overagesAllowed = form.watch("overagesAllowed");
 
-  function onSubmit(data: EditPlanFormValues) {
-     const submittedData: Omit<Plan, "id"> = {
-      ...data,
-      priceMonthly: data.priceMonthly === '' || data.priceMonthly === undefined ? undefined : Number(data.priceMonthly),
-      priceAnnual: data.priceAnnual === '' || data.priceAnnual === undefined ? undefined : Number(data.priceAnnual),
-      durationDays: data.durationDays === undefined ? undefined : Number(data.durationDays),
-      callDurationPerCallMaxMinutes: data.callDurationPerCallMaxMinutes === undefined ? undefined : Number(data.callDurationPerCallMaxMinutes),
-      numberOfAgents: Number(data.numberOfAgents),
-      templatesAllowed: Number(data.templatesAllowed),
-      overageChargesPer100Calls: data.overageChargesPer100Calls === '' || data.overageChargesPer100Calls === undefined ? undefined : Number(data.overageChargesPer100Calls),
-    };
+  async function onSubmit(data: EditPlanFormValues) {
+    try {
+      // Convert form values to the correct types
+      const submittedData: Plan = {
+        id: plan.id,
+        name: data.name,
+        description: data.description || undefined,
+        priceMonthly: data.priceMonthly === '' ? undefined : Number(data.priceMonthly),
+        priceAnnual: data.priceAnnual === '' ? undefined : Number(data.priceAnnual),
+        currency: data.currency,
+        durationDays: Number(data.durationDays),
+        totalCallsAllowedPerMonth: data.totalCallsAllowedPerMonth,
+        callDurationPerCallMaxMinutes: Number(data.callDurationPerCallMaxMinutes),
+        numberOfAgents: Number(data.numberOfAgents),
+        templatesAllowed: Number(data.templatesAllowed),
+        voicebotUsageCap: data.voicebotUsageCap || undefined,
+        apiAccess: data.apiAccess,
+        customTemplates: data.customTemplates,
+        reportingAnalytics: data.reportingAnalytics,
+        liveCallMonitor: data.liveCallMonitor,
+        overagesAllowed: data.overagesAllowed,
+        overageChargesPer100Calls: data.overageChargesPer100Calls === '' ? undefined : Number(data.overageChargesPer100Calls),
+        trialEligible: data.trialEligible,
+        status: data.status as PlanStatus,
+      };
 
-    const updatedPlanObject: Plan = {
-      id: plan.id, 
-      ...submittedData,
-    };
-    console.log("Updated Plan Data (Simulated):", updatedPlanObject);
-    onSuccess(updatedPlanObject);
+      console.log("Submitting plan data:", submittedData);
+      await onSuccess(submittedData);
+    } catch (error) {
+      console.error("Update error:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update plan",
+        variant: "destructive",
+      });
+    }
   }
 
   return (
@@ -355,12 +396,14 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
              <p className="text-xs text-muted-foreground pt-2">* Required fields</p>
           </div>
         </ScrollArea>
-        <SheetFooter className="pt-4 px-2 mt-auto border-t">
-            <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-            <Button type="submit" disabled={form.formState.isSubmitting}>
+        <div className="pt-4 px-2 mt-auto border-t flex justify-end gap-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={form.formState.isSubmitting}>
             {form.formState.isSubmitting ? "Saving Changes..." : "Save Changes"}
-            </Button>
-        </SheetFooter>
+          </Button>
+        </div>
       </form>
     </Form>
   );

@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -30,7 +29,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
-// Removed Sheet imports as form is now on a dedicated page
 import {
   Search,
   PlusCircle,
@@ -51,9 +49,11 @@ import {
   FileDown, 
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-// Removed AddPlanForm import
 import { EditPlanForm } from "@/components/plans/edit-plan-form";
 import type { Metadata } from 'next';
+import { useRouter } from "next/navigation";
+import { Switch } from "@/components/ui/switch";
+import { exportAsCSV, exportAsExcel, exportAsPDF } from '@/lib/exportUtils';
 
 // export const metadata: Metadata = {
 //   title: 'Subscription Plans - AI Caller',
@@ -64,7 +64,7 @@ import type { Metadata } from 'next';
 export type PlanStatus = "Active" | "Draft" | "Archived";
 
 export type Plan = {
-  id: string;
+  id: number;
   name: string;
   description?: string;
   priceMonthly?: number;
@@ -86,89 +86,6 @@ export type Plan = {
   status: PlanStatus;
 };
 
-const initialMockPlans: Plan[] = [
-  {
-    id: "plan_basic_01",
-    name: "Basic Monthly",
-    description: "Ideal for small teams and startups.",
-    priceMonthly: 29,
-    currency: "USD",
-    durationDays: 30,
-    totalCallsAllowedPerMonth: "500 calls",
-    callDurationPerCallMaxMinutes: 10,
-    numberOfAgents: 1,
-    templatesAllowed: 5,
-    voicebotUsageCap: "10 hours",
-    apiAccess: false,
-    customTemplates: false,
-    reportingAnalytics: true,
-    liveCallMonitor: false,
-    overagesAllowed: true,
-    overageChargesPer100Calls: 5,
-    trialEligible: true,
-    status: "Active",
-  },
-  {
-    id: "plan_premium_01",
-    name: "Premium Annual",
-    description: "Best value for growing businesses.",
-    priceAnnual: 990,
-    currency: "USD",
-    durationDays: 365,
-    totalCallsAllowedPerMonth: "2000 mins",
-    callDurationPerCallMaxMinutes: 30,
-    numberOfAgents: 5,
-    templatesAllowed: 20,
-    voicebotUsageCap: "50 hours",
-    apiAccess: true,
-    customTemplates: true,
-    reportingAnalytics: true,
-    liveCallMonitor: true,
-    overagesAllowed: true,
-    overageChargesPer100Calls: 3,
-    trialEligible: false,
-    status: "Active",
-  },
-  {
-    id: "plan_enterprise_01",
-    name: "Enterprise Custom",
-    description: "Tailored solutions for large organizations.",
-    currency: "USD",
-    totalCallsAllowedPerMonth: "Unlimited",
-    callDurationPerCallMaxMinutes: 60,
-    numberOfAgents: 25,
-    templatesAllowed: 100,
-    voicebotUsageCap: "Custom",
-    apiAccess: true,
-    customTemplates: true,
-    reportingAnalytics: true,
-    liveCallMonitor: true,
-    overagesAllowed: false,
-    trialEligible: false,
-    status: "Draft",
-  },
-  {
-    id: "plan_starter_01",
-    name: "Starter Archived",
-    description: "Old starter plan.",
-    priceMonthly: 15,
-    currency: "USD",
-    durationDays: 30,
-    totalCallsAllowedPerMonth: "200 calls",
-    callDurationPerCallMaxMinutes: 5,
-    numberOfAgents: 1,
-    templatesAllowed: 2,
-    voicebotUsageCap: "5 hours",
-    apiAccess: false,
-    customTemplates: false,
-    reportingAnalytics: false,
-    liveCallMonitor: false,
-    overagesAllowed: false,
-    trialEligible: true,
-    status: "Archived",
-  },
-];
-
 const statusVariants: Record<PlanStatus, string> = {
   Active: "bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100",
   Draft: "bg-yellow-100 text-yellow-700 dark:bg-yellow-700 dark:text-yellow-100",
@@ -177,43 +94,89 @@ const statusVariants: Record<PlanStatus, string> = {
 
 export default function PlansBillingPage() {
   const { toast } = useToast();
-  const [plans, setPlans] = React.useState<Plan[]>(initialMockPlans);
+  const router = useRouter();
+  const [plans, setPlans] = React.useState<Plan[]>([]);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
-  const [planTypeFilter, setPlanTypeFilter] = React.useState("all"); 
-  // Removed isAddPlanSheetOpen state
-  const [isEditPlanSheetOpen, setIsEditPlanSheetOpen] = React.useState(false);
-  const [editingPlan, setEditingPlan] = React.useState<Plan | null>(null);
+  const [planTypeFilter, setPlanTypeFilter] = React.useState("all");
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  const handleAction = (actionName: string, planName: string, planId?: string) => {
-     if (actionName === "Archive Plan" || actionName === "Unarchive Plan") {
-      setPlans(prevPlans => 
-        prevPlans.map(p => 
-          p.id === planId ? {...p, status: p.status === "Archived" ? "Active" : "Archived"} : p
-        )
-      );
+  // Fetch plans from API
+  const fetchPlans = React.useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('http://localhost:5000/api/plans');
+      const data = await response.json();
+      if (data.success) {
+        setPlans(data.data || []);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch plans. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching plans:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch plans. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-    toast({
-      title: `${actionName} (Simulated)`,
-      description: `Action performed on plan: ${planName}.`,
-    });
-  };
+  }, [toast]);
 
-  const handleOpenEditSheet = (plan: Plan) => {
-    setEditingPlan(plan);
-    setIsEditPlanSheetOpen(true);
-  };
+  // Fetch plans on mount and after operations
+  React.useEffect(() => {
+    fetchPlans();
+    // Refetch plans when the page becomes visible again (after navigating back from edit)
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchPlans();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [fetchPlans]);
 
-  const handleEditPlanSuccess = (updatedPlan: Plan) => {
-    setPlans(prevPlans =>
-      prevPlans.map(p => (p.id === updatedPlan.id ? updatedPlan : p))
-    );
-    setIsEditPlanSheetOpen(false);
-    setEditingPlan(null);
-    toast({ title: "Plan Updated", description: `The plan "${updatedPlan.name}" has been successfully updated.` });
+  const handleAction = async (actionName: string, planName: string, planId?: number) => {
+    if (!planId) return;
+
+    if (actionName === "Archive Plan" || actionName === "Unarchive Plan") {
+      const newStatus = actionName === "Archive Plan" ? "Archived" : "Active";
+      try {
+        const response = await fetch(`http://localhost:5000/api/plans/${planId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status: newStatus }),
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          await fetchPlans(); // Refresh plans after update
+          toast({
+            title: `${actionName} Successful`,
+            description: `Plan "${planName}" has been ${newStatus.toLowerCase()}.`,
+          });
+        } else {
+          throw new Error(data.message);
+        }
+      } catch (error) {
+        console.error(`Error ${actionName.toLowerCase()}:`, error);
+        toast({
+          title: "Error",
+          description: `Failed to ${actionName.toLowerCase()}`,
+          variant: "destructive",
+        });
+      }
+    }
   };
-  
-  // Removed handleAddPlanSuccess as form is now on a dedicated page
 
   const filteredPlans = plans.filter((plan) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
@@ -233,11 +196,14 @@ export default function PlansBillingPage() {
   );
 
   const handleExport = (format: "csv" | "excel" | "pdf") => {
+    if (filteredPlans.length === 0) return;
+    if (format === "csv") exportAsCSV(filteredPlans, 'plans.csv');
+    else if (format === "excel") exportAsExcel(filteredPlans, 'plans.xlsx');
+    else if (format === "pdf") exportAsPDF(filteredPlans, 'plans.pdf');
     toast({
-      title: `Exporting as ${format.toUpperCase()} (Simulated)`,
-      description: `Preparing ${filteredPlans.length} plan records for export.`,
+      title: `Exported as ${format.toUpperCase()}`,
+      description: `Downloaded ${filteredPlans.length} plan records.`,
     });
-    console.log(`Exporting ${format.toUpperCase()} data (Plans):`, filteredPlans);
   };
 
   return (
@@ -348,9 +314,14 @@ export default function PlansBillingPage() {
                   <TableCell>{plan.numberOfAgents}</TableCell>
                   <TableCell>{plan.durationDays ? `${plan.durationDays} days` : 'N/A'}</TableCell>
                   <TableCell>
-                    <Badge className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusVariants[plan.status]}`}>
-                      {plan.status}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusVariants[plan.status]}`}>{plan.status}</Badge>
+                      <Switch
+                        checked={plan.status === "Active"}
+                        onCheckedChange={() => handleAction(plan.status === "Active" ? "Archive Plan" : "Unarchive Plan", plan.name, plan.id)}
+                        aria-label="Toggle plan status"
+                      />
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -362,13 +333,15 @@ export default function PlansBillingPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleAction("View Plan", plan.name)} disabled>
+                        <DropdownMenuItem onClick={() => handleAction("View Plan", plan.name, plan.id)} disabled>
                           <Eye className="mr-2 h-4 w-4" /> View (Soon)
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleOpenEditSheet(plan)}>
-                          <Edit2 className="mr-2 h-4 w-4" /> Edit
+                        <DropdownMenuItem asChild>
+                          <Link href={`/plans-billing/edit/${plan.id}`} className="flex items-center">
+                            <Edit2 className="mr-2 h-4 w-4" /> Edit
+                          </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleAction("Clone Plan", plan.name)}>
+                        <DropdownMenuItem onClick={() => handleAction("Clone Plan", plan.name, plan.id)}>
                           <Copy className="mr-2 h-4 w-4" /> Clone
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -426,30 +399,6 @@ export default function PlansBillingPage() {
            </div>
         </CardFooter>
       </Card>
-
-      {editingPlan && (
-        <Sheet open={isEditPlanSheetOpen} onOpenChange={(isOpen) => {
-          setIsEditPlanSheetOpen(isOpen);
-          if (!isOpen) setEditingPlan(null);
-        }}>
-          <SheetContent className="sm:max-w-lg w-full flex flex-col" side="right">
-            <SheetHeader>
-              <SheetTitle>Edit Plan: {editingPlan.name}</SheetTitle>
-              <SheetDescription>
-                Modify the details of this subscription plan.
-              </SheetDescription>
-            </SheetHeader>
-            <EditPlanForm 
-              plan={editingPlan} 
-              onSuccess={handleEditPlanSuccess}
-              onCancel={() => {
-                setIsEditPlanSheetOpen(false);
-                setEditingPlan(null);
-              }}
-            />
-          </SheetContent>
-        </Sheet>
-      )}
     </div>
   );
 }

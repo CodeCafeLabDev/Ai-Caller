@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -23,6 +22,7 @@ import {
 import { MoreHorizontal, PlusCircle, Edit, KeyRound, UserX, UserCheck, UserCog, ShieldQuestion } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
+import { Switch } from "@/components/ui/switch";
 
 type ClientUser = {
   id: string;
@@ -111,7 +111,14 @@ export function ClientUsersManagement({ clientName, clientId }: ClientUsersManag
                   <Badge className={`${roleColors[user.role]}`}>{user.role}</Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge className={`${statusColors[user.status]}`}>{user.status}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${statusColors[user.status]}`}>{user.status}</Badge>
+                    <Switch
+                      checked={user.status === "Active"}
+                      onCheckedChange={() => handleUserAction(user.status === "Active" ? "Deactivate" : "Activate", user.id, user.fullName)}
+                      aria-label="Toggle user status"
+                    />
+                  </div>
                 </TableCell>
                 <TableCell>{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A'}</TableCell>
                 <TableCell className="text-right">

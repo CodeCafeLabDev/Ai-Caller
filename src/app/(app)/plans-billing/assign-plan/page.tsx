@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -37,23 +36,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
 import type { Plan } from "@/app/(app)/plans-billing/page"; 
 import type { Metadata } from 'next';
+import { exportAsCSV, exportAsExcel, exportAsPDF } from '@/lib/exportUtils';
 
 // export const metadata: Metadata = {
 //   title: 'Assign Plan to Client - AI Caller',
 //   description: 'Manually link a subscription plan to a client account with optional overrides and discounts.',
 //   keywords: ['assign plan', 'client subscription', 'billing management', 'saas billing', 'AI Caller'],
 // };
-
-const mockClients = [
-  { id: "client_1", name: "Innovate Corp" },
-  { id: "client_2", name: "Solutions Ltd" },
-  { id: "client_3", name: "Tech Ventures" },
-];
-
-const mockPlans: Plan[] = [ 
-  { id: "plan_basic_01", name: "Basic Monthly", currency: "USD", totalCallsAllowedPerMonth: "500", numberOfAgents: 1, templatesAllowed: 5, apiAccess: false, customTemplates: false, reportingAnalytics: true, liveCallMonitor: false, overagesAllowed: true, trialEligible: true, status: "Active" },
-  { id: "plan_premium_01", name: "Premium Annual", currency: "USD", totalCallsAllowedPerMonth: "2000", numberOfAgents: 5, templatesAllowed: 20, apiAccess: true, customTemplates: true, reportingAnalytics: true, liveCallMonitor: true, overagesAllowed: true, trialEligible: false, status: "Active" },
-];
 
 const assignPlanSchema = z.object({
   clientId: z.string({ required_error: "Please select a client." }),
@@ -80,6 +69,23 @@ export default function AssignPlanToClientPage() {
   const { toast } = useToast();
   const [clientComboboxOpen, setClientComboboxOpen] = React.useState(false);
   const [planComboboxOpen, setPlanComboboxOpen] = React.useState(false);
+  const [plans, setPlans] = React.useState<Plan[]>([]);
+  const [clients, setClients] = React.useState<{ id: string; companyName: string }[]>([]);
+
+  React.useEffect(() => {
+    fetch("http://localhost:5000/api/clients")
+      .then(res => res.json())
+      .then(data => setClients(data.data || []));
+  }, []);
+
+  React.useEffect(() => {
+    fetch('http://localhost:5000/api/plans')
+      .then(res => res.json())
+      .then(data => {
+        console.log('Fetched plans:', data.data);
+        setPlans(data.data);
+      });
+  }, []);
 
   const form = useForm<AssignPlanFormValues>({
     resolver: zodResolver(assignPlanSchema),
@@ -99,23 +105,48 @@ export default function AssignPlanToClientPage() {
   const discountType = form.watch("discountType");
 
   function onSubmit(data: AssignPlanFormValues) {
-    const selectedClient = mockClients.find(c => c.id === data.clientId);
-    const selectedPlan = mockPlans.find(p => p.id === data.planId);
-
-    toast({
-      title: "Plan Assignment Simulated",
-      description: `Plan "${selectedPlan?.name}" assigned to client "${selectedClient?.name}". Start: ${data.startDate ? format(data.startDate, "PPP") : 'N/A'}. Duration: ${data.durationOverrideDays || 'Plan Default'}. Trial: ${data.isTrial}. Notifications: ${data.autoSendNotifications}.`,
-    });
-    console.log("Assign Plan Data:", data);
+    fetch('http://localhost:5000/api/assigned-plans', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: data.clientId,
+        plan_id: data.planId,
+        start_date: data.startDate,
+        duration_override_days: data.durationOverrideDays,
+        is_trial: data.isTrial,
+        discount_type: data.discountType,
+        discount_value: data.discountValue,
+        notes: data.notes,
+        auto_send_notifications: data.autoSendNotifications,
+      }),
+    })
+      .then(res => res.json())
+      .then(result => {
+        if (result.success) {
+          toast({
+            title: "Plan Assigned!",
+            description: "The plan was successfully assigned to the client.",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: result.message || "Failed to assign plan.",
+            variant: "destructive",
+          });
+        }
+      });
   }
 
   const handleExport = (format: "csv" | "excel" | "pdf") => {
     const formData = form.getValues();
+    const dataArr = [formData];
+    if (format === "csv") exportAsCSV(dataArr, 'assign-plan.csv');
+    else if (format === "excel") exportAsExcel(dataArr, 'assign-plan.xlsx');
+    else if (format === "pdf") exportAsPDF(dataArr, 'assign-plan.pdf');
     toast({
-      title: `Exporting as ${format.toUpperCase()} (Simulated)`,
-      description: `Preparing current form data for export.`,
+      title: `Exported as ${format.toUpperCase()}`,
+      description: `Downloaded current form data.`,
     });
-    console.log(`Exporting ${format.toUpperCase()} data (Assign Plan Form):`, formData);
   };
 
   return (
@@ -169,7 +200,7 @@ export default function AssignPlanToClientPage() {
                               role="combobox"
                               className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
                             >
-                              {field.value ? mockClients.find(client => client.id === field.value)?.name : "Select client..."}
+                              {field.value ? clients.find(client => String(client.id) === field.value)?.companyName : "Select client..."}
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </FormControl>
@@ -180,17 +211,17 @@ export default function AssignPlanToClientPage() {
                             <CommandList>
                               <CommandEmpty>No client found.</CommandEmpty>
                               <CommandGroup>
-                                {mockClients.map(client => (
+                                {clients.map(client => (
                                   <CommandItem
-                                    value={client.name}
+                                    value={client.companyName}
                                     key={client.id}
                                     onSelect={() => {
-                                      form.setValue("clientId", client.id);
+                                      form.setValue("clientId", String(client.id));
                                       setClientComboboxOpen(false);
                                     }}
                                   >
                                     <Check className={cn("mr-2 h-4 w-4", client.id === field.value ? "opacity-100" : "opacity-0")} />
-                                    {client.name}
+                                    {client.companyName}
                                   </CommandItem>
                                 ))}
                               </CommandGroup>
@@ -216,7 +247,7 @@ export default function AssignPlanToClientPage() {
                   name="planId"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                       <Popover open={planComboboxOpen} onOpenChange={setPlanComboboxOpen}>
+                      <Popover open={planComboboxOpen} onOpenChange={setPlanComboboxOpen}>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
@@ -224,7 +255,7 @@ export default function AssignPlanToClientPage() {
                               role="combobox"
                               className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
                             >
-                              {field.value ? mockPlans.find(plan => plan.id === field.value)?.name : "Select plan..."}
+                              {field.value ? plans.find(plan => plan.id === Number(field.value))?.name : "Select plan..."}
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </FormControl>
@@ -235,16 +266,16 @@ export default function AssignPlanToClientPage() {
                             <CommandList>
                               <CommandEmpty>No plan found.</CommandEmpty>
                               <CommandGroup>
-                                {mockPlans.map(plan => (
+                                {plans.map(plan => (
                                   <CommandItem
                                     value={plan.name}
                                     key={plan.id}
                                     onSelect={() => {
-                                      form.setValue("planId", plan.id);
+                                      form.setValue("planId", String(plan.id));
                                       setPlanComboboxOpen(false);
                                     }}
                                   >
-                                    <Check className={cn("mr-2 h-4 w-4", plan.id === field.value ? "opacity-100" : "opacity-0")} />
+                                    <Check className={cn("mr-2 h-4 w-4", plan.id === Number(field.value) ? "opacity-100" : "opacity-0")} />
                                     {plan.name}
                                   </CommandItem>
                                 ))}

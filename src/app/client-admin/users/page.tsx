@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -33,6 +32,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { AddClientUserForm, type AddClientUserFormValues } from "@/components/client-admin/users/add-client-user-form";
+import { Switch } from "@/components/ui/switch";
 
 // Mock data for client users
 type ClientUser = {
@@ -175,7 +175,14 @@ export default function ClientUsersPage() {
                      <Badge className={`text-xs ${roleVariants[user.role]}`}>{user.role}</Badge>
                   </TableCell>
                   <TableCell>
-                     <Badge className={`text-xs ${statusVariants[user.status]}`}>{user.status}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`text-xs ${statusVariants[user.status]}`}>{user.status}</Badge>
+                      <Switch
+                        checked={user.status === "Active"}
+                        onCheckedChange={() => handleUserAction(user.status === "Active" ? "Suspend" : "Activate", user.id, user.name)}
+                        aria-label="Toggle user status"
+                      />
+                    </div>
                   </TableCell>
                   <TableCell>{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : "Never"}</TableCell>
                   <TableCell className="text-right">

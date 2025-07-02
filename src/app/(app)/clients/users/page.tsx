@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -66,15 +65,19 @@ import {
   Phone,
   Users, 
   Check, 
-  ChevronsUpDown
+  ChevronsUpDown,
+  Edit2,
+  ListChecks
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 import type { Metadata } from 'next';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { format } from "date-fns";
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useParams } from "next/navigation";
+import { Switch } from "@/components/ui/switch";
 
 // export const metadata: Metadata = {
 //   title: 'Client Users Management - AI Caller',
@@ -82,36 +85,26 @@ import type { Metadata } from 'next';
 //   keywords: ['client users', 'user management', 'roles', 'permissions', 'AI Caller'],
 // };
 
-type UserRole = "Admin" | "Agent" | "Analyst" | "Viewer";
-type UserStatus = "Active" | "Suspended" | "Pending";
-
 type ClientUser = {
-  id: string;
-  fullName: string;
+  id: number;
+  full_name: string;
   email: string;
   phone?: string;
-  role: UserRole;
-  status: UserStatus;
-  lastLogin?: string;
-  clientId?: string; 
+  role_id: number;
+  role_name?: string;
+  status: "Active" | "Suspended" | "Pending";
+  last_login?: string;
+  client_id: string;
+  plan_id?: string;
 };
 
-const mockUsers: ClientUser[] = [
-  { id: "usr_1", fullName: "Alice Johnson", email: "alice@example.com", phone: "555-0101", role: "Admin", status: "Active", lastLogin: "2024-07-20", clientId: "client_1" },
-  { id: "usr_2", fullName: "Bob Williams", email: "bob@example.com", phone: "555-0102", role: "Agent", status: "Active", lastLogin: "2024-07-19", clientId: "client_1" },
-  { id: "usr_3", fullName: "Charlie Brown", email: "charlie@example.com", phone: "555-0103", role: "Analyst", status: "Suspended", lastLogin: "2024-06-15", clientId: "client_2" },
-  { id: "usr_4", fullName: "Diana Miller", email: "diana@example.com", phone: "555-0104", role: "Viewer", status: "Pending", clientId: "client_3" },
-  { id: "usr_5", fullName: "Edward Davis", email: "edward@example.com", phone: "555-0105", role: "Agent", status: "Active", lastLogin: "2024-07-21", clientId: "client_2" },
-];
+type Plan = {
+  id: number;
+  name: string;
+  // Add other fields if needed
+};
 
-const roleOptions: { value: UserRole | "all"; label: string }[] = [
-  { value: "all", label: "All Roles" },
-  { value: "Admin", label: "Admin" },
-  { value: "Agent", label: "Agent" },
-  { value: "Analyst", label: "Analyst" },
-  { value: "Viewer", label: "Viewer" },
-];
-const statusOptions: UserStatus[] = ["Active", "Suspended", "Pending"];
+type UserFormState = Partial<ClientUser> & { password?: string; confirmPassword?: string };
 
 const mockClientsForSelection = [
   { id: "client_1", name: "Innovate Corp" },
@@ -121,81 +114,250 @@ const mockClientsForSelection = [
   { id: "client_5", name: "Synergy Systems" },
 ];
 
-const roleColors: Record<UserRole, string> = {
+const roleColors: Record<string, string> = {
   Admin: "bg-purple-100 text-purple-700 dark:bg-purple-700 dark:text-purple-100",
   Agent: "bg-blue-100 text-blue-700 dark:bg-blue-700 dark:text-blue-100",
   Analyst: "bg-yellow-100 text-yellow-700 dark:bg-yellow-700 dark:text-yellow-100",
   Viewer: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100",
 };
 
-const statusColors: Record<UserStatus, string> = {
+const statusColors: Record<string, string> = {
   Active: "bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100",
   Suspended: "bg-red-100 text-red-700 dark:bg-red-700 dark:text-red-100",
   Pending: "bg-orange-100 text-orange-700 dark:bg-orange-700 dark:text-orange-100",
 };
 
-const addUserFormSchema = z.object({
-  clientId: z.string({ required_error: "Please select a client." }),
-  fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
-  email: z.string().email({ message: "Invalid email address." }),
-  phone: z.string().optional(),
-  role: z.enum(["Admin", "Agent", "Analyst", "Viewer"] as [UserRole, ...UserRole[]], { required_error: "Please select a role." }),
-  status: z.enum(statusOptions, { required_error: "Please select a status." }),
-});
-type AddUserFormValues = z.infer<typeof addUserFormSchema>;
+const statusOptions: string[] = ["Active", "Suspended", "Pending"];
 
 export default function ClientUsersPage() {
   const { toast } = useToast();
-  const [users, setUsers] = React.useState<ClientUser[]>(mockUsers);
-  const [roleFilter, setRoleFilter] = React.useState<UserRole | "all">("all");
-  const [isAddUserSheetOpen, setIsAddUserSheetOpen] = React.useState(false);
-  const [clientComboboxOpen, setClientComboboxOpen] = React.useState(false);
-  const [roleFilterComboboxOpen, setRoleFilterComboboxOpen] = React.useState(false);
+  const [users, setUsers] = useState<ClientUser[]>([]);
+  const [userRoles, setUserRoles] = useState<{ id: number; role_name: string; description: string; permissions_summary: string; status: "Active" | "Archived" }[]>([]);
+  const [roleFilter, setRoleFilter] = useState<string | "all">("all");
+  const [isAddUserSheetOpen, setIsAddUserSheetOpen] = useState(false);
+  const [clientComboboxOpen, setClientComboboxOpen] = useState(false);
+  const [roleFilterComboboxOpen, setRoleFilterComboboxOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<ClientUser | null>(null);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [form, setForm] = useState<UserFormState>({});
+  const params = useParams();
+  const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const [clients, setClients] = useState<{ id: string; companyName: string }[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [resetPasswordSheetOpen, setResetPasswordSheetOpen] = useState(false);
+  const [resetUserId, setResetUserId] = useState<number | null>(null);
+  const [resetUserName, setResetUserName] = useState<string>("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetSubmitting, setResetSubmitting] = useState(false);
 
+  React.useEffect(() => {
+    // Fetch users from backend
+    fetch("http://localhost:5000/api/client-users")
+      .then(res => res.json())
+      .then(data => setUsers(data.data || []));
+    // Fetch user roles from backend
+    fetch("http://localhost:5000/api/user-roles")
+      .then(res => res.json())
+      .then(data => setUserRoles(data.data || []));
+    fetch("http://localhost:5000/api/clients")
+      .then(res => res.json())
+      .then(data => setClients(data.data || []));
+    fetch("http://localhost:5000/api/plans")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setPlans(data.data);
+      });
+  }, []);
 
-  const form = useForm<AddUserFormValues>({
-    resolver: zodResolver(addUserFormSchema),
-    defaultValues: {
-      clientId: undefined,
-      fullName: "",
-      email: "",
-      phone: "",
-      role: undefined,
-      status: "Active",
-    },
-  });
-
-  const handleUserAction = (action: string, userId: string, userName: string) => {
+  const handleUserAction = async (action: string, userId: number, userName: string) => {
+    let newStatus = null;
+    if (action === "Deactivate") newStatus = "Suspended";
+    if (action === "Activate") newStatus = "Active";
+    if (newStatus) {
+      try {
+        // 1. Fetch the full user data
+        const resGet = await fetch(`http://localhost:5000/api/client-users/${userId}`);
+        const dataGet = await resGet.json();
+        if (!dataGet.success) {
+          toast({ title: 'Error', description: 'Failed to fetch user data', variant: 'destructive' });
+          return;
+        }
+        // 2. Update status
+        const userData = { ...dataGet.data, status: newStatus };
+        // 3. Send full object in PUT request
+        const res = await fetch(`http://localhost:5000/api/client-users/${userId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(userData),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setUsers(prevUsers => prevUsers.map(user =>
+            user.id === userId ? { ...user, status: newStatus as "Active" | "Suspended" | "Pending" } : user
+          ));
+          toast({ title: `User ${action}d`, description: `${userName} is now ${newStatus}.` });
+        } else {
+          toast({ title: "Error", description: data.message || `Failed to ${action.toLowerCase()} user.`, variant: "destructive" });
+        }
+      } catch (err) {
+        toast({ title: "Error", description: `Error trying to ${action.toLowerCase()} user.`, variant: "destructive" });
+      }
+      return;
+    }
     toast({
       title: `Action: ${action}`,
       description: `Performed on ${userName} (ID: ${userId}). (Simulated)`,
     });
-    if (action === "Deactivate" || action === "Activate") {
-        setUsers(prevUsers => prevUsers.map(user => 
-            user.id === userId ? {...user, status: user.status === "Active" ? "Suspended" : "Active" } : user
-        ));
-    }
   };
   
-  const onAddUserSubmit = (data: AddUserFormValues) => {
+  const onAddUserSubmit = (data: Partial<ClientUser>) => {
     console.log("New User Data:", data);
     const newUser: ClientUser = {
-      id: `usr_${Date.now()}`,
-      ...data,
-      lastLogin: undefined, 
+      id: Date.now(),
+      full_name: data.full_name || "",
+      email: data.email || "",
+      phone: data.phone || "",
+      role_id: data.role_id || 0,
+      role_name: data.role_name || "",
+      status: (data.status as "Active" | "Suspended" | "Pending") || "Active",
+      last_login: undefined,
+      client_id: data.client_id || "",
+      plan_id: data.plan_id || "",
     };
     setUsers(prev => [newUser, ...prev]);
     toast({
       title: "User Added (Simulated)",
-      description: `${data.fullName} for client ID ${data.clientId} has been added successfully.`,
+      description: `${data.full_name} for client ID ${data.client_id} has been added successfully.`,
     });
-    form.reset();
     setIsAddUserSheetOpen(false);
   };
 
   const filteredUsers = users.filter(user => 
-    roleFilter === "all" || user.role === roleFilter
+    roleFilter === "all" || user.role_id === (userRoles.find(r => r.role_name === roleFilter)?.id)
   );
+
+  const handleAdminRoleAction = (actionName: string, roleName: string) => {
+    toast({
+      title: `Admin Role Action: ${actionName}`,
+      description: `Performed on role ${roleName}. (Simulated)`,
+    });
+  };
+
+  const openAddUser = () => {
+    setEditingUser(null);
+    setForm({});
+    setShowUserForm(true);
+  };
+
+  const openEditUser = (user: ClientUser) => {
+    setEditingUser(user);
+    setForm(user);
+    setShowUserForm(true);
+  };
+
+  const closeUserForm = () => {
+    setEditingUser(null);
+    setForm({});
+    setShowUserForm(false);
+    setIsAddUserSheetOpen(false);
+  };
+
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleUserFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!form.full_name || !form.email || !form.client_id || !form.role_id || !form.status || !form.password || !form.confirmPassword) {
+      toast({ title: "Error", description: "Please fill all required fields." });
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      toast({ title: "Error", description: "Passwords do not match." });
+      return;
+    }
+    if (editingUser) {
+      // Edit
+      fetch(`http://localhost:5000/api/client-users/${editingUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      })
+        .then(res => res.json())
+        .then(data => {
+          setUsers(users => users.map(u => u.id === editingUser.id ? data.data : u));
+          closeUserForm();
+          setForm({});
+        });
+    } else {
+      // Add
+      const clientData = { ...form };
+      fetch("http://localhost:5000/api/client-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(clientData),
+      })
+        .then(res => res.json())
+        .then(data => {
+          setUsers(users => [data.data, ...users]);
+          closeUserForm();
+          setForm({});
+        });
+    }
+  };
+
+  const handleDeleteUser = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this user?")) return;
+    const res = await fetch(`http://localhost:5000/api/client-users/${id}`, { method: "DELETE" });
+    if (res.ok) setUsers(users => users.filter(u => u.id !== id));
+  };
+
+  const openResetPasswordSheet = (user: ClientUser) => {
+    setResetUserId(user.id);
+    setResetUserName(user.full_name);
+    setResetPassword("");
+    setResetConfirmPassword("");
+    setResetPasswordSheetOpen(true);
+  };
+
+  const closeResetPasswordSheet = () => {
+    setResetUserId(null);
+    setResetUserName("");
+    setResetPassword("");
+    setResetConfirmPassword("");
+    setResetPasswordSheetOpen(false);
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPassword || !resetConfirmPassword) {
+      toast({ title: "Error", description: "Please fill all password fields." });
+      return;
+    }
+    if (resetPassword !== resetConfirmPassword) {
+      toast({ title: "Error", description: "Passwords do not match." });
+      return;
+    }
+    setResetSubmitting(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/client-users/${resetUserId}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: resetPassword }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "Password reset successfully!" });
+        closeResetPasswordSheet();
+      } else {
+        toast({ title: "Error", description: data.message || "Failed to reset password.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Error resetting password.", variant: "destructive" });
+    }
+    setResetSubmitting(false);
+  };
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -218,166 +380,115 @@ export default function ClientUsersPage() {
                 Fill in the details to create a new user account.
               </SheetDescription>
             </SheetHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onAddUserSubmit)} className="flex flex-col h-full">
-                <ScrollArea className="flex-grow">
-                    <div className="space-y-4 py-4 px-2">
-                        <FormField
-                          control={form.control}
-                          name="clientId"
-                          render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                              <FormLabel>Assign to Client</FormLabel>
-                              <Popover open={clientComboboxOpen} onOpenChange={setClientComboboxOpen}>
-                                <PopoverTrigger asChild>
-                                  <FormControl>
-                                    <Button
-                                      variant="outline"
-                                      role="combobox"
-                                      className={cn(
-                                        "w-full justify-between",
-                                        !field.value && "text-muted-foreground"
-                                      )}
-                                    >
-                                      {field.value
-                                        ? mockClientsForSelection.find(
-                                            (client) => client.id === field.value
-                                          )?.name
-                                        : "Select a client"}
-                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                  </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                  <Command>
-                                    <CommandInput placeholder="Search client..." />
-                                    <CommandList>
-                                      <CommandEmpty>No client found.</CommandEmpty>
-                                      <CommandGroup>
-                                        {mockClientsForSelection.map((client) => (
-                                          <CommandItem
-                                            value={client.name}
-                                            key={client.id}
-                                            onSelect={() => {
-                                              form.setValue("clientId", client.id);
-                                              setClientComboboxOpen(false);
-                                            }}
-                                          >
-                                            <Check
-                                              className={cn(
-                                                "mr-2 h-4 w-4",
-                                                client.id === field.value
-                                                  ? "opacity-100"
-                                                  : "opacity-0"
-                                              )}
-                                            />
-                                            {client.name}
-                                          </CommandItem>
-                                        ))}
-                                      </CommandGroup>
-                                    </CommandList>
-                                  </Command>
-                                </PopoverContent>
-                              </Popover>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                        control={form.control}
-                        name="fullName"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Full Name</FormLabel>
-                            <FormControl>
-                                <Input placeholder="e.g., John Doe" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                        <FormField
-                        control={form.control}
-                        name="email"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Email Address</FormLabel>
-                            <FormControl>
-                                <Input type="email" placeholder="user@example.com" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                        <FormField
-                        control={form.control}
-                        name="phone"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Phone Number (Optional)</FormLabel>
-                            <FormControl>
-                                <Input type="tel" placeholder="555-123-4567" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                        <FormField
-                        control={form.control}
-                        name="role"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Role</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a role" />
-                                </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                {roleOptions.filter(r => r.value !== "all").map(role => (
-                                    <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
-                                ))}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                        <FormField
-                        control={form.control}
-                        name="status"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Status</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a status" />
-                                </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                {statusOptions.map(status => (
-                                    <SelectItem key={status} value={status}>{status}</SelectItem>
-                                ))}
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                    </div>
-                </ScrollArea>
-                <SheetFooter className="pt-4 mt-auto border-t">
-                  <SheetClose asChild>
+            <form onSubmit={handleUserFormSubmit} className="flex flex-col h-full">
+              <ScrollArea className="flex-grow">
+                <div className="space-y-4 py-4 px-2">
+                  <div className="flex flex-col">
+                    <Label>Assign to Client</Label>
+                    <Select
+                      value={form.client_id?.toString() || ""}
+                      onValueChange={val => setForm({ ...form, client_id: val })}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Assign to Client" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clients.map(client => (
+                          <SelectItem key={client.id} value={String(client.id)}>
+                            {client.companyName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col">
+                    <Label>Full Name</Label>
+                    <Input placeholder="e.g., John Doe" name="full_name" value={form.full_name || ""} onChange={handleFormChange} />
+                  </div>
+                  <div className="flex flex-col">
+                    <Label>Email Address</Label>
+                    <Input type="email" placeholder="user@example.com" name="email" value={form.email || ""} onChange={handleFormChange} />
+                  </div>
+                  <div className="flex flex-col">
+                    <Label>Phone Number (Optional)</Label>
+                    <Input type="tel" placeholder="555-123-4567" name="phone" value={form.phone || ""} onChange={handleFormChange} />
+                  </div>
+                  <div className="flex flex-col">
+                    <Label>Role</Label>
+                    <Select
+                      onValueChange={(val) => setForm({ ...form, role_id: Number(val) })}
+                      value={form.role_id?.toString() || ""}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {userRoles.map((role) => (
+                          <SelectItem key={role.id} value={String(role.id)}>
+                            {role.role_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col">
+                    <Label>Status</Label>
+                    <Select
+                      onValueChange={(val) => setForm({ ...form, status: val as "Active" | "Suspended" | "Pending" })}
+                      value={form.status || "Active"}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {statusOptions.map((status) => (
+                          <SelectItem key={status} value={status}>{status}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col">
+                    <Label>Status Toggle</Label>
+                    <Switch
+                      checked={form.status === "Active"}
+                      onCheckedChange={checked => setForm({ ...form, status: checked ? "Active" : "Suspended" })}
+                      aria-label="Toggle user status"
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <Label>Password</Label>
+                    <Input
+                      type="password"
+                      placeholder="Enter password"
+                      name="password"
+                      value={form.password || ""}
+                      onChange={handleFormChange}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <Label>Confirm Password</Label>
+                    <Input
+                      type="password"
+                      placeholder="Confirm password"
+                      name="confirmPassword"
+                      value={form.confirmPassword || ""}
+                      onChange={handleFormChange}
+                      required
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4">
+                    <SheetClose asChild>
                       <Button type="button" variant="outline">Cancel</Button>
-                  </SheetClose>
-                  <Button type="submit" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? "Adding User..." : "Add User"}
-                  </Button>
-                </SheetFooter>
-              </form>
-            </Form>
+                    </SheetClose>
+                    <Button type="submit" disabled={!form.full_name || !form.email || !form.client_id || !form.role_id || !form.status || !form.password || !form.confirmPassword}>
+                      {editingUser ? "Update" : "Add"}
+                    </Button>
+                  </div>
+                </div>
+              </ScrollArea>
+            </form>
           </SheetContent>
         </Sheet>
       </div>
@@ -394,7 +505,7 @@ export default function ClientUsersPage() {
               className="w-full md:w-[200px] justify-between"
             >
               <ListFilter className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-              {roleOptions.find(r => r.value === roleFilter)?.label || "Filter by Role"}
+              {roleFilter === "all" ? "Filter by Role" : roleFilter}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
@@ -404,22 +515,37 @@ export default function ClientUsersPage() {
               <CommandList>
                 <CommandEmpty>No role found.</CommandEmpty>
                 <CommandGroup>
-                  {roleOptions.map(option => (
+                  <CommandItem
+                    value="all"
+                    onSelect={() => {
+                      setRoleFilter("all");
+                      setRoleFilterComboboxOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        roleFilter === "all" ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    All Roles
+                  </CommandItem>
+                  {userRoles.map((role) => (
                     <CommandItem
-                      key={option.value}
-                      value={option.label}
+                      key={role.id}
+                      value={role.role_name}
                       onSelect={() => {
-                        setRoleFilter(option.value as UserRole | "all");
+                        setRoleFilter(role.role_name as string | "all");
                         setRoleFilterComboboxOpen(false);
                       }}
                     >
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          roleFilter === option.value ? "opacity-100" : "opacity-0"
+                          roleFilter === role.role_name ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      {option.label}
+                      {role.role_name}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -430,6 +556,14 @@ export default function ClientUsersPage() {
       </div>
 
       <ScrollArea className="rounded-lg border shadow-sm">
+      <Card>
+        <CardHeader className="flex flex-row justify-between items-center">
+          <div>
+            <CardTitle>Client Users</CardTitle>
+            <CardDescription>Define and manage roles with specific permission sets.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
@@ -444,18 +578,25 @@ export default function ClientUsersPage() {
           <TableBody>
             {filteredUsers.length > 0 ? filteredUsers.map((user) => (
               <TableRow key={user.id}>
-                <TableCell className="font-medium">{user.fullName}</TableCell>
+                <TableCell className="font-medium">{user.full_name}</TableCell>
                 <TableCell>
                   <div>{user.email}</div>
                   {user.phone && <div className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3"/>{user.phone}</div>}
                 </TableCell>
                 <TableCell>
-                  <Badge className={`${roleColors[user.role]}`}>{user.role}</Badge>
+                  <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-700 dark:text-blue-100">{userRoles.find(r => r.id === user.role_id)?.role_name}</Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge className={`${statusColors[user.status]}`}>{user.status}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${statusColors[user.status]}`}>{user.status}</Badge>
+                    <Switch
+                      checked={user.status === "Active"}
+                      onCheckedChange={() => handleUserAction(user.status === "Active" ? "Deactivate" : "Activate", user.id, user.full_name)}
+                      aria-label="Toggle user status"
+                    />
+                  </div>
                 </TableCell>
-                <TableCell>{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'N/A'}</TableCell>
+                <TableCell>{user.last_login ? format(new Date(user.last_login), "MMM dd, yyyy") : 'N/A'}</TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -466,26 +607,28 @@ export default function ClientUsersPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>User Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleUserAction("Edit", user.id, user.fullName)}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit User
+                      <DropdownMenuItem asChild>
+                        <Link href={`/clients/users/edit/${user.id}`}>
+                          <Edit className="mr-2 h-4 w-4" /> Edit User
+                        </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleUserAction("Reset Password", user.id, user.fullName)}>
+                      <DropdownMenuItem onClick={() => openResetPasswordSheet(user)}>
                         <KeyRound className="mr-2 h-4 w-4" /> Reset Password
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       {user.status === "Active" ? (
-                        <DropdownMenuItem className="text-yellow-600 focus:bg-yellow-50 focus:text-yellow-700" onClick={() => handleUserAction("Deactivate", user.id, user.fullName)}>
+                        <DropdownMenuItem className="text-yellow-600 focus:bg-yellow-50 focus:text-yellow-700" onClick={() => handleUserAction("Deactivate", user.id, user.full_name)}>
                           <UserX className="mr-2 h-4 w-4" /> Deactivate
                         </DropdownMenuItem>
                       ) : (
-                        <DropdownMenuItem className="text-green-600 focus:bg-green-50 focus:text-green-700" onClick={() => handleUserAction("Activate", user.id, user.fullName)}>
+                        <DropdownMenuItem className="text-green-600 focus:bg-green-50 focus:text-green-700" onClick={() => handleUserAction("Activate", user.id, user.full_name)}>
                           <UserCheck className="mr-2 h-4 w-4" /> Activate
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuItem onClick={() => handleUserAction("Impersonate", user.id, user.fullName)}>
+                      <DropdownMenuItem onClick={() => handleUserAction("Impersonate", user.id, user.full_name)}>
                         <UserCog className="mr-2 h-4 w-4" /> Impersonate
                       </DropdownMenuItem>
-                       <DropdownMenuItem onClick={() => handleUserAction("View Permissions", user.id, user.fullName)}>
+                       <DropdownMenuItem onClick={() => handleUserAction("View Permissions", user.id, user.full_name)}>
                         <ShieldQuestion className="mr-2 h-4 w-4" /> View Permissions
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -501,6 +644,8 @@ export default function ClientUsersPage() {
             )}
           </TableBody>
         </Table>
+        </CardContent>
+        </Card>
       </ScrollArea>
        {filteredUsers.length > 10 && ( 
         <div className="flex items-center justify-end space-x-2 py-4">
@@ -508,6 +653,98 @@ export default function ClientUsersPage() {
           <Button variant="outline" size="sm">Next</Button>
         </div>
       )}
+
+      {/* Client Roles Section */}
+      <Card>
+        <CardHeader className="flex flex-row justify-between items-center">
+          <div>
+            <CardTitle>User Roles</CardTitle>
+            <CardDescription>Define and manage roles with specific permission sets.</CardDescription>
+          </div>
+          <Link href="/clients/users/roles/create">
+            <Button>
+              <PlusCircle className="mr-2 h-5 w-5" /> Create New Role
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Role Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Permissions Summary</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {userRoles.map((role) => (
+                <TableRow key={role.id}>
+                  <TableCell className="font-medium">{role.role_name}</TableCell>
+                  <TableCell className="max-w-sm truncate" title={role.description}>{role.description}</TableCell>
+                  <TableCell className="max-w-xs truncate" title={role.permissions_summary}>{role.permissions_summary}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Badge className={role.status === "Active" ? "bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100" : "bg-red-100 text-red-700 dark:bg-red-700 dark:text-red-100"}>{role.status}</Badge>
+                      <Switch
+                        checked={role.status === "Active"}
+                        onCheckedChange={() => handleAdminRoleAction(role.status === "Active" ? "Archive" : "Activate", role.role_name)}
+                        aria-label="Toggle role status"
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                     <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Role Actions</DropdownMenuLabel>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/clients/users/roles/edit/${role.id}`}>
+                            <Edit2 className="mr-2 h-4 w-4" /> Edit Role
+                          </Link>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      <Sheet open={resetPasswordSheetOpen} onOpenChange={setResetPasswordSheetOpen}>
+        <SheetContent className="sm:max-w-md w-full">
+          <SheetHeader>
+            <SheetTitle>Reset Password</SheetTitle>
+            <SheetDescription>
+              Change password for <span className="font-semibold">{resetUserName}</span>.
+            </SheetDescription>
+          </SheetHeader>
+          <form onSubmit={handleResetPasswordSubmit} className="flex flex-col h-full">
+            <div className="space-y-4 py-4 px-2 flex-grow">
+              <div className="flex flex-col">
+                <Label>New Password</Label>
+                <Input type="password" placeholder="Enter new password" value={resetPassword} onChange={e => setResetPassword(e.target.value)} required />
+              </div>
+              <div className="flex flex-col">
+                <Label>Confirm New Password</Label>
+                <Input type="password" placeholder="Confirm new password" value={resetConfirmPassword} onChange={e => setResetConfirmPassword(e.target.value)} required />
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <SheetClose asChild>
+                  <Button type="button" variant="outline" onClick={closeResetPasswordSheet}>Cancel</Button>
+                </SheetClose>
+                <Button type="submit" disabled={resetSubmitting || !resetPassword || !resetConfirmPassword}>
+                  {resetSubmitting ? "Saving..." : "Reset Password"}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

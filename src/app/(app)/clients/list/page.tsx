@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -64,7 +63,9 @@ import {
 import { AddClientForm } from "@/components/clients/add-client-form";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast"; 
-// Removed: import type { Metadata } from 'next';
+import type { AddClientFormValues } from "@/components/clients/add-client-form";
+import { Switch } from "@/components/ui/switch";
+import { exportAsCSV, exportAsExcel, exportAsPDF } from '@/lib/exportUtils';
 
 // Removed: export const metadata: Metadata = { ... };
 
@@ -84,78 +85,6 @@ type Client = {
   avatarUrl?: string;
 };
 
-const mockClients: Client[] = [
-  {
-    id: "1",
-    name: "Innovate Corp",
-    contactPerson: "Alice Wonderland",
-    email: "contact@innovatecorp.com",
-    phone: "555-0101",
-    clientId: "CL-INV001",
-    status: "Active",
-    plan: "Premium",
-    totalCallsMade: 1250,
-    monthlyCallLimit: 2000,
-    joinedDate: "2023-01-15",
-    avatarUrl: "https://placehold.co/40x40.png?text=IC",
-  },
-  {
-    id: "2",
-    name: "Solutions Ltd",
-    contactPerson: "Bob The Builder",
-    email: "support@solutions.io",
-    phone: "555-0102",
-    clientId: "CL-SOL002",
-    status: "Suspended",
-    plan: "Basic",
-    totalCallsMade: 300,
-    monthlyCallLimit: 500,
-    joinedDate: "2023-03-22",
-    avatarUrl: "https://placehold.co/40x40.png?text=SL",
-  },
-  {
-    id: "3",
-    name: "Tech Ventures",
-    contactPerson: "Carol Danvers",
-    email: "admin@techventures.dev",
-    phone: "555-0103",
-    clientId: "CL-TVN003",
-    status: "Trial",
-    plan: "Trial",
-    totalCallsMade: 50,
-    monthlyCallLimit: 100,
-    joinedDate: "2023-05-10",
-    avatarUrl: "https://placehold.co/40x40.png?text=TV",
-  },
-  {
-    id: "4",
-    name: "Global Connect",
-    contactPerson: "David Copperfield",
-    email: "info@globalconnect.net",
-    phone: "555-0104",
-    clientId: "CL-GCN004",
-    status: "Active",
-    plan: "Enterprise",
-    totalCallsMade: 4500,
-    monthlyCallLimit: 5000,
-    joinedDate: "2022-11-30",
-  },
-  {
-    id: "5",
-    name: "Synergy Systems",
-    contactPerson: "Eve Harrington",
-    email: "help@synergysys.com",
-    phone: "555-0105",
-    clientId: "CL-SYS005",
-    status: "Active",
-    plan: "Premium",
-    totalCallsMade: 1800,
-    monthlyCallLimit: 2000,
-    joinedDate: "2023-02-01",
-    avatarUrl: "https://placehold.co/40x40.png?text=SS",
-  },
-];
-
 const statusVariants: Record<Client["status"], string> = {
   Active: "bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100",
   Suspended: "bg-red-100 text-red-700 dark:bg-red-700 dark:text-red-100",
@@ -166,14 +95,6 @@ const statusOptions = [
   { value: "all", label: "All Statuses" },
   { value: "active", label: "Active" },
   { value: "suspended", label: "Suspended" },
-  { value: "trial", label: "Trial" },
-];
-
-const planOptions = [
-  { value: "all", label: "All Plans" },
-  { value: "basic", label: "Basic" },
-  { value: "premium", label: "Premium" },
-  { value: "enterprise", label: "Enterprise" },
   { value: "trial", label: "Trial" },
 ];
 
@@ -197,7 +118,55 @@ export default function AllClientsListPage() {
   const [planComboboxOpen, setPlanComboboxOpen] = React.useState(false);
   const [sortComboboxOpen, setSortComboboxOpen] = React.useState(false);
 
-  const filteredClients = mockClients.filter((client) => {
+  const [clients, setClients] = React.useState<Client[]>([]);
+  const [plans, setPlans] = React.useState<{ id: number; name: string }[]>([]);
+
+  // Fetch clients from API and update state
+  const fetchClients = React.useCallback(() => {
+    fetch('http://localhost:5000/api/clients')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          // Map backend fields to frontend Client type
+          setClients(
+            data.data.map((c: any) => ({
+              id: c.id,
+              name: c.companyName,
+              contactPerson: c.contactPersonName,
+              email: c.companyEmail,
+              phone: c.phoneNumber,
+              clientId: String(c.id), // Ensure clientId is always a string
+              status: c.status || "Active", // Default or map from DB if you have
+              plan: c.planName || "", // planName from join
+              totalCallsMade: c.totalCallsMade || 0, // If you have this in DB, else 0
+              monthlyCallLimit: c.monthlyCallLimit || 0, // If you have this in DB, else 0
+              joinedDate: c.created_at || new Date().toISOString(),
+              avatarUrl: "", // If you have an avatar field, else empty
+            }))
+          );
+        } else {
+          toast({ title: 'Error', description: 'Failed to fetch clients', variant: 'destructive' });
+        }
+      });
+  }, [toast]);
+
+  React.useEffect(() => {
+    fetchClients();
+    // Fetch plans from API
+    fetch('http://localhost:5000/api/plans')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setPlans(data.data.map((p: any) => ({ id: p.id, name: p.name })));
+      });
+  }, [toast, fetchClients]);
+
+  // Plan filter options are now dynamic
+  const dynamicPlanOptions = [
+    { value: "all", label: "All Plans" },
+    ...plans.map((p) => ({ value: p.name.toLowerCase(), label: p.name }))
+  ];
+
+  const filteredClients = clients.filter((client) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
     return (
       (client.name.toLowerCase().includes(lowerSearchTerm) ||
@@ -226,23 +195,65 @@ export default function AllClientsListPage() {
     currentPage * itemsPerPage
   );
 
-  const handleAddClientSuccess = () => {
-    setIsAddClientSheetOpen(false); 
-    // Potentially refresh client list here in a real app
-    toast({ title: "Client Added", description: "The new client has been successfully added." });
+  const handleAddClientSuccess = async (formData: AddClientFormValues) => {
+    // Call backend to add client
+    const response = await fetch('http://localhost:5000/api/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+    const data = await response.json();
+    if (data.success) {
+      setIsAddClientSheetOpen(false);
+      // Refresh client list
+      fetchClients();
+      toast({ title: "Client Added", description: "The new client has been successfully added." });
+    } else {
+      toast({ title: "Error", description: data.message || "Failed to add client", variant: "destructive" });
+    }
   };
 
   const handleExport = (format: "csv" | "excel" | "pdf") => {
+    if (sortedClients.length === 0) return;
+    if (format === "csv") exportAsCSV(sortedClients, 'clients.csv');
+    else if (format === "excel") exportAsExcel(sortedClients, 'clients.xlsx');
+    else if (format === "pdf") exportAsPDF(sortedClients, 'clients.pdf');
     toast({
-      title: `Exporting as ${format.toUpperCase()} (Simulated)`,
-      description: `Preparing ${sortedClients.length} client records for export.`,
+      title: `Exported as ${format.toUpperCase()}`,
+      description: `Downloaded ${sortedClients.length} client records.`,
     });
-    console.log(`Exporting ${format.toUpperCase()} data:`, sortedClients);
-    // In a real app, you would implement the actual export logic here.
-    // For CSV/Excel, you might use a library like 'xlsx' or generate CSV string.
-    // For PDF, you might use 'jspdf' or a server-side solution.
   };
 
+  const handleStatusChange = async (clientId: string, newStatus: 'Active' | 'Suspended') => {
+    try {
+      // 1. Fetch the full client data
+      const resGet = await fetch(`http://localhost:5000/api/clients/${clientId}`);
+      const dataGet = await resGet.json();
+      if (!dataGet.success) {
+        toast({ title: 'Error', description: 'Failed to fetch client data', variant: 'destructive' });
+        return;
+      }
+      // 2. Remove planName (not a DB column)
+      const { planName, ...clientData } = dataGet.data;
+      // 3. Update status
+      clientData.status = newStatus;
+      // 4. Send full object in PUT request
+      const res = await fetch(`http://localhost:5000/api/clients/${clientId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(clientData),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: `Client ${newStatus === 'Suspended' ? 'suspended' : 'activated'} successfully!` });
+        fetchClients();
+      } else {
+        toast({ title: 'Error', description: data.message || 'Failed to update status', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to update status', variant: 'destructive' });
+    }
+  };
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -265,7 +276,10 @@ export default function AllClientsListPage() {
                 Fill in the details below to add a new client to the system.
               </SheetDescription>
             </SheetHeader>
-            <AddClientForm onSuccess={handleAddClientSuccess} />
+            <AddClientForm
+              onSuccess={handleAddClientSuccess}
+              onCancel={() => setIsAddClientSheetOpen(false)}
+            />
           </SheetContent>
         </Sheet>
       </div>
@@ -338,7 +352,7 @@ export default function AllClientsListPage() {
                         className="w-full sm:w-auto md:w-[180px] justify-between"
                       >
                         <FileText className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                        {planOptions.find(p => p.value === planFilter)?.label || "Filter by Plan"}
+                        {dynamicPlanOptions.find(p => p.value === planFilter)?.label || "Filter by Plan"}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
@@ -348,7 +362,7 @@ export default function AllClientsListPage() {
                         <CommandList>
                           <CommandEmpty>No plan found.</CommandEmpty>
                           <CommandGroup>
-                            {planOptions.map(option => (
+                            {dynamicPlanOptions.map(option => (
                               <CommandItem
                                 key={option.value}
                                 value={option.label}
@@ -480,13 +494,14 @@ export default function AllClientsListPage() {
                         <div className="text-xs text-muted-foreground">{client.phone}</div>
                     </TableCell>
                     <TableCell>
-                    <Badge
-                        className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        statusVariants[client.status]
-                        }`}
-                    >
-                        {client.status}
-                    </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusVariants[client.status]}`}>{client.status}</Badge>
+                        <Switch
+                          checked={client.status === "Active"}
+                          onCheckedChange={() => handleStatusChange(client.id, client.status === "Active" ? "Suspended" : "Active")}
+                          aria-label="Toggle client status"
+                        />
+                      </div>
                     </TableCell>
                     <TableCell>{client.plan}</TableCell>
                     <TableCell>{`${client.totalCallsMade} / ${client.monthlyCallLimit}`}</TableCell>
@@ -500,14 +515,15 @@ export default function AllClientsListPage() {
                         </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem asChild>
                             <Link href={`/clients/details-usage?clientId=${client.id}`}>
                                 <Eye className="mr-2 h-4 w-4" /> View Details
                             </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            <Edit2 className="mr-2 h-4 w-4" /> Edit Client
+                        <DropdownMenuItem asChild>
+                            <Link href={`/clients/edit?clientId=${client.id}`}>
+                                <Edit2 className="mr-2 h-4 w-4" /> Edit Client
+                            </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
                             <Link href={`/client-admin/dashboard`}> {}
@@ -516,12 +532,12 @@ export default function AllClientsListPage() {
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {client.status === "Active" && (
-                            <DropdownMenuItem className="text-yellow-600 focus:bg-yellow-50 focus:text-yellow-700">
+                            <DropdownMenuItem className="text-yellow-600 focus:bg-yellow-50 focus:text-yellow-700" onClick={() => handleStatusChange(client.id, 'Suspended')}>
                             <UserX className="mr-2 h-4 w-4" /> Suspend
                             </DropdownMenuItem>
                         )}
                         {client.status === "Suspended" && (
-                            <DropdownMenuItem className="text-green-600 focus:bg-green-50 focus:text-green-700">
+                            <DropdownMenuItem className="text-green-600 focus:bg-green-50 focus:text-green-700" onClick={() => handleStatusChange(client.id, 'Active')}>
                             <UserCheck className="mr-2 h-4 w-4" /> Activate
                             </DropdownMenuItem>
                         )}

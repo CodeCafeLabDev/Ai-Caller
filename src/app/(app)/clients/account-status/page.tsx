@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -23,33 +22,73 @@ import type { Metadata } from 'next';
 //   keywords: ['client status', 'account management', 'suspend client', 'trial management', 'AI Caller'],
 // };
 
-
-const mockClients = [
-  { id: "1", name: "Innovate Corp", status: "Active" },
-  { id: "2", name: "Solutions Ltd", status: "Suspended" },
-  { id: "3", name: "Tech Ventures", status: "Trial" },
-];
+type Client = {
+  id: number | string;
+  companyName?: string;
+  name?: string;
+  status?: string;
+};
 
 export default function AccountStatusManagementPage() {
   const { toast } = useToast();
-  const [selectedClientId, setSelectedClientId] = React.useState<string | undefined>(mockClients[0]?.id);
+  const [clients, setClients] = React.useState<Client[]>([]);
+  const [selectedClientId, setSelectedClientId] = React.useState<string | undefined>(undefined);
   const [expiryDate, setExpiryDate] = React.useState<Date | undefined>();
   const [isTrial, setIsTrial] = React.useState(false);
   const [suspensionReason, setSuspensionReason] = React.useState("");
   const [logNotes, setLogNotes] = React.useState("");
   const [clientComboboxOpen, setClientComboboxOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
 
-  const selectedClient = mockClients.find(c => c.id === selectedClientId);
+  React.useEffect(() => {
+    fetch("http://localhost:5000/api/clients")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data)) {
+          setClients(data.data);
+          if (data.data.length > 0) setSelectedClientId(data.data[0].id.toString());
+        }
+      })
+      .catch(() => {
+        toast({ title: "Failed to fetch clients", description: "Could not load clients from server.", variant: "destructive" });
+      });
+  }, [toast]);
 
-  const handleAction = (actionName: string) => {
+  const selectedClient = clients.find((c) => c.id.toString() === selectedClientId);
+
+  const handleAction = async (actionName: string) => {
     if (!selectedClientId) {
       toast({ title: "No Client Selected", description: "Please select a client first.", variant: "destructive" });
       return;
     }
-    toast({
-      title: `${actionName} (Simulated)`,
-      description: `Action performed on ${selectedClient?.name}.`,
-    });
+    const newStatus = actionName === "Suspend Account" ? "Suspended" : "Active";
+    setLoading(true);
+    try {
+      const res = await fetch(`http://localhost:5000/api/clients/${selectedClientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: newStatus,
+          suspensionReason: actionName === "Suspend Account" ? suspensionReason : null,
+          internalNotes: logNotes,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setClients(prev => prev.map(client =>
+          client.id.toString() === selectedClientId
+            ? { ...client, status: newStatus, suspensionReason: actionName === "Suspend Account" ? suspensionReason : null, internalNotes: logNotes }
+            : client
+        ));
+        toast({ title: `${actionName} Success`, description: `Status updated for ${selectedClient?.companyName || selectedClient?.name}.` });
+      } else {
+        toast({ title: `${actionName} Failed`, description: data.message || "Could not update client status.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: `${actionName} Failed`, description: "Network or server error.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -74,7 +113,7 @@ export default function AccountStatusManagementPage() {
                 className="w-full md:w-1/2 justify-between"
               >
                 {selectedClientId
-                  ? mockClients.find(client => client.id === selectedClientId)?.name
+                  ? clients.find((client) => client.id.toString() === selectedClientId)?.companyName || clients.find((client) => client.id.toString() === selectedClientId)?.name
                   : "Select a client..."}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
@@ -85,23 +124,23 @@ export default function AccountStatusManagementPage() {
                 <CommandList>
                   <CommandEmpty>No client found.</CommandEmpty>
                   <CommandGroup>
-                    {mockClients.map(client => (
+                    {clients.map((client) => (
                       <CommandItem
                         key={client.id}
-                        value={client.name}
+                        value={client.companyName || client.name || ""}
                         onSelect={(currentValue) => {
-                          const clientObj = mockClients.find(c => c.name.toLowerCase() === currentValue.toLowerCase());
-                          setSelectedClientId(clientObj ? clientObj.id : undefined);
+                          const clientObj = clients.find((c) => (c.companyName || c.name)?.toLowerCase() === currentValue.toLowerCase());
+                          setSelectedClientId(clientObj ? clientObj.id.toString() : undefined);
                           setClientComboboxOpen(false);
                         }}
                       >
                         <Check
                           className={cn(
                             "mr-2 h-4 w-4",
-                            selectedClientId === client.id ? "opacity-100" : "opacity-0"
+                            selectedClientId === client.id.toString() ? "opacity-100" : "opacity-0"
                           )}
                         />
-                        {client.name} (Status: {client.status})
+                        {(client.companyName || client.name)}{client.status ? ` (Status: ${client.status})` : ""}
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -120,18 +159,38 @@ export default function AccountStatusManagementPage() {
               <CardDescription>Instantly change the client's account status.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="suspension-reason">Assign Suspension Reason</Label>
+                <Input 
+                  id="suspension-reason" 
+                  placeholder="e.g., Overdue payment, ToS violation" 
+                  value={suspensionReason}
+                  onChange={(e) => setSuspensionReason(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="log-notes">Internal Notes</Label>
+                <Textarea 
+                  id="log-notes"
+                  placeholder="Add any relevant details or context for this status change..."
+                  value={logNotes}
+                  onChange={(e) => setLogNotes(e.target.value)}
+                  className="mt-1 min-h-[100px]"
+                />
+              </div>
               <Button 
                 onClick={() => handleAction("Suspend Account")} 
                 className="w-full" 
                 variant="destructive"
-                disabled={selectedClient.status === "Suspended"}
+                disabled={selectedClient.status === "Suspended" || loading}
               >
                 <Ban className="mr-2 h-4 w-4" /> Suspend Account
               </Button>
               <Button 
                 onClick={() => handleAction("Reactivate Account")} 
                 className="w-full"
-                disabled={selectedClient.status === "Active"}
+                disabled={selectedClient.status === "Active" || loading}
               >
                 <CheckCircle className="mr-2 h-4 w-4" /> Reactivate Account
               </Button>
@@ -175,38 +234,6 @@ export default function AccountStatusManagementPage() {
               </div>
                <Button onClick={() => handleAction("Update Expiry/Trial")} className="w-full mt-2">
                 <Edit className="mr-2 h-4 w-4" /> Update Expiry/Trial Settings
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Log Suspension Reason & Notes</CardTitle>
-              <CardDescription>Keep internal records for account status changes.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="suspension-reason">Assign Suspension Reason</Label>
-                <Input 
-                  id="suspension-reason" 
-                  placeholder="e.g., Overdue payment, ToS violation" 
-                  value={suspensionReason}
-                  onChange={(e) => setSuspensionReason(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="log-notes">Internal Notes</Label>
-                <Textarea 
-                  id="log-notes"
-                  placeholder="Add any relevant details or context for this status change..."
-                  value={logNotes}
-                  onChange={(e) => setLogNotes(e.target.value)}
-                  className="mt-1 min-h-[100px]"
-                />
-              </div>
-              <Button onClick={() => handleAction("Save Reason & Notes")} className="w-full">
-                Save Reason & Notes
               </Button>
             </CardContent>
           </Card>

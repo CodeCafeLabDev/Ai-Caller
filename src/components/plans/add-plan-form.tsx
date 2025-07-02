@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -28,18 +27,19 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 // Removed SheetFooter as action buttons will be on the page
 import type { Plan, PlanStatus } from "@/app/(app)/plans-billing/page";
+import { toast } from "@/components/ui/use-toast";
 
-const planStatusOptions: PlanStatus[] = ["Active", "Draft", "Archived"];
+const planStatusOptions = ["Active", "Draft", "Archived"] as const;
 
 const addPlanFormSchema = z.object({
   name: z.string().min(2, { message: "Plan name must be at least 2 characters." }),
   description: z.string().max(200, { message: "Description must be 200 characters or less." }).optional(),
-  priceMonthly: z.coerce.number().positive({ message: "Monthly price must be positive." }).optional().or(z.literal('')),
-  priceAnnual: z.coerce.number().positive({ message: "Annual price must be positive." }).optional().or(z.literal('')),
+  priceMonthly: z.string().refine((val) => val === '' || !isNaN(Number(val)), { message: "Monthly price must be a number." }),
+  priceAnnual: z.string().refine((val) => val === '' || !isNaN(Number(val)), { message: "Annual price must be a number." }),
   currency: z.string().length(3, { message: "Currency code must be 3 characters (e.g., USD)." }).default("USD"),
-  durationDays: z.coerce.number().int().min(1, { message: "Duration must be at least 1 day." }).optional(),
+  durationDays: z.coerce.number().int().min(1, { message: "Duration must be at least 1 day." }),
   totalCallsAllowedPerMonth: z.string().min(1, { message: "Total calls allowed is required (e.g., '500', 'Unlimited')." }),
-  callDurationPerCallMaxMinutes: z.coerce.number().int().min(1, { message: "Max call duration must be at least 1 minute." }).optional(),
+  callDurationPerCallMaxMinutes: z.coerce.number().int().min(0, { message: "Max call duration must be a non-negative number." }),
   numberOfAgents: z.coerce.number().int().min(1, { message: "Number of agents must be at least 1." }),
   templatesAllowed: z.coerce.number().int().min(0, { message: "Templates allowed must be a non-negative integer." }),
   voicebotUsageCap: z.string().optional(),
@@ -48,10 +48,10 @@ const addPlanFormSchema = z.object({
   reportingAnalytics: z.boolean().default(true),
   liveCallMonitor: z.boolean().default(false),
   overagesAllowed: z.boolean().default(false),
-  overageChargesPer100Calls: z.coerce.number().positive("Overage charge must be positive.").optional().or(z.literal('')),
+  overageChargesPer100Calls: z.string().refine((val) => val === '' || !isNaN(Number(val)), { message: "Overage charge must be a number." }),
   trialEligible: z.boolean().default(false),
   status: z.enum(planStatusOptions).default("Draft"),
-}).refine(data => !data.overagesAllowed || (data.overagesAllowed && data.overageChargesPer100Calls !== undefined && data.overageChargesPer100Calls !== ''), {
+}).refine(data => !data.overagesAllowed || (data.overagesAllowed && data.overageChargesPer100Calls !== ''), {
   message: "Overage charges are required if overages are allowed.",
   path: ["overageChargesPer100Calls"],
 });
@@ -69,12 +69,12 @@ export function AddPlanForm({ onSuccess, onCancel }: AddPlanFormProps) {
     defaultValues: {
       name: "",
       description: "",
-      priceMonthly: undefined,
-      priceAnnual: undefined,
+      priceMonthly: "",
+      priceAnnual: "",
       currency: "USD",
       durationDays: 30,
       totalCallsAllowedPerMonth: "",
-      callDurationPerCallMaxMinutes: undefined,
+      callDurationPerCallMaxMinutes: 0,
       numberOfAgents: 1,
       templatesAllowed: 0,
       voicebotUsageCap: "",
@@ -83,33 +83,56 @@ export function AddPlanForm({ onSuccess, onCancel }: AddPlanFormProps) {
       reportingAnalytics: true,
       liveCallMonitor: false,
       overagesAllowed: false,
-      overageChargesPer100Calls: undefined,
+      overageChargesPer100Calls: "",
       trialEligible: false,
-      status: "Draft",
+      status: "Draft" as const,
     },
   });
 
   const overagesAllowed = form.watch("overagesAllowed");
 
-  function onSubmit(data: AddPlanFormValues) {
-    const submittedData: Omit<Plan, "id"> = {
-      ...data,
-      priceMonthly: data.priceMonthly === '' || data.priceMonthly === undefined ? undefined : Number(data.priceMonthly),
-      priceAnnual: data.priceAnnual === '' || data.priceAnnual === undefined ? undefined : Number(data.priceAnnual),
-      durationDays: data.durationDays === undefined ? undefined : Number(data.durationDays),
-      callDurationPerCallMaxMinutes: data.callDurationPerCallMaxMinutes === undefined ? undefined : Number(data.callDurationPerCallMaxMinutes),
-      numberOfAgents: Number(data.numberOfAgents),
-      templatesAllowed: Number(data.templatesAllowed),
-      overageChargesPer100Calls: data.overageChargesPer100Calls === '' || data.overageChargesPer100Calls === undefined ? undefined : Number(data.overageChargesPer100Calls),
-    };
-    
-    const newPlanObject: Plan = {
-      id: `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      ...submittedData,
-    };
-    console.log("New Plan Data (Simulated):", newPlanObject);
-    form.reset();
-    onSuccess(newPlanObject);
+  async function onSubmit(data: AddPlanFormValues) {
+    try {
+      const submittedData: Omit<Plan, "id"> = {
+        ...data,
+        priceMonthly: data.priceMonthly === '' ? undefined : Number(data.priceMonthly),
+        priceAnnual: data.priceAnnual === '' ? undefined : Number(data.priceAnnual),
+        durationDays: Number(data.durationDays),
+        callDurationPerCallMaxMinutes: Number(data.callDurationPerCallMaxMinutes),
+        numberOfAgents: Number(data.numberOfAgents),
+        templatesAllowed: Number(data.templatesAllowed),
+        overageChargesPer100Calls: data.overageChargesPer100Calls === '' ? undefined : Number(data.overageChargesPer100Calls),
+      };
+
+      console.log("Submitting plan data:", submittedData);
+
+      const response = await fetch('http://localhost:5000/api/plans', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submittedData),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        form.reset();
+        onSuccess(result.data);
+      } else {
+        console.error('Server error:', result);
+        throw new Error(result.message || result.error || 'Failed to create plan');
+      }
+    } catch (error) {
+      console.error('Error creating plan:', error);
+      // Show error toast
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create plan",
+        variant: "destructive",
+      });
+      throw error;
+    }
   }
 
   return (
@@ -352,12 +375,13 @@ export function AddPlanForm({ onSuccess, onCancel }: AddPlanFormProps) {
             <p className="text-xs text-muted-foreground pt-2">* Required fields</p>
           </div>
         </ScrollArea>
-        {/* Buttons are now handled by the parent page */}
-        <div className="pt-6 flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-            <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Saving Plan..." : "Save Plan"}
-            </Button>
+        <div className="pt-4 px-2 mt-auto border-t flex justify-end gap-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? "Creating Plan..." : "Save Plan"}
+          </Button>
         </div>
       </form>
     </Form>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -33,7 +32,6 @@ const addClientFormSchema = z.object({
   address: z.string().optional(),
   contactPersonName: z.string().min(2, { message: "Contact person name must be at least 2 characters." }),
   domainSubdomain: z.string().optional(),
-  assignedPlan: z.string({ required_error: "Please select a plan." }),
   apiAccess: z.boolean().default(false),
   trialMode: z.boolean().default(false),
   trialDuration: z.coerce.number().optional(), 
@@ -66,23 +64,35 @@ export type AddClientFormValues = z.infer<typeof addClientFormSchema>;
 
 interface AddClientFormProps {
   onSuccess: (data: AddClientFormValues) => void;
-  onCancel: () => void; // Added onCancel prop
+  onCancel: () => void;
+  client?: any; // for edit, optional
 }
 
-const availablePlans = ["Basic", "Premium", "Enterprise", "Trial"];
-
-export function AddClientForm({ onSuccess, onCancel }: AddClientFormProps) {
+export function AddClientForm({ onSuccess, onCancel, client }: AddClientFormProps) {
   const [planComboboxOpen, setPlanComboboxOpen] = React.useState(false);
   const form = useForm<AddClientFormValues>({
     resolver: zodResolver(addClientFormSchema),
-    defaultValues: {
+    defaultValues: client ? {
+      companyName: client.companyName || "",
+      companyEmail: client.companyEmail || "",
+      phoneNumber: client.phoneNumber || "",
+      address: client.address || "",
+      contactPersonName: client.contactPersonName || "",
+      domainSubdomain: client.domainSubdomain || "",
+      apiAccess: client.apiAccess || false,
+      trialMode: client.trialMode || false,
+      trialDuration: client.trialDuration || undefined,
+      trialCallLimit: client.trialCallLimit || undefined,
+      adminPassword: "",
+      confirmAdminPassword: "",
+      autoSendLoginEmail: client.autoSendLoginEmail !== undefined ? client.autoSendLoginEmail : true,
+    } : {
       companyName: "",
       companyEmail: "",
       phoneNumber: "",
       address: "",
       contactPersonName: "",
       domainSubdomain: "",
-      assignedPlan: undefined,
       apiAccess: false,
       trialMode: false,
       trialDuration: undefined,
@@ -96,7 +106,6 @@ export function AddClientForm({ onSuccess, onCancel }: AddClientFormProps) {
   const trialModeEnabled = form.watch("trialMode");
 
   function onSubmit(data: AddClientFormValues) {
-    console.log("New Client Data (from AddClientForm):", data);
     onSuccess(data);
     form.reset();
   }
@@ -188,66 +197,6 @@ export function AddClientForm({ onSuccess, onCancel }: AddClientFormProps) {
                   <FormDescription>
                     Relevant for multi-tenant setups.
                   </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="assignedPlan"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Assign Plan</FormLabel>
-                  <Popover open={planComboboxOpen} onOpenChange={setPlanComboboxOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className={cn(
-                            "w-full justify-between h-9 text-sm",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value
-                            ? availablePlans.find(plan => plan.toLowerCase() === field.value)
-                            : "Select a plan"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                      <Command>
-                        <CommandInput placeholder="Search plan..." />
-                        <CommandList>
-                          <CommandEmpty>No plan found.</CommandEmpty>
-                          <CommandGroup>
-                            {availablePlans.map(plan => (
-                              <CommandItem
-                                value={plan}
-                                key={plan}
-                                onSelect={() => {
-                                  form.setValue("assignedPlan", plan.toLowerCase());
-                                  setPlanComboboxOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    plan.toLowerCase() === field.value
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                                {plan}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
                   <FormMessage />
                 </FormItem>
               )}
@@ -378,14 +327,29 @@ export function AddClientForm({ onSuccess, onCancel }: AddClientFormProps) {
             />
           </div>
         </ScrollArea>
-        <SheetFooter className="pt-4 px-2 mt-auto border-t">
-            <SheetClose asChild>
-                <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-            </SheetClose>
-            <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? "Adding Client..." : "Add Client"}
-            </Button>
-        </SheetFooter>
+        <div className="pt-4 px-2 mt-auto border-t flex justify-end gap-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={form.formState.isSubmitting}
+            onClick={async (e) => {
+              // Let the form handle validation and submission
+              // But also ensure we call the backend to save to DB
+              // Prevent double submit if already submitting
+              if (form.formState.isSubmitting) return;
+              // Let react-hook-form handle submit, but for clarity, you could also call form.handleSubmit here
+              // (the <form> element already handles submit, so this is just for explicitness)
+              // If you want to handle here, you could do:
+              // e.preventDefault();
+              // await form.handleSubmit(onSubmit)();
+              // But in this case, just let the form submit event handle it.
+            }}
+          >
+            {form.formState.isSubmitting ? "Saving..." : client ? "Save Changes" : "Add Client"}
+          </Button>
+        </div>
       </form>
     </Form>
   );
