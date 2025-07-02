@@ -575,6 +575,57 @@ app.put("/api/client-users/:id/status", (req, res) => {
   );
 });
 
+// --- Admin Roles API ---
+// GET all admin roles
+app.get('/api/admin_roles', (req, res) => {
+  db.query('SELECT * FROM admin_roles ORDER BY id DESC', (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    res.json({ success: true, data: results });
+  });
+});
+
+// POST new admin role
+app.post('/api/admin_roles', (req, res) => {
+  const { name, description, permission_summary, status } = req.body;
+  db.query(
+    'INSERT INTO admin_roles (name, description, permission_summary, status) VALUES (?, ?, ?, ?)',
+    [name, description, permission_summary, status],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+      db.query('SELECT * FROM admin_roles WHERE id = ?', [result.insertId], (err2, rows) => {
+        if (err2) return res.status(500).json({ success: false, message: err2.message });
+        res.json({ success: true, data: rows[0] });
+      });
+    }
+  );
+});
+
+// PUT update an admin role
+app.put('/api/admin_roles/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, description, permission_summary, status } = req.body;
+  db.query(
+    'UPDATE admin_roles SET name = ?, description = ?, permission_summary = ?, status = ? WHERE id = ?',
+    [name, description, permission_summary, status, id],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+      db.query('SELECT * FROM admin_roles WHERE id = ?', [id], (err2, rows) => {
+        if (err2) return res.status(500).json({ success: false, message: err2.message });
+        res.json({ success: true, data: rows[0] });
+      });
+    }
+  );
+});
+
+// DELETE an admin role
+app.delete('/api/admin_roles/:id', (req, res) => {
+  const { id } = req.params;
+  db.query('DELETE FROM admin_roles WHERE id = ?', [id], (err, result) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    res.json({ success: true, message: 'Role deleted successfully' });
+  });
+});
+
 // Start server
 app.listen(5000, () => {
   console.log("🚀 Server running at http://localhost:5000");

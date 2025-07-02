@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/use-toast";
 
 // Define the Role type
 interface Role {
@@ -45,6 +46,7 @@ export default function RolesCreatePage() {
   const [roles, setRoles] = React.useState<Role[]>([]);
   const [loading, setLoading] = React.useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
   // Fetch roles from backend
   const fetchRoles = async () => {
@@ -77,7 +79,11 @@ export default function RolesCreatePage() {
     setLoading(false);
     if (res.ok) {
       form.reset();
-      router.push("/users-admins");
+      fetchRoles();
+      toast({ title: "Role Created", description: "The admin role was created successfully." });
+      setTimeout(() => {
+        router.push("/users-admins");
+      }, 1000);
     } else {
       alert("Failed to add role");
     }

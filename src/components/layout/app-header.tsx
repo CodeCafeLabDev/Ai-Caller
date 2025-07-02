@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -68,10 +67,8 @@ export function AppHeader() {
   };
 
   const quickActionItems = [
-    { text: "Add Client", icon: UserPlus, action: () => setIsAddClientSheetOpen(true) },
-    { text: "New Plan", icon: FilePlus, action: () => {
-        router.push('/plans-billing/create');
-    } },
+    { text: "Add Client", icon: UserPlus, action: () => router.push('/clients/list?addClient=1') },
+    { text: "New Plan", icon: FilePlus, action: () => router.push('/plans-billing/create') },
     { text: "Create Template", icon: FileTextIcon, action: () => {
         router.push('/ai-templates/create');
     } },

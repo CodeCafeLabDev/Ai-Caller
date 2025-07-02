@@ -56,7 +56,8 @@ interface AdminRole {
   id: string;
   name: string;
   description: string;
-  permissionsSummary: string; 
+  permissionsSummary?: string;
+  permission_summary?: string;
   status: AdminRoleStatus;
 }
 
@@ -83,7 +84,7 @@ export default function UsersAdminsPage() {
   const router = useRouter();
 
   React.useEffect(() => {
-    fetch("http://localhost:5000/api/admin-roles")
+    fetch("http://localhost:5000/api/admin_roles")
       .then(res => res.json())
       .then(data => {
         if (data.success) setAdminRoles(data.data);
@@ -295,7 +296,7 @@ export default function UsersAdminsPage() {
                 <TableRow key={role.id}>
                   <TableCell className="font-medium">{role.name}</TableCell>
                   <TableCell className="max-w-sm truncate" title={role.description}>{role.description}</TableCell>
-                  <TableCell className="max-w-xs truncate" title={role.permissionsSummary}>{role.permissionsSummary}</TableCell>
+                  <TableCell className="max-w-xs truncate" title={role.permission_summary || role.permissionsSummary}>{role.permission_summary || role.permissionsSummary}</TableCell>
                   <TableCell>
                     <Badge className={adminRoleStatusVariants[role.status]}>{role.status}</Badge>
                   </TableCell>

@@ -66,6 +66,7 @@ import { useToast } from "@/components/ui/use-toast";
 import type { AddClientFormValues } from "@/components/clients/add-client-form";
 import { Switch } from "@/components/ui/switch";
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '@/lib/exportUtils';
+import { useSearchParams } from "next/navigation";
 
 // Removed: export const metadata: Metadata = { ... };
 
@@ -108,6 +109,7 @@ const sortOptions = [
 
 export default function AllClientsListPage() {
   const { toast } = useToast(); 
+  const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planFilter, setPlanFilter] = React.useState("all");
@@ -159,6 +161,12 @@ export default function AllClientsListPage() {
         if (data.success) setPlans(data.data.map((p: any) => ({ id: p.id, name: p.name })));
       });
   }, [toast, fetchClients]);
+
+  React.useEffect(() => {
+    if (searchParams.get('addClient') === '1') {
+      setIsAddClientSheetOpen(true);
+    }
+  }, [searchParams]);
 
   // Plan filter options are now dynamic
   const dynamicPlanOptions = [
