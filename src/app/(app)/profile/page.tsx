@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,6 +19,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import type { Metadata } from 'next';
+import ProfilePictureUploader from "@/components/ui/ProfilePictureUploader";
+import React from "react";
 
 // export const metadata: Metadata = {
 //   title: 'User Profile - AI Caller',
@@ -44,18 +45,66 @@ const passwordFormSchema = z.object({
 
 export default function ProfilePage() {
   const { toast } = useToast();
-
-  const profileForm = useForm<z.infer<typeof profileFormSchema>>({
-    resolver: zodResolver(profileFormSchema),
-    defaultValues: {
-      fullName: "Admin User",
-      email: "admin@AI Caller.com",
-      bio: "Platform administrator for AI Caller.",
-    },
+  const [loading, setLoading] = React.useState(true);
+  const [profile, setProfile] = React.useState({
+    id: '',
+    name: '',
+    email: '',
+    bio: '',
+    profile_picture: '',
   });
+  const [saving, setSaving] = React.useState(false);
 
-  const passwordForm = useForm<z.infer<typeof passwordFormSchema>>({
-    resolver: zodResolver(passwordFormSchema),
+  React.useEffect(() => {
+    // Simulate auth: use a hardcoded user ID for demo
+    fetch("http://localhost:5000/api/admin_users/me", {
+      headers: { "x-user-id": "1" },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setProfile(data.data);
+        }
+        setLoading(false);
+      });
+  }, []);
+
+  const handleChange = (e) => {
+    setProfile({ ...profile, [e.target.name]: e.target.value });
+  };
+
+  const handlePictureChange = (url) => {
+    setProfile({ ...profile, profile_picture: url });
+  };
+
+  const handleDeletePicture = async () => {
+    await fetch("http://localhost:5000/api/admin_users/me/profile-picture", {
+      method: "DELETE",
+      headers: { "x-user-id": "1" },
+    });
+    setProfile({ ...profile, profile_picture: "" });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const res = await fetch("http://localhost:5000/api/admin_users/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "x-user-id": "1" },
+      body: JSON.stringify({
+        name: profile.name,
+        bio: profile.bio,
+        profile_picture: profile.profile_picture,
+      }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      toast({ title: "Profile updated!" });
+    } else {
+      toast({ title: "Error updating profile", variant: "destructive" });
+    }
+  };
+
+  const passwordForm = useForm({
     defaultValues: {
       currentPassword: "",
       newPassword: "",
@@ -63,22 +112,11 @@ export default function ProfilePage() {
     },
   });
 
-  function onProfileSubmit(values: z.infer<typeof profileFormSchema>) {
-    console.log("Profile update:", values);
-    toast({
-      title: "Profile Updated",
-      description: "Your profile information has been saved.",
-    });
-  }
+  const onPasswordSubmit = async (data) => {
+    // Handle password change submission
+  };
 
-  function onPasswordSubmit(values: z.infer<typeof passwordFormSchema>) {
-    console.log("Password change:", values);
-    toast({
-      title: "Password Changed",
-      description: "Your password has been successfully updated.",
-    });
-    passwordForm.reset();
-  }
+  if (loading) return <div>Loading...</div>;
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
@@ -90,62 +128,42 @@ export default function ProfilePage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src="https://placehold.co/200x200.png" alt="User Avatar" data-ai-hint="user avatar" />
-              <AvatarFallback>AU</AvatarFallback>
-            </Avatar>
+            <ProfilePictureUploader
+              value={profile.profile_picture}
+              onChange={handlePictureChange}
+              onDelete={handleDeletePicture}
+            />
             <div>
-              <CardTitle className="text-2xl">{profileForm.getValues("fullName")}</CardTitle>
-              <CardDescription>{profileForm.getValues("email")}</CardDescription>
+              <CardTitle className="text-2xl">{profile.name}</CardTitle>
+              <CardDescription>{profile.email}</CardDescription>
             </div>
-            <Button variant="outline" className="ml-auto">Change Picture</Button>
           </div>
         </CardHeader>
         <CardContent>
-          <Form {...profileForm}>
-            <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-6">
-              <FormField
-                control={profileForm.control}
-                name="fullName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Your full name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={profileForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="your@email.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={profileForm.control}
-                name="bio"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bio</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Tell us a little bit about yourself" className="resize-none" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit">Save Profile</Button>
-            </form>
-          </Form>
+          <div className="mb-4">
+            <label className="block font-medium mb-1">Full Name</label>
+            <Input name="name" value={profile.name} onChange={handleChange} />
+          </div>
+          <div className="mb-4">
+            <label className="block font-medium mb-1">Email</label>
+            <Input name="email" value={profile.email} readOnly />
+          </div>
+          <div className="mb-4">
+            <label className="block font-medium mb-1">Bio</label>
+            <textarea
+              name="bio"
+              value={profile.bio}
+              onChange={handleChange}
+              className="w-full border rounded p-2"
+            />
+          </div>
+          <button
+            className="bg-black text-white px-6 py-2 rounded"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Save Profile"}
+          </button>
         </CardContent>
       </Card>
       

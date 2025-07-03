@@ -2,6 +2,9 @@
 const express = require("express");
 const mysql = require("mysql");
 const cors = require("cors");
+const bcrypt = require('bcrypt');
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
 
 console.log("🟡 Starting backend server...");
 
@@ -285,17 +288,28 @@ app.delete("/api/plans/:id", (req, res) => {
   });
 });
 
-// Get all clients
+// Get all clients (show latest assigned plan)
 app.get("/api/clients", (req, res) => {
-  db.query(
-    `SELECT clients.*, plans.name AS planName FROM clients LEFT JOIN plans ON clients.plan_id = plans.id`,
-    (err, results) => {
-      if (err) {
-        return res.status(500).json({ success: false, message: "Failed to fetch clients", error: err });
-      }
-      res.json({ success: true, data: results });
+  // Join with assigned_plans to get the most recent plan assignment for each client
+  const sql = `
+    SELECT c.*, p.name AS planName
+    FROM clients c
+    LEFT JOIN (
+      SELECT ap1.* FROM assigned_plans ap1
+      INNER JOIN (
+        SELECT client_id, MAX(start_date) AS max_start_date
+        FROM assigned_plans
+        GROUP BY client_id
+      ) ap2 ON ap1.client_id = ap2.client_id AND ap1.start_date = ap2.max_start_date
+    ) ap ON c.id = ap.client_id
+    LEFT JOIN plans p ON ap.plan_id = p.id
+  `;
+  db.query(sql, (err, results) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: "Failed to fetch clients", error: err });
     }
-  );
+    res.json({ success: true, data: results });
+  });
 });
 
 // Get a single client by id
@@ -543,19 +557,25 @@ app.delete("/api/client-users/:id", (req, res) => {
 // Reset a client user's password
 app.post("/api/client-users/:id/reset-password", (req, res) => {
   const userId = req.params.id;
-  const { password } = req.body;
-  if (!password) {
-    return res.status(400).json({ success: false, message: "Password is required" });
-  }
-  db.query(
-    "UPDATE client_users SET password = ? WHERE id = ?",
-    [password, userId],
-    (err, result) => {
-      if (err) return res.status(500).json({ success: false, message: "Failed to reset password", error: err });
-      if (result.affectedRows === 0) return res.status(404).json({ success: false, message: "User not found" });
-      res.json({ success: true, message: "Password reset successfully" });
+  const { oldPassword, password } = req.body;
+
+  db.query('SELECT password FROM client_users WHERE id = ?', [userId], async (err, results) => {
+    if (err || results.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
-  );
+    const hashedPassword = results[0].password;
+    const match = await bcrypt.compare(oldPassword, hashedPassword);
+    if (!match) {
+      return res.status(400).json({ success: false, message: 'Old password is incorrect' });
+    }
+    const newHashedPassword = await bcrypt.hash(password, 10);
+    db.query('UPDATE client_users SET password = ? WHERE id = ?', [newHashedPassword, userId], (err2) => {
+      if (err2) {
+        return res.status(500).json({ success: false, message: 'Failed to update password' });
+      }
+      res.json({ success: true, message: 'Password updated successfully' });
+    });
+  });
 });
 
 // Activate or deactivate a client user (only updates status)
@@ -623,6 +643,218 @@ app.delete('/api/admin_roles/:id', (req, res) => {
   db.query('DELETE FROM admin_roles WHERE id = ?', [id], (err, result) => {
     if (err) return res.status(500).json({ success: false, message: err.message });
     res.json({ success: true, message: 'Role deleted successfully' });
+  });
+});
+
+// GET a single admin role by id
+app.get('/api/admin_roles/:id', (req, res) => {
+  db.query('SELECT * FROM admin_roles WHERE id = ?', [req.params.id], (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (results.length === 0) return res.status(404).json({ success: false, message: "Role not found" });
+    res.json({ success: true, data: results[0] });
+  });
+});
+
+// Assign a plan to a client (insert into assigned_plans and update clients.plan_id)
+app.post("/api/assigned-plans", (req, res) => {
+  console.log("Assign Plan Request Body:", req.body);
+  const {
+    client_id,
+    plan_id,
+    start_date,
+    duration_override_days,
+    is_trial,
+    discount_type,
+    discount_value,
+    notes,
+    auto_send_notifications
+  } = req.body;
+
+  const sql = `
+    INSERT INTO assigned_plans
+    (client_id, plan_id, start_date, duration_override_days, is_trial, discount_type, discount_value, notes, auto_send_notifications)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.query(
+    sql,
+    [
+      client_id,
+      plan_id,
+      start_date ? new Date(start_date) : null,
+      duration_override_days || null,
+      is_trial || false,
+      discount_type || null,
+      discount_value || null,
+      notes || null,
+      auto_send_notifications || false
+    ],
+    (err, result) => {
+      if (err) {
+        console.error("Failed to assign plan:", err);
+        return res.status(500).json({ success: false, message: "Failed to assign plan", error: err });
+      }
+      // Also update the client's plan_id
+      db.query(
+        "UPDATE clients SET plan_id = ? WHERE id = ?",
+        [plan_id, client_id],
+        (err2) => {
+          if (err2) {
+            console.error("Failed to update client's plan_id:", err2);
+            return res.status(500).json({ success: false, message: "Plan assigned but failed to update client", error: err2 });
+          }
+          res.status(201).json({ success: true, message: "Plan assigned successfully" });
+        }
+      );
+    }
+  );
+});
+
+// --- Admin Users API ---
+// Get all admin users
+app.get('/api/admin_users', (req, res) => {
+  db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users ORDER BY id DESC', (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    res.json({ success: true, data: results });
+  });
+});
+
+// Get a single admin user by id
+app.get('/api/admin_users/:id', (req, res) => {
+  db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [req.params.id], (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (results.length === 0) return res.status(404).json({ success: false, message: 'Admin user not found' });
+    res.json({ success: true, data: results[0] });
+  });
+});
+
+// Create a new admin user
+app.post('/api/admin_users', async (req, res) => {
+  try {
+    const { name, email, roleName, password, lastLogin, status } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    db.query(
+      'INSERT INTO admin_users (name, email, roleName, password, lastLogin, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, email, roleName, hashedPassword, lastLogin, status],
+      (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [result.insertId], (err2, rows) => {
+          if (err2) return res.status(500).json({ success: false, message: err2.message });
+          res.status(201).json({ success: true, data: rows[0] });
+        });
+      }
+    );
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Update an admin user
+app.put('/api/admin_users/:id', async (req, res) => {
+  try {
+    const { name, email, roleName, password, lastLogin, status } = req.body;
+    let updateFields = [name, email, roleName, lastLogin, status, req.params.id];
+    let query = 'UPDATE admin_users SET name = ?, email = ?, roleName = ?, lastLogin = ?, status = ? WHERE id = ?';
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      query = 'UPDATE admin_users SET name = ?, email = ?, roleName = ?, password = ?, lastLogin = ?, status = ? WHERE id = ?';
+      updateFields = [name, email, roleName, hashedPassword, lastLogin, status, req.params.id];
+    }
+    db.query(query, updateFields, (err) => {
+      if (err) return res.status(500).json({ success: false, message: err.message });
+      db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [req.params.id], (err2, rows) => {
+        if (err2) return res.status(500).json({ success: false, message: err2.message });
+        res.json({ success: true, data: rows[0] });
+      });
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Delete an admin user
+app.delete('/api/admin_users/:id', (req, res) => {
+  db.query('DELETE FROM admin_users WHERE id = ?', [req.params.id], (err, result) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Admin user not found' });
+    res.json({ success: true, message: 'Admin user deleted successfully' });
+  });
+});
+
+// Force logout an admin user
+app.post('/api/admin_users/:id/force-logout', (req, res) => {
+  // Implement session/token invalidation here if needed
+  res.json({ success: true, message: 'User has been forced to log out.' });
+});
+
+// Reset an admin user's password
+app.post('/api/admin_users/:id/reset-password', (req, res) => {
+  const userId = req.params.id;
+  const { oldPassword, password } = req.body;
+
+  db.query('SELECT password FROM admin_users WHERE id = ?', [userId], async (err, results) => {
+    if (err || results.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    const hashedPassword = results[0].password;
+    const match = await bcrypt.compare(oldPassword, hashedPassword);
+    if (!match) {
+      return res.status(400).json({ success: false, message: 'Old password is incorrect' });
+    }
+    const newHashedPassword = await bcrypt.hash(password, 10);
+    db.query('UPDATE admin_users SET password = ? WHERE id = ?', [newHashedPassword, userId], (err2) => {
+      if (err2) {
+        return res.status(500).json({ success: false, message: 'Failed to update password' });
+      }
+      res.json({ success: true, message: 'Password updated successfully' });
+    });
+  });
+});
+
+// Get current admin user's profile
+app.get('/api/admin_users/me', (req, res) => {
+  const userId = req.header('x-user-id');
+  if (!userId) return res.status(401).json({ success: false, message: 'Missing user ID' });
+  db.query('SELECT id, name, email, bio, profile_picture FROM admin_users WHERE id = ?', [userId], (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (results.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
+    res.json({ success: true, data: results[0] });
+  });
+});
+
+// Update current admin user's profile
+app.patch('/api/admin_users/me', (req, res) => {
+  const userId = req.header('x-user-id');
+  if (!userId) return res.status(401).json({ success: false, message: 'Missing user ID' });
+  const { name, bio, profile_picture } = req.body;
+  db.query('UPDATE admin_users SET name = ?, bio = ?, profile_picture = ? WHERE id = ?', [name, bio, profile_picture, userId], (err) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    db.query('SELECT id, name, email, bio, profile_picture FROM admin_users WHERE id = ?', [userId], (err2, results) => {
+      if (err2) return res.status(500).json({ success: false, message: err2.message });
+      res.json({ success: true, data: results[0] });
+    });
+  });
+});
+
+// Upload profile picture
+app.post('/api/admin_users/me/profile-picture', upload.single('profile_picture'), (req, res) => {
+  const userId = req.header('x-user-id');
+  if (!userId) return res.status(401).json({ success: false, message: 'Missing user ID' });
+  if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+  const filePath = `/uploads/${req.file.filename}`;
+  db.query('UPDATE admin_users SET profile_picture = ? WHERE id = ?', [filePath, userId], (err) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    res.json({ success: true, profile_picture: filePath });
+  });
+});
+
+// Delete profile picture
+app.delete('/api/admin_users/me/profile-picture', (req, res) => {
+  const userId = req.header('x-user-id');
+  if (!userId) return res.status(401).json({ success: false, message: 'Missing user ID' });
+  db.query('UPDATE admin_users SET profile_picture = NULL WHERE id = ?', [userId], (err) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    res.json({ success: true });
   });
 });
 

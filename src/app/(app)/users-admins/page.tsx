@@ -35,6 +35,27 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
+import {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+  SheetClose,
+} from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 // Removed: import type { Metadata } from 'next';
 // Removed: export const metadata: Metadata = { ... };
@@ -61,27 +82,58 @@ interface AdminRole {
   status: AdminRoleStatus;
 }
 
-const initialMockAdminUsers: AdminUser[] = [
-  { id: "admin_1", name: "Super Admin", email: "super@AI Caller.com", roleName: "Super Administrator", lastLogin: "2024-07-22", status: "Active", createdOn: "2023-01-01" },
-  { id: "admin_2", name: "Operations Lead", email: "ops@AI Caller.com", roleName: "Operations Manager", lastLogin: "2024-07-20", status: "Active", createdOn: "2023-02-15" },
-  { id: "admin_3", name: "Support Admin", email: "support_admin@AI Caller.com", roleName: "Support Supervisor", lastLogin: "2024-07-15", status: "Suspended", createdOn: "2023-03-10" },
-  { id: "admin_4", name: "Billing Admin", email: "billing@AI Caller.com", roleName: "Billing Specialist", lastLogin: "2024-07-21", status: "Active", createdOn: "2023-04-01" },
-  { id: "admin_5", name: "Read Only User", email: "readonly@AI Caller.com", roleName: "Read-Only Analyst", lastLogin: "2024-07-18", status: "Active", createdOn: "2023-05-20" },
-];
-
 export default function UsersAdminsPage() {
   const { toast } = useToast();
-  const [adminUsers, setAdminUsers] = React.useState<AdminUser[]>(initialMockAdminUsers);
-  const [adminRoles, setAdminRoles] = React.useState<AdminRole[]>([]);
 
+  const [adminUsers, setAdminUsers] = React.useState<AdminUser[]>([]);
+  const [adminRoles, setAdminRoles] = React.useState<AdminRole[]>([]);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState<string>("All Roles");
   const [statusFilter, setStatusFilter] = React.useState<AdminUserStatus | "All Statuses">("All Statuses");
-  
   const [currentPage, setCurrentPage] = React.useState(1);
-  const itemsPerPage = 5; 
-
+  const itemsPerPage = 5;
   const router = useRouter();
+  const [editPermissionsOpen, setEditPermissionsOpen] = React.useState(false);
+  const [selectedRole, setSelectedRole] = React.useState<AdminRole | null>(null);
+  const [editLoading, setEditLoading] = React.useState(false);
+  const [editForm, setEditForm] = React.useState({ name: "", permission_summary: "" });
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [roleToDelete, setRoleToDelete] = React.useState<AdminRole | null>(null);
+  const [editRoleOpen, setEditRoleOpen] = React.useState(false);
+  const [editRoleLoading, setEditRoleLoading] = React.useState(false);
+  const [editRoleForm, setEditRoleForm] = React.useState({ name: "", description: "", permission_summary: "", status: "active" });
+  const [roleBeingEdited, setRoleBeingEdited] = React.useState<AdminRole | null>(null);
+  const [addAdminOpen, setAddAdminOpen] = React.useState(false);
+  const [addAdminLoading, setAddAdminLoading] = React.useState(false);
+  const [addAdminForm, setAddAdminForm] = React.useState({ name: "", email: "", roleName: "", password: "", confirmPassword: "", status: "Active" });
+  const [createRoleOpen, setCreateRoleOpen] = React.useState(false);
+  const [createRoleLoading, setCreateRoleLoading] = React.useState(false);
+  const [createRoleForm, setCreateRoleForm] = React.useState({ name: "", description: "", permission_summary: "", status: "active" });
+  const [viewDetailsOpen, setViewDetailsOpen] = React.useState(false);
+  const [userDetails, setUserDetails] = React.useState<AdminUser | null>(null);
+  const [userDetailsLoading, setUserDetailsLoading] = React.useState(false);
+  const [editUserOpen, setEditUserOpen] = React.useState(false);
+  const [editUserLoading, setEditUserLoading] = React.useState(false);
+  const [editUserForm, setEditUserForm] = React.useState({ id: '', name: '', email: '', roleName: '', status: 'Active', password: '', confirmPassword: '' });
+  const [resetPasswordOpen, setResetPasswordOpen] = React.useState(false);
+  const [resetPasswordLoading, setResetPasswordLoading] = React.useState(false);
+  const [resetPasswordForm, setResetPasswordForm] = React.useState({ id: '', name: '', oldPassword: '', newPassword: '', confirmPassword: '' });
+  const [forceLogoutOpen, setForceLogoutOpen] = React.useState(false);
+  const [userToForceLogout, setUserToForceLogout] = React.useState<AdminUser | null>(null);
+  const [viewActivityOpen, setViewActivityOpen] = React.useState(false);
+  const [activityLoading, setActivityLoading] = React.useState(false);
+  const [activityLogs, setActivityLogs] = React.useState<{ timestamp: string, type: string }[]>([]);
+  const [activityUser, setActivityUser] = React.useState<AdminUser | null>(null);
+  const [deleteUserDialogOpen, setDeleteUserDialogOpen] = React.useState(false);
+  const [userToDelete, setUserToDelete] = React.useState<AdminUser | null>(null);
+
+  React.useEffect(() => {
+    fetch("http://localhost:5000/api/admin_users")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setAdminUsers(data.data);
+      });
+  }, []);
 
   React.useEffect(() => {
     fetch("http://localhost:5000/api/admin_roles")
@@ -101,7 +153,7 @@ export default function UsersAdminsPage() {
     Archived: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100",
   };
 
-  const uniqueRoles = ["All Roles", ...new Set(initialMockAdminUsers.map(user => user.roleName))];
+  const uniqueRoles = ["All Roles", ...new Set(adminUsers.map(user => user.roleName))];
   const adminStatusOptions: (AdminUserStatus | "All Statuses")[] = ["All Statuses", "Active", "Suspended"];
 
   const handleAdminUserAction = (actionName: string, userName: string, userId?: string) => {
@@ -135,6 +187,272 @@ export default function UsersAdminsPage() {
   const totalAdminUserPages = Math.ceil(filteredAdminUsers.length / itemsPerPage);
   const paginatedAdminUsers = filteredAdminUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  React.useEffect(() => {
+    if (selectedRole) {
+      setEditForm({
+        name: selectedRole.name || "",
+        permission_summary: selectedRole.permission_summary || selectedRole.permissionsSummary || "",
+      });
+    }
+  }, [selectedRole]);
+
+  React.useEffect(() => {
+    if (roleBeingEdited) {
+      setEditRoleForm({
+        name: roleBeingEdited.name || "",
+        description: roleBeingEdited.description || "",
+        permission_summary: roleBeingEdited.permission_summary || roleBeingEdited.permissionsSummary || "",
+        status: (roleBeingEdited.status || "active").toLowerCase(),
+      });
+    }
+  }, [roleBeingEdited]);
+
+  async function handleEditPermissionsSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedRole) return;
+    setEditLoading(true);
+    const res = await fetch(`http://localhost:5000/api/admin_roles/${selectedRole.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...selectedRole,
+        name: editForm.name,
+        permission_summary: editForm.permission_summary,
+      }),
+    });
+    setEditLoading(false);
+    if (res.ok) {
+      const updated = await res.json();
+      setAdminRoles((prev) => prev.map((r) => r.id === selectedRole.id ? { ...r, ...updated.data } : r));
+      setEditPermissionsOpen(false);
+      toast({ title: "Permissions Updated", description: "Role permissions updated successfully." });
+    } else {
+      toast({ title: "Update Failed", description: "Could not update role permissions.", variant: "destructive" });
+    }
+  }
+
+  async function handleDeleteRole() {
+    if (!roleToDelete) return;
+    const res = await fetch(`http://localhost:5000/api/admin_roles/${roleToDelete.id}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      setAdminRoles((prev) => prev.filter((r) => r.id !== roleToDelete.id));
+      toast({ title: "Role Deleted", description: `Role '${roleToDelete.name}' deleted successfully.` });
+    } else {
+      toast({ title: "Delete Failed", description: "Could not delete role.", variant: "destructive" });
+    }
+    setDeleteDialogOpen(false);
+    setRoleToDelete(null);
+  }
+
+  async function handleEditRoleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!roleBeingEdited) return;
+    setEditRoleLoading(true);
+    const res = await fetch(`http://localhost:5000/api/admin_roles/${roleBeingEdited.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editRoleForm),
+    });
+    setEditRoleLoading(false);
+    if (res.ok) {
+      const updated = await res.json();
+      setAdminRoles((prev) => prev.map((r) => r.id === roleBeingEdited.id ? { ...r, ...updated.data } : r));
+      setEditRoleOpen(false);
+      toast({ title: "Role Updated", description: "The admin role was updated successfully." });
+    } else {
+      toast({ title: "Update Failed", description: "Could not update role.", variant: "destructive" });
+    }
+  }
+
+  async function handleAddAdminSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (addAdminForm.password !== addAdminForm.confirmPassword) {
+      toast({ title: "Password Mismatch", description: "Passwords do not match.", variant: "destructive" });
+      return;
+    }
+    setAddAdminLoading(true);
+    const res = await fetch("http://localhost:5000/api/admin_users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...addAdminForm, confirmPassword: undefined }),
+    });
+    setAddAdminLoading(false);
+    if (res.ok) {
+      const created = await res.json();
+      setAdminUsers((prev) => [created.data, ...prev]);
+      setAddAdminOpen(false);
+      setAddAdminForm({ name: "", email: "", roleName: "", password: "", confirmPassword: "", status: "Active" });
+      toast({ title: "Admin User Created", description: "The admin user was created successfully." });
+    } else {
+      toast({ title: "Create Failed", description: "Could not create admin user.", variant: "destructive" });
+    }
+  }
+
+  async function handleCreateRoleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!createRoleForm.name) {
+      toast({ title: "Invalid Role Name", description: "Role name is required.", variant: "destructive" });
+      return;
+    }
+    setCreateRoleLoading(true);
+    const res = await fetch("http://localhost:5000/api/admin_roles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(createRoleForm),
+    });
+    setCreateRoleLoading(false);
+    if (res.ok) {
+      const created = await res.json();
+      setAdminRoles((prev) => [created.data, ...prev]);
+      setCreateRoleOpen(false);
+      setCreateRoleForm({ name: "", description: "", permission_summary: "", status: "active" });
+      toast({ title: "Admin Role Created", description: "The admin role was created successfully." });
+    } else {
+      toast({ title: "Create Failed", description: "Could not create admin role.", variant: "destructive" });
+    }
+  }
+
+  async function handleViewDetails(userId: string) {
+    setUserDetailsLoading(true);
+    setViewDetailsOpen(true);
+    const res = await fetch(`http://localhost:5000/api/admin_users/${userId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setUserDetails(data.data);
+    } else {
+      setUserDetails(null);
+    }
+    setUserDetailsLoading(false);
+  }
+
+  async function handleEditUserOpen(userId: string) {
+    setEditUserLoading(true);
+    setEditUserOpen(true);
+    const res = await fetch(`http://localhost:5000/api/admin_users/${userId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setEditUserForm({
+        id: data.data.id,
+        name: data.data.name || '',
+        email: data.data.email || '',
+        roleName: data.data.roleName || '',
+        status: data.data.status || 'Active',
+        password: '',
+        confirmPassword: '',
+      });
+    }
+    setEditUserLoading(false);
+  }
+
+  async function handleEditUserSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editUserForm.password && editUserForm.password !== editUserForm.confirmPassword) {
+      toast({ title: 'Password Mismatch', description: 'Passwords do not match.', variant: 'destructive' });
+      return;
+    }
+    setEditUserLoading(true);
+    const { confirmPassword, password, ...rest } = editUserForm;
+    const payload: any = { ...rest };
+    if (password) payload.password = password;
+    const res = await fetch(`http://localhost:5000/api/admin_users/${editUserForm.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    setEditUserLoading(false);
+    if (res.ok) {
+      const updated = await res.json();
+      setAdminUsers((prev) => prev.map((u) => u.id === updated.data.id ? { ...u, ...updated.data } : u));
+      setEditUserOpen(false);
+      toast({ title: 'Admin User Updated', description: 'The admin user was updated successfully.' });
+    } else {
+      toast({ title: 'Update Failed', description: 'Could not update admin user.', variant: 'destructive' });
+    }
+  }
+
+  async function handleResetPasswordOpen(userId: string) {
+    setResetPasswordLoading(true);
+    setResetPasswordOpen(true);
+    const res = await fetch(`http://localhost:5000/api/admin_users/${userId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setResetPasswordForm({
+        id: data.data.id,
+        name: data.data.name || '',
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    }
+    setResetPasswordLoading(false);
+  }
+
+  async function handleResetPasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (resetPasswordForm.newPassword !== resetPasswordForm.confirmPassword) {
+      toast({ title: 'Password Mismatch', description: 'New passwords do not match.', variant: 'destructive' });
+      return;
+    }
+    setResetPasswordLoading(true);
+    const res = await fetch(`http://localhost:5000/api/admin_users/${resetPasswordForm.id}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldPassword: resetPasswordForm.oldPassword, password: resetPasswordForm.newPassword }),
+    });
+    setResetPasswordLoading(false);
+    if (res.ok) {
+      setResetPasswordOpen(false);
+      toast({ title: 'Password Reset', description: 'Password was reset successfully.' });
+    } else {
+      toast({ title: 'Reset Failed', description: 'Could not reset password. Please check the old password.', variant: 'destructive' });
+    }
+  }
+
+  async function handleForceLogout() {
+    if (!userToForceLogout) return;
+    const res = await fetch(`http://localhost:5000/api/admin_users/${userToForceLogout.id}/force-logout`, {
+      method: 'POST',
+    });
+    setForceLogoutOpen(false);
+    setUserToForceLogout(null);
+    if (res.ok) {
+      toast({ title: 'User Forced Logout', description: 'The user has been logged out.' });
+    } else {
+      toast({ title: 'Force Logout Failed', description: 'Could not force logout the user.', variant: 'destructive' });
+    }
+  }
+
+  async function handleViewActivity(user: AdminUser) {
+    setActivityUser(user);
+    setActivityLoading(true);
+    setViewActivityOpen(true);
+    const res = await fetch(`http://localhost:5000/api/admin_users/${user.id}/activity`);
+    if (res.ok) {
+      const data = await res.json();
+      setActivityLogs(data.data || []);
+    } else {
+      setActivityLogs([]);
+    }
+    setActivityLoading(false);
+  }
+
+  async function handleDeleteUser() {
+    if (!userToDelete) return;
+    const res = await fetch(`http://localhost:5000/api/admin_users/${userToDelete.id}`, {
+      method: 'DELETE',
+    });
+    if (res.ok) {
+      setAdminUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+      toast({ title: 'User Deleted', description: `User '${userToDelete.name}' deleted successfully.` });
+    } else {
+      toast({ title: 'Delete Failed', description: 'Could not delete user.', variant: 'destructive' });
+    }
+    setDeleteUserDialogOpen(false);
+    setUserToDelete(null);
+  }
+
   return (
     <div className="container mx-auto py-8 space-y-8">
       <div className="flex items-center gap-3">
@@ -151,7 +469,7 @@ export default function UsersAdminsPage() {
             <CardTitle>Admin Users</CardTitle>
             <CardDescription>Manage individual administrative user accounts.</CardDescription>
           </div>
-          <Button onClick={() => toast({ title: "Add New Admin User (Simulated)", description: "Form/dialog to be implemented."})}>
+          <Button onClick={() => setAddAdminOpen(true)}>
             <PlusCircle className="mr-2 h-4 w-4" /> Add New Admin User
           </Button>
         </CardHeader>
@@ -209,7 +527,11 @@ export default function UsersAdminsPage() {
                     <TableCell>
                       <Badge className={cn("text-xs", adminUserStatusVariants[user.status])}>{user.status}</Badge>
                     </TableCell>
-                    <TableCell>{format(new Date(user.lastLogin), "MMM dd, yyyy")}</TableCell>
+                    <TableCell>
+                      {user.lastLogin && new Date(user.lastLogin).getTime() > 0 && user.lastLogin !== '1970-01-01T00:00:00.000Z'
+                        ? format(new Date(user.lastLogin), "MMM dd, yyyy")
+                        : 'N/A'}
+                    </TableCell>
                     <TableCell>{format(new Date(user.createdOn), "MMM dd, yyyy")}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -218,27 +540,44 @@ export default function UsersAdminsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleAdminUserAction("View Details", user.name)}>
+                          <DropdownMenuItem onClick={() => handleViewDetails(user.id)}>
                             <Eye className="mr-2 h-4 w-4" /> View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAdminUserAction("Edit User", user.name)}>
+                          <DropdownMenuItem onClick={() => handleEditUserOpen(user.id)}>
                             <Edit2 className="mr-2 h-4 w-4" /> Edit User
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAdminUserAction(user.status === "Active" ? "Suspend User" : "Activate User", user.name, user.id)}>
-                            {user.status === "Active" ? <UserX className="mr-2 h-4 w-4" /> : <UserCheck className="mr-2 h-4 w-4" />}
-                            {user.status === "Active" ? "Suspend" : "Activate"}
+                          <DropdownMenuItem onClick={async () => {
+                            const newStatus = user.status === 'Active' ? 'Suspended' : 'Active';
+                            // Update backend
+                            const res = await fetch(`http://localhost:5000/api/admin_users/${user.id}`, {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ ...user, status: newStatus }),
+                            });
+                            if (res.ok) {
+                              setAdminUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: newStatus } : u));
+                              toast({ title: `User ${newStatus === 'Suspended' ? 'Suspended' : 'Activated'}`, description: `User status updated to ${newStatus}.` });
+                            } else {
+                              toast({ title: 'Update Failed', description: 'Could not update user status.', variant: 'destructive' });
+                            }
+                          }}>
+                            {user.status === 'Active' ? <UserX className="mr-2 h-4 w-4" /> : <UserCheck className="mr-2 h-4 w-4" />}
+                            {user.status === 'Active' ? 'Suspend' : 'Activate'}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAdminUserAction("Reset Password", user.name)}>
+                          <DropdownMenuItem onClick={() => handleResetPasswordOpen(user.id)}>
                             <KeyRound className="mr-2 h-4 w-4" /> Reset Password
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAdminUserAction("Force Logout", user.name)} disabled={user.status === "Suspended"}>
+                          <DropdownMenuItem
+                            onClick={() => { setUserToForceLogout(user); setForceLogoutOpen(true); }}
+                            disabled={user.status === 'Suspended' || !user.lastLogin}
+                          >
                             <LogOut className="mr-2 h-4 w-4" /> Force Logout
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAdminUserAction("View Activity", user.name)}>
+                          <DropdownMenuItem onClick={() => handleViewActivity(user)}>
                             <Activity className="mr-2 h-4 w-4" /> View Activity
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleAdminUserAction("Delete User", user.name)} className="text-destructive focus:text-destructive">
+                          <DropdownMenuItem onClick={() => { setUserToDelete(user); setDeleteUserDialogOpen(true); }} className="text-destructive focus:text-destructive">
                             <Trash2 className="mr-2 h-4 w-4" /> Delete User
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -276,7 +615,7 @@ export default function UsersAdminsPage() {
             <CardTitle>Admin Roles</CardTitle>
             <CardDescription>Define and manage roles with specific permission sets.</CardDescription>
           </div>
-           <Button onClick={() => router.push("/users-admins/roles-create-page")}>
+           <Button onClick={() => setCreateRoleOpen(true)}>
             <PlusCircle className="mr-2 h-4 w-4" /> Create New Admin Role
           </Button>
         </CardHeader>
@@ -307,16 +646,23 @@ export default function UsersAdminsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Role Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleAdminRoleAction("Edit Role", role.name)}>
+                        <DropdownMenuItem onClick={() => { setRoleBeingEdited(role); setEditRoleOpen(true); }}>
                           <Edit2 className="mr-2 h-4 w-4" /> Edit Role
                         </DropdownMenuItem>
-                         <DropdownMenuItem onClick={() => handleAdminRoleAction("Edit Permissions", role.name)}>
+                         <DropdownMenuItem onClick={() => { setSelectedRole(role); setEditPermissionsOpen(true); }}>
                           <ListChecks className="mr-2 h-4 w-4" /> Edit Permissions
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleAdminRoleAction("Delete Role", role.name)} className="text-destructive focus:text-destructive">
-                           Delete Role
-                        </DropdownMenuItem>
+                        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem
+                              onClick={() => { setRoleToDelete(role); setDeleteDialogOpen(true); }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              Delete Role
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                        </AlertDialog>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -359,6 +705,489 @@ export default function UsersAdminsPage() {
             </Button>
         </CardContent>
       </Card>
+
+      <Sheet open={editPermissionsOpen} onOpenChange={setEditPermissionsOpen}>
+        <SheetContent side="right">
+          <SheetHeader>
+            <SheetTitle>Edit Role Permissions</SheetTitle>
+            <SheetDescription>Update the role name and permissions summary.</SheetDescription>
+          </SheetHeader>
+          <div className="py-4">
+            <form onSubmit={handleEditPermissionsSubmit} className="space-y-6 bg-card p-6 rounded-lg shadow">
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Role Name</label>
+                <Input
+                  value={editForm.name}
+                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Permissions Summary</label>
+                <Input
+                  value={editForm.permission_summary}
+                  onChange={e => setEditForm(f => ({ ...f, permission_summary: e.target.value }))}
+                  required
+                />
+              </div>
+              <SheetFooter>
+                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setEditPermissionsOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={editLoading} className="w-full sm:w-auto">
+                  {editLoading ? "Updating..." : "Update Permissions"}
+                </Button>
+              </SheetFooter>
+            </form>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={editRoleOpen} onOpenChange={setEditRoleOpen}>
+        <SheetContent side="right">
+          <SheetHeader>
+            <SheetTitle>Edit Admin Role</SheetTitle>
+            <SheetDescription>Update all details for this admin role.</SheetDescription>
+          </SheetHeader>
+          <div className="py-4">
+            <form onSubmit={handleEditRoleSubmit} className="space-y-6 bg-card p-6 rounded-lg shadow">
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Role Name*</label>
+                <Input
+                  value={editRoleForm.name}
+                  onChange={e => setEditRoleForm(f => ({ ...f, name: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <Input
+                  value={editRoleForm.description}
+                  onChange={e => setEditRoleForm(f => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Permission Summary</label>
+                <Input
+                  value={editRoleForm.permission_summary}
+                  onChange={e => setEditRoleForm(f => ({ ...f, permission_summary: e.target.value }))}
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Status*</label>
+                <Select value={editRoleForm.status} onValueChange={val => setEditRoleForm(f => ({ ...f, status: val }))}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <SheetFooter>
+                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setEditRoleOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={editRoleLoading} className="w-full sm:w-auto">
+                  {editRoleLoading ? "Updating..." : "Update Role"}
+                </Button>
+              </SheetFooter>
+            </form>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Role?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the role '{roleToDelete?.name}'? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteRole}>Yes, Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Sheet open={addAdminOpen} onOpenChange={setAddAdminOpen}>
+        <SheetContent side="right">
+          <div className="py-6 px-4">
+            <h2 className="text-2xl font-bold mb-1">Add New Admin User</h2>
+            <p className="text-muted-foreground mb-6">Fill in the details below to add a new admin user to the system.</p>
+            <form onSubmit={handleAddAdminSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium mb-1">Name</label>
+                <Input
+                  placeholder="e.g., John Doe"
+                  value={addAdminForm.name}
+                  onChange={e => setAddAdminForm(f => ({ ...f, name: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Email</label>
+                <Input
+                  type="email"
+                  placeholder="e.g., john@company.com"
+                  value={addAdminForm.email}
+                  onChange={e => setAddAdminForm(f => ({ ...f, email: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Role</label>
+                <Select
+                  value={addAdminForm.roleName}
+                  onValueChange={val => setAddAdminForm(f => ({ ...f, roleName: val }))}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {adminRoles.map(role => (
+                      <SelectItem key={role.id} value={role.name}>{role.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Password</label>
+                <Input
+                  type="password"
+                  placeholder="Enter password"
+                  value={addAdminForm.password}
+                  onChange={e => setAddAdminForm(f => ({ ...f, password: e.target.value }))}
+                  required
+                  showPasswordToggle
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Confirm Password</label>
+                <Input
+                  type="password"
+                  placeholder="Re-enter password"
+                  value={addAdminForm.confirmPassword}
+                  onChange={e => setAddAdminForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                  required
+                  showPasswordToggle
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Status</label>
+                <Select value={addAdminForm.status} onValueChange={val => setAddAdminForm(f => ({ ...f, status: val }))}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Suspended">Suspended</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2 mt-6">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setAddAdminOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={addAdminLoading} className="flex-1">
+                  {addAdminLoading ? "Creating..." : "Add Admin User"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={createRoleOpen} onOpenChange={setCreateRoleOpen}>
+        <SheetContent side="right">
+          <div className="py-6 px-4">
+            <h2 className="text-2xl font-bold mb-1">Add New Admin Role</h2>
+            <p className="text-muted-foreground mb-6">Fill in the details below to add a new admin role to the system.</p>
+            <form onSubmit={handleCreateRoleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium mb-1">Role Name</label>
+                <Input
+                  placeholder="e.g., Super Admin"
+                  value={createRoleForm.name}
+                  onChange={e => setCreateRoleForm(f => ({ ...f, name: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <Input
+                  placeholder="e.g., Full system access and control"
+                  value={createRoleForm.description}
+                  onChange={e => setCreateRoleForm(f => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Permission Summary</label>
+                <Input
+                  placeholder="e.g., All Permissions"
+                  value={createRoleForm.permission_summary}
+                  onChange={e => setCreateRoleForm(f => ({ ...f, permission_summary: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Status</label>
+                <Select value={createRoleForm.status} onValueChange={val => setCreateRoleForm(f => ({ ...f, status: val }))}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2 mt-6">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setCreateRoleOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createRoleLoading} className="flex-1">
+                  {createRoleLoading ? "Creating..." : "Add Admin Role"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={viewDetailsOpen} onOpenChange={setViewDetailsOpen}>
+        <SheetContent side="right">
+          <div className="py-6 px-4">
+            <h2 className="text-2xl font-bold mb-1">Admin User Details</h2>
+            <p className="text-muted-foreground mb-6">View all details for this admin user.</p>
+            {userDetailsLoading ? (
+              <div>Loading...</div>
+            ) : userDetails ? (
+              <div className="space-y-4">
+                <div><span className="font-medium">Name:</span> {userDetails.name}</div>
+                <div><span className="font-medium">Email:</span> {userDetails.email}</div>
+                <div><span className="font-medium">Role:</span> {userDetails.roleName}</div>
+                <div><span className="font-medium">Status:</span> {userDetails.status}</div>
+                <div><span className="font-medium">Last Login:</span>
+                  {userDetails.lastLogin && new Date(userDetails.lastLogin).getTime() > 0 && userDetails.lastLogin !== '1970-01-01T00:00:00.000Z'
+                    ? new Date(userDetails.lastLogin).toLocaleString()
+                    : 'N/A'}
+                </div>
+                <div><span className="font-medium">Created On:</span> {userDetails.createdOn ? new Date(userDetails.createdOn).toLocaleString() : '-'}</div>
+              </div>
+            ) : (
+              <div className="text-destructive">Failed to load user details.</div>
+            )}
+            <div className="flex gap-2 mt-6">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setViewDetailsOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={editUserOpen} onOpenChange={setEditUserOpen}>
+        <SheetContent side="right">
+          <div className="py-6 px-4">
+            <h2 className="text-2xl font-bold mb-1">Edit Admin User</h2>
+            <p className="text-muted-foreground mb-6">Edit the details below and submit to update this admin user.</p>
+            {editUserLoading ? (
+              <div>Loading...</div>
+            ) : (
+              <form onSubmit={handleEditUserSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Name</label>
+                  <Input
+                    placeholder="e.g., John Doe"
+                    value={editUserForm.name}
+                    onChange={e => setEditUserForm(f => ({ ...f, name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Email</label>
+                  <Input
+                    type="email"
+                    placeholder="e.g., john@company.com"
+                    value={editUserForm.email}
+                    onChange={e => setEditUserForm(f => ({ ...f, email: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Role</label>
+                  <Select
+                    value={editUserForm.roleName}
+                    onValueChange={val => setEditUserForm(f => ({ ...f, roleName: val }))}
+                  >
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {adminRoles.map(role => (
+                        <SelectItem key={role.id} value={role.name}>{role.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Password</label>
+                  <Input
+                    type="password"
+                    placeholder="Password cannot be changed here."
+                    value={editUserForm.password}
+                    readOnly
+                    disabled
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Status</label>
+                  <Select value={editUserForm.status} onValueChange={val => setEditUserForm(f => ({ ...f, status: val }))}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Suspended">Suspended</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2 mt-6">
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => setEditUserOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={editUserLoading} className="flex-1">
+                    {editUserLoading ? "Updating..." : "Update Admin User"}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
+        <SheetContent side="right">
+          <div className="py-6 px-4">
+            <h2 className="text-2xl font-bold mb-1">Reset Admin Password</h2>
+            <p className="text-muted-foreground mb-6">Change the password for this admin user.</p>
+            {resetPasswordLoading ? (
+              <div>Loading...</div>
+            ) : (
+              <form onSubmit={handleResetPasswordSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Admin Name</label>
+                  <Input value={resetPasswordForm.name} readOnly disabled />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Current Password</label>
+                  <Input
+                    type="password"
+                    placeholder="Enter current password"
+                    value={resetPasswordForm.oldPassword}
+                    onChange={e => setResetPasswordForm(f => ({ ...f, oldPassword: e.target.value }))}
+                    required
+                    showPasswordToggle
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">New Password</label>
+                  <Input
+                    type="password"
+                    placeholder="Enter new password"
+                    value={resetPasswordForm.newPassword}
+                    onChange={e => setResetPasswordForm(f => ({ ...f, newPassword: e.target.value }))}
+                    required
+                    showPasswordToggle
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Confirm Password</label>
+                  <Input
+                    type="password"
+                    placeholder="Re-enter new password"
+                    value={resetPasswordForm.confirmPassword}
+                    onChange={e => setResetPasswordForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                    required
+                    showPasswordToggle
+                  />
+                </div>
+                <div className="flex gap-2 mt-6">
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => setResetPasswordOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={resetPasswordLoading} className="flex-1">
+                    {resetPasswordLoading ? "Resetting..." : "Reset Password"}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog open={forceLogoutOpen} onOpenChange={setForceLogoutOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Force Logout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to force logout {userToForceLogout?.name}? This will immediately end their session.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleForceLogout}>Yes, Force Logout</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Sheet open={viewActivityOpen} onOpenChange={setViewActivityOpen}>
+        <SheetContent side="right">
+          <div className="py-6 px-4">
+            <h2 className="text-2xl font-bold mb-1">User Activity</h2>
+            <p className="text-muted-foreground mb-6">Login and logout activity for {activityUser?.name}.</p>
+            {activityLoading ? (
+              <div>Loading...</div>
+            ) : (
+              <div className="space-y-3">
+                {activityLogs.length === 0 ? (
+                  <div className="text-muted-foreground">No activity found.</div>
+                ) : (
+                  activityLogs.map((log, idx) => (
+                    <div key={idx} className="flex justify-between border-b pb-2">
+                      <span className="font-medium">{log.type}</span>
+                      <span className="text-sm text-muted-foreground">{new Date(log.timestamp).toLocaleString()}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+            <div className="flex gap-2 mt-6">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setViewActivityOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog open={deleteUserDialogOpen} onOpenChange={setDeleteUserDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the user '{userToDelete?.name}'? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteUser}>Yes, Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

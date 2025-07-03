@@ -54,6 +54,7 @@ import type { Metadata } from 'next';
 import { useRouter } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '@/lib/exportUtils';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 
 // export const metadata: Metadata = {
 //   title: 'Subscription Plans - AI Caller',
@@ -100,6 +101,12 @@ export default function PlansBillingPage() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [planTypeFilter, setPlanTypeFilter] = React.useState("all");
   const [isLoading, setIsLoading] = React.useState(true);
+  const [viewPlanOpen, setViewPlanOpen] = React.useState(false);
+  const [planDetails, setPlanDetails] = React.useState<Plan | null>(null);
+  const [planDetailsLoading, setPlanDetailsLoading] = React.useState(false);
+  const [editPlanOpen, setEditPlanOpen] = React.useState(false);
+  const [editPlanDetails, setEditPlanDetails] = React.useState<Plan | null>(null);
+  const [editPlanLoading, setEditPlanLoading] = React.useState(false);
 
   // Fetch plans from API
   const fetchPlans = React.useCallback(async () => {
@@ -175,6 +182,136 @@ export default function PlansBillingPage() {
           variant: "destructive",
         });
       }
+    }
+  };
+
+  const handleViewPlan = async (planId: number) => {
+    setPlanDetailsLoading(true);
+    setViewPlanOpen(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/plans/${planId}`);
+      const data = await response.json();
+      if (data.success && data.data) {
+        setPlanDetails(data.data);
+      } else {
+        setPlanDetails(null);
+        toast({
+          title: "Error",
+          description: "Failed to fetch plan details.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      setPlanDetails(null);
+      toast({
+        title: "Error",
+        description: "Failed to fetch plan details.",
+        variant: "destructive",
+      });
+    } finally {
+      setPlanDetailsLoading(false);
+    }
+  };
+
+  const handleEditPlan = async (planId: number) => {
+    setEditPlanDetails(null);
+    setEditPlanLoading(true);
+    setEditPlanOpen(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/plans/${planId}`);
+      const data = await response.json();
+      if (data.success && data.data) {
+        const plan = data.data;
+        // No normalization needed, just use the value as-is
+        setEditPlanDetails(plan);
+      } else {
+        setEditPlanDetails(null);
+        toast({
+          title: "Error",
+          description: "Failed to fetch plan details for editing.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      setEditPlanDetails(null);
+      toast({
+        title: "Error",
+        description: "Failed to fetch plan details for editing.",
+        variant: "destructive",
+      });
+    } finally {
+      setEditPlanLoading(false);
+    }
+  };
+
+  const handleEditPlanSave = async (updatedPlan: Plan) => {
+    const cleanPlan = { ...updatedPlan };
+    // Do NOT lowercase the status, just send as-is
+    Object.keys(cleanPlan).forEach((key) => {
+      // @ts-ignore
+      if (cleanPlan[key] === undefined) delete cleanPlan[key];
+    });
+    console.log('Submitting plan to backend:', cleanPlan);
+    try {
+      const res = await fetch(`http://localhost:5000/api/plans/${updatedPlan.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cleanPlan),
+      });
+      const result = await res.json();
+      console.log('Backend response:', result);
+      if (res.ok && result.success) {
+        toast({
+          title: "Success",
+          description: "Plan updated successfully",
+        });
+        setEditPlanOpen(false);
+        setEditPlanDetails(null);
+        await fetchPlans(); // Refresh the plans list
+      } else {
+        toast({
+          title: "Error",
+          description: result.message || "Failed to update plan",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update plan",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditPlanCancel = () => {
+    setEditPlanOpen(false);
+    setEditPlanDetails(null);
+  };
+
+  const handleClonePlan = async (planId: number) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/plans/${planId}`);
+      const data = await response.json();
+      if (data.success && data.data) {
+        await navigator.clipboard.writeText(JSON.stringify(data.data, null, 2));
+        toast({
+          title: "Copied!",
+          description: "Plan data copied to clipboard.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch plan data.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy plan data.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -333,16 +470,16 @@ export default function PlansBillingPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleAction("View Plan", plan.name, plan.id)} disabled>
-                          <Eye className="mr-2 h-4 w-4" /> View (Soon)
+                        <DropdownMenuItem onClick={() => handleViewPlan(plan.id)}>
+                          <Eye className="mr-2 h-4 w-4" /> View
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link href={`/plans-billing/edit/${plan.id}`} className="flex items-center">
+                          <Button variant="ghost" className="flex items-center w-full justify-start" onClick={() => handleEditPlan(plan.id)}>
                             <Edit2 className="mr-2 h-4 w-4" /> Edit
-                          </Link>
+                          </Button>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleAction("Clone Plan", plan.name, plan.id)}>
-                          <Copy className="mr-2 h-4 w-4" /> Clone
+                        <DropdownMenuItem onClick={() => handleClonePlan(plan.id)}>
+                          <Copy className="mr-2 h-4 w-4" /> Clone (Copy Data)
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {plan.status !== "Archived" && (
@@ -399,6 +536,67 @@ export default function PlansBillingPage() {
            </div>
         </CardFooter>
       </Card>
+
+      {/* Sheet overlay for viewing plan details */}
+      <Sheet open={viewPlanOpen} onOpenChange={setViewPlanOpen}>
+        <SheetContent side="right">
+          <SheetHeader>
+            <SheetTitle>Plan Details</SheetTitle>
+            <SheetDescription>View all details for this subscription plan.</SheetDescription>
+          </SheetHeader>
+          {planDetailsLoading ? (
+            <div className="py-8 text-center">Loading...</div>
+          ) : planDetails ? (
+            <div className="py-4 space-y-3 text-sm max-h-[70vh] overflow-y-auto">
+              <div><span className="font-medium">Name:</span> {planDetails.name}</div>
+              <div><span className="font-medium">Description:</span> {planDetails.description || "-"}</div>
+              <div><span className="font-medium">Monthly Price:</span> {planDetails.priceMonthly ? `$${planDetails.priceMonthly}` : "-"}</div>
+              <div><span className="font-medium">Annual Price:</span> {planDetails.priceAnnual ? `$${planDetails.priceAnnual}` : "-"}</div>
+              <div><span className="font-medium">Currency:</span> {planDetails.currency}</div>
+              <div><span className="font-medium">Duration (Days):</span> {planDetails.durationDays || "-"}</div>
+              <div><span className="font-medium">Calls/Month:</span> {planDetails.totalCallsAllowedPerMonth}</div>
+              <div><span className="font-medium">Max Call Duration (min):</span> {planDetails.callDurationPerCallMaxMinutes || "-"}</div>
+              <div><span className="font-medium">Agents:</span> {planDetails.numberOfAgents}</div>
+              <div><span className="font-medium">Templates Allowed:</span> {planDetails.templatesAllowed}</div>
+              <div><span className="font-medium">Voicebot Usage Cap:</span> {planDetails.voicebotUsageCap || "-"}</div>
+              <div><span className="font-medium">API Access:</span> {planDetails.apiAccess ? "Yes" : "No"}</div>
+              <div><span className="font-medium">Custom Templates:</span> {planDetails.customTemplates ? "Yes" : "No"}</div>
+              <div><span className="font-medium">Reporting & Analytics:</span> {planDetails.reportingAnalytics ? "Yes" : "No"}</div>
+              <div><span className="font-medium">Live Call Monitor:</span> {planDetails.liveCallMonitor ? "Yes" : "No"}</div>
+              <div><span className="font-medium">Overages Allowed:</span> {planDetails.overagesAllowed ? "Yes" : "No"}</div>
+              <div><span className="font-medium">Overage Charges/100 Calls:</span> {planDetails.overageChargesPer100Calls ? `$${planDetails.overageChargesPer100Calls}` : "-"}</div>
+              <div><span className="font-medium">Trial Eligible:</span> {planDetails.trialEligible ? "Yes" : "No"}</div>
+              <div><span className="font-medium">Status:</span> {planDetails.status}</div>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-destructive">Failed to load plan details.</div>
+          )}
+          <div className="flex gap-2 mt-6">
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setViewPlanOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Sheet overlay for editing plan details */}
+      <Sheet open={editPlanOpen} onOpenChange={setEditPlanOpen}>
+        <SheetContent side="right" className="max-w-lg w-full h-full flex flex-col min-h-0">
+          <SheetHeader>
+            <SheetTitle>Edit Plan</SheetTitle>
+            <SheetDescription>Update the details for this subscription plan.</SheetDescription>
+          </SheetHeader>
+          {editPlanLoading ? (
+            <div className="py-8 text-center">Loading...</div>
+          ) : editPlanDetails ? (
+            <div className="flex-1 flex flex-col min-h-0 h-full">
+              <EditPlanForm plan={editPlanDetails} onSuccess={handleEditPlanSave} onCancel={handleEditPlanCancel} />
+            </div>
+          ) : (
+            <div className="py-8 text-center text-destructive">Failed to load plan details for editing.</div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

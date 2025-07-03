@@ -161,7 +161,7 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
         <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-4 px-2 py-4">
+          <div className="space-y-4 px-2 py-4 pb-2">
             <h3 className="text-lg font-medium text-foreground border-b pb-2 mb-4">Basic Info</h3>
             <FormField
               control={form.control}
@@ -396,7 +396,7 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
              <p className="text-xs text-muted-foreground pt-2">* Required fields</p>
           </div>
         </ScrollArea>
-        <div className="pt-4 px-2 mt-auto border-t flex justify-end gap-4">
+        <div className="px-2 border-t flex justify-end gap-4 bg-background">
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
