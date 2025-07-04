@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import { UserProvider } from '@/lib/utils';
 
 export const metadata: Metadata = {
   title: 'AI Caller',
@@ -21,9 +22,11 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased">
-        <SidebarProvider defaultOpen={true}>
-          {children}
-        </SidebarProvider>
+        <UserProvider>
+          <SidebarProvider defaultOpen={true}>
+            {children}
+          </SidebarProvider>
+        </UserProvider>
         <Toaster />
       </body>
     </html>

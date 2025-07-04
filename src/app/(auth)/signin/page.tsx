@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -20,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/components/ui/use-toast";
 import { signInUserAction } from '@/actions/auth'; 
 import { useState, useTransition } from 'react';
+import { useUser } from '@/lib/utils';
 
 // For this temporary bypass, the user can enter any non-empty string
 // into the "Email" field (acting as a User ID) and any non-empty string for "Password".
@@ -32,6 +32,7 @@ export default function SignInPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
+  const { setUser } = useUser();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -43,24 +44,43 @@ export default function SignInPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     startTransition(async () => {
-      const result = await signInUserAction(values); 
-       
-      if (result.success && result.user) {
-        toast({
-          title: "Sign In Successful (Bypass Mode)",
-          description: `${result.message} Logged in as ${result.user.role}.`,
+      // Call backend login endpoint
+      const loginRes = await fetch("http://localhost:5000/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(values),
+      });
+      const loginData = await loginRes.json();
+      if (loginData.success) {
+        // Fetch user profile using cookie
+        const profileRes = await fetch("http://localhost:5000/api/admin_users/me", {
+          credentials: "include",
         });
-        
-        if (result.user.role === 'client_admin') {
-          router.push("/client-admin/dashboard");
-        } else { // Default to super_admin or any other role
-          router.push("/dashboard");
+        const profileData = await profileRes.json();
+        if (profileData.success) {
+          setUser({
+            userId: profileData.data.id ? profileData.data.id.toString() : '',
+            email: profileData.data.email,
+            fullName: profileData.data.name,
+            role: loginData.user.role,
+          });
+          toast({
+            title: "Sign In Successful",
+            description: `Welcome, ${profileData.data.name}!`,
+          });
+          if (loginData.user.role === 'admin_users') {
+            router.push("/admin_users/dashboard");
+          } else {
+            router.push("/dashboard");
+          }
+        } else {
+          toast({ title: "Failed to fetch profile", variant: "destructive" });
         }
-
       } else {
         toast({
           title: "Sign In Failed",
-          description: result.message || "Invalid input.",
+          description: loginData.message || "Invalid input.",
           variant: "destructive",
         });
       }

@@ -1,7 +1,8 @@
+'use client';
 import * as React from "react"
 import { Eye, EyeOff } from "lucide-react"
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/cn"
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input"> & { showPasswordToggle?: boolean }>(
   ({ className, type, showPasswordToggle, ...props }, ref) => {

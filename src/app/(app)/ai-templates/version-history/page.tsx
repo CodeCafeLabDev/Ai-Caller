@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -46,7 +45,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { MoreHorizontal, Eye, CheckCircle, History, RotateCcw, ChevronsUpDown, Check, Diff } from "lucide-react";
 import { format } from "date-fns";
 import type { Metadata } from 'next';
@@ -276,6 +275,7 @@ export default function AiTemplateVersionHistoryPage() {
       {viewingVersionDetails && (
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
           <DialogContent className="sm:max-w-2xl">
+            <DialogTitle>Version Details</DialogTitle>
             <DialogHeader>
               <DialogTitle>
                 Viewing Version {viewingVersionDetails.versionNumber} of {selectedTemplateName}

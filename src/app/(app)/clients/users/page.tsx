@@ -70,7 +70,7 @@ import {
   ListChecks
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import type { Metadata } from 'next';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { format } from "date-fns";

@@ -39,7 +39,7 @@ import {
   PhoneOutgoing
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { formatDistanceToNow } from "date-fns";
 import type { Metadata } from 'next';
 

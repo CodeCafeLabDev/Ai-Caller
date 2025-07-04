@@ -4,6 +4,7 @@ import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/co
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Select } from '@/components/ui/select';
 
 const ELEVEN_LABS_ID = 'elevenlabs';
 
@@ -22,12 +23,19 @@ const Integrations = () => {
   const [modals, setModals] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modelOptions, setModelOptions] = useState<{model_id: string, name: string}[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [subscriptionInfo, setSubscriptionInfo] = useState<any>(null);
+  const [userInfo, setUserInfo] = useState<any>(null);
+  const [voices, setVoices] = useState<{voice_id: string, name: string}[]>([]);
 
   const handleConfigure = (integrationId: string) => {
     if (integrationId === ELEVEN_LABS_ID) {
       setSheetOpen(true);
+      setError(null);
+      setModelOptions([]);
+      setSelectedModel('');
     } else {
-      // Placeholder for other integrations
       alert('Configuration for this integration is not implemented yet.');
     }
   };
@@ -36,33 +44,67 @@ const Integrations = () => {
     setApiKey(e.target.value);
   };
 
-  const handleConfigureElevenLabs = async () => {
-    setLoading(true);
+  const handleFetchModels = async () => {
     setError(null);
-    setModals([]);
-    try {
-      // Fetch models from Eleven Labs API
-      const response = await fetch('https://api.elevenlabs.io/v1/models', {
-        headers: {
-          'xi-api-key': apiKey,
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Invalid API key or failed to fetch models.');
+    setModelOptions([]);
+    setSelectedModel('');
+    setSubscriptionInfo(null);
+    setUserInfo(null);
+    setVoices([]);
+    if (apiKey) {
+      setLoading(true);
+      try {
+        const response = await fetch('https://api.elevenlabs.io/v1/models', {
+          headers: {
+            'xi-api-key': apiKey,
+          },
+        });
+        if (!response.ok) {
+          throw new Error('Invalid API key or failed to fetch models.');
+        }
+        const data = await response.json();
+        const models = Array.isArray(data) ? data : data.models;
+        setModelOptions(Array.isArray(models) ? models.map((m: any) => ({ model_id: m.model_id, name: m.name })) : []);
+        setIntegrations((prev) =>
+          prev.map((i) =>
+            i.id === ELEVEN_LABS_ID ? { ...i, status: 'Connected' } : i
+          )
+        );
+        // Fetch subscription info
+        const subRes = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
+          headers: {
+            'xi-api-key': apiKey,
+          },
+        });
+        if (subRes.ok) {
+          const subData = await subRes.json();
+          setSubscriptionInfo(subData);
+        }
+        // Fetch user info
+        const userRes = await fetch('https://api.elevenlabs.io/v1/user', {
+          headers: {
+            'xi-api-key': apiKey,
+          },
+        });
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          setUserInfo(userData);
+        }
+        // Fetch voices
+        const voicesRes = await fetch('https://api.elevenlabs.io/v1/voices', {
+          headers: {
+            'xi-api-key': apiKey,
+          },
+        });
+        if (voicesRes.ok) {
+          const voicesData = await voicesRes.json();
+          setVoices(Array.isArray(voicesData.voices) ? voicesData.voices.map((v: any) => ({ voice_id: v.voice_id, name: v.name })) : []);
+        }
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch models.');
+      } finally {
+        setLoading(false);
       }
-      const data = await response.json();
-      // The correct key is 'models', each with 'model_id' and 'name'
-      setModals(Array.isArray(data.models) ? data.models.map((m: any) => `${m.model_id} - ${m.name}`) : []);
-      // Update status to Connected
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          i.id === ELEVEN_LABS_ID ? { ...i, status: 'Connected' } : i
-        )
-      );
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch models.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -113,32 +155,79 @@ const Integrations = () => {
             <SheetTitle>Configure Eleven Labs</SheetTitle>
           </SheetHeader>
           <div className="mt-4 flex flex-col gap-4 h-full">
-            <label className="font-medium">API Key</label>
-            <Input
-              type="text"
-              value={apiKey}
-              onChange={handleApiKeyChange}
-              placeholder="Enter your Eleven Labs API key"
-              className="mb-2"
-            />
-            <Button onClick={handleConfigureElevenLabs} disabled={loading || !apiKey}>
-              {loading ? 'Configuring...' : 'Configure'}
-            </Button>
-            {error && <div className="text-red-500 text-sm mt-2">{error}</div>}
-            {/* Debug: Show raw modals array and message if empty */}
-            {modals.length === 0 && !loading && !error && (
-              <div className="text-muted-foreground text-xs mt-2">No models found or not fetched yet.</div>
-            )}
-            {modals.length > 0 && (
-              <div className="mt-4 flex-1 overflow-y-auto border rounded p-2 max-h-60">
-                <div className="font-semibold mb-2">Modals List</div>
-                <ul className="list-disc pl-5">
-                  {modals.map((modal, idx) => (
-                    <li key={idx}>{modal}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <div className="sticky top-0 z-10 bg-card pb-2">
+              <label className="font-medium">API Key</label>
+              <Input
+                type="text"
+                value={apiKey}
+                onChange={handleApiKeyChange}
+                placeholder="Enter your Eleven Labs API key"
+                className="mb-2"
+              />
+              <Button onClick={handleFetchModels} disabled={loading || !apiKey} className="w-full">
+                {loading ? 'Configuring...' : 'Configure'}
+              </Button>
+            </div>
+            <div className="flex-1 overflow-y-auto pr-1">
+              {error && <div className="text-red-500 text-sm mt-2">{error}</div>}
+              {!loading && !error && modelOptions.length > 0 && (
+                <>
+                  <div className="mt-4">
+                    <label className="font-medium mb-1 block">Select Model</label>
+                    <select
+                      className="w-full border rounded p-2"
+                      value={selectedModel}
+                      onChange={e => setSelectedModel(e.target.value)}
+                    >
+                      <option value="" disabled>Select a model</option>
+                      {modelOptions.map((model) => (
+                        <option key={model.model_id} value={model.model_id}>{model.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {subscriptionInfo && (
+                    <div className="mt-4 p-4 rounded border bg-muted text-sm">
+                      <div className="font-semibold mb-2">User Subscription Info</div>
+                      <div>
+                        {Object.entries(subscriptionInfo).map(([key, value]) => (
+                          <div key={key} className="mb-1">
+                            <span className="font-medium">{key}:</span> {String(value)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {userInfo && (
+                    <div className="mt-4 p-4 rounded border bg-muted text-sm">
+                      <div className="font-semibold mb-2">User Info</div>
+                      <div>
+                        {Object.entries(userInfo).map(([key, value]) => (
+                          <div key={key} className="mb-1">
+                            <span className="font-medium">{key}:</span> {typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {voices.length > 0 && (
+                    <div className="mt-4 p-4 rounded border bg-muted text-sm">
+                      <div className="font-semibold mb-2">Voices</div>
+                      <ul className="list-disc pl-5">
+                        {voices.map((voice) => (
+                          <li key={voice.voice_id} className="mb-2">
+                            <div><span className="font-medium">voice id:</span> {voice.voice_id}</div>
+                            <div><span className="font-medium">name:</span> {voice.name}</div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
+              {!loading && !error && modelOptions.length === 0 && (
+                <div className="text-muted-foreground text-xs mt-2">No models found or not fetched yet.</div>
+              )}
+            </div>
           </div>
         </SheetContent>
       </Sheet>

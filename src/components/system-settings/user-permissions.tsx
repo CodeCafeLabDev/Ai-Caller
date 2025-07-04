@@ -220,12 +220,10 @@ const UserPermissions = () => {
       {editingUser && (
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Edit User</DialogTitle>
-              <DialogDescription>
-                Edit the role for {editingUser.email}.
-              </DialogDescription>
-            </DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Edit the role for {editingUser.email}.
+            </DialogDescription>
             <div className="grid gap-4 py-4">
               <div className="flex flex-col space-y-2">
                 <Label htmlFor="editUserRole">Role</Label>

@@ -41,7 +41,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Calendar } from "@/components/ui/calendar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { format, subDays, addDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {

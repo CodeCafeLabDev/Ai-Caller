@@ -31,7 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { UserCog, PlusCircle, MoreHorizontal, Edit2, UserX, UserCheck, ListChecks, ShieldCheck, Activity, Eye, KeyRound, LogOut, Trash2, Search, ListFilterIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
@@ -56,6 +56,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
+import { useUser } from '@/lib/utils';
 
 // Removed: import type { Metadata } from 'next';
 // Removed: export const metadata: Metadata = { ... };
@@ -84,6 +85,7 @@ interface AdminRole {
 
 export default function UsersAdminsPage() {
   const { toast } = useToast();
+  const { user } = useUser();
 
   const [adminUsers, setAdminUsers] = React.useState<AdminUser[]>([]);
   const [adminRoles, setAdminRoles] = React.useState<AdminRole[]>([]);
@@ -134,6 +136,19 @@ export default function UsersAdminsPage() {
         if (data.success) setAdminUsers(data.data);
       });
   }, []);
+
+  // Refetch admin users if the current user's name or profile picture changes
+  React.useEffect(() => {
+    if (!user) return;
+    // If the current user is in the admin users list, refetch
+    if (adminUsers.some(u => u.id === user.userId)) {
+      fetch("http://localhost:5000/api/admin_users")
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) setAdminUsers(data.data);
+        });
+    }
+  }, [user?.fullName, user]);
 
   React.useEffect(() => {
     fetch("http://localhost:5000/api/admin_roles")

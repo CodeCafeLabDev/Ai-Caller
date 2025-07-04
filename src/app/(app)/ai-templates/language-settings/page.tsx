@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -396,11 +395,9 @@ export default function AiTemplateLanguageSettingsPage() {
       </Dialog>
 
       <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Configure: {currentLangToConfig?.name}</DialogTitle>
-            <DialogDescription>Adjust TTS settings for this language.</DialogDescription>
-          </DialogHeader>
+        <DialogContent>
+          <DialogTitle>Configure Language</DialogTitle>
+          <DialogDescription>Adjust TTS settings for this language.</DialogDescription>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="config-lang-tts">TTS Engine</Label>

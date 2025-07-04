@@ -39,14 +39,14 @@ export default function ProfilePictureUploader({ value, onChange, onDelete }: Pr
     if (!croppedBlob) return;
     const formData = new FormData();
     formData.append("profile_picture", croppedBlob, "profile.jpg");
-    const res = await fetch("http://localhost:5000/api/admin_users/me/profile-picture", {
+    const res = await fetch("http://localhost:5000/api/admin_users/me/avatar_url", {
       method: "POST",
-      headers: { "x-user-id": "1" },
+      credentials: "include",
       body: formData,
     });
     const data = await res.json();
     if (data.success) {
-      onChange(data.profile_picture);
+      onChange(data.avatar_url);
     }
     setShowCrop(false);
   };
@@ -54,7 +54,13 @@ export default function ProfilePictureUploader({ value, onChange, onDelete }: Pr
   return (
     <div className="flex flex-col items-center">
       <img
-        src={value || "/default-avatar.png"}
+        src={
+          value
+            ? value.startsWith('http')
+              ? value
+              : `http://localhost:5000${value}`
+            : "/default-avatar.png"
+        }
         alt="Profile"
         className="w-20 h-20 rounded-full object-cover mb-2"
       />

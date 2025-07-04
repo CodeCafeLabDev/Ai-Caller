@@ -48,7 +48,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { format, subDays, addDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {

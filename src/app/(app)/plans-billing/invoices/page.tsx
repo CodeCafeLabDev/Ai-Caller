@@ -38,7 +38,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { format, addDays, subDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import type { Metadata } from 'next';

@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Ban, CheckCircle, CalendarClock, Edit, Tag, Users, FileDown, PlayCircle, ChevronsUpDown, Check } from "lucide-react";
 import { format } from "date-fns";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {

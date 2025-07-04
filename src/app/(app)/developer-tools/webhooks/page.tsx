@@ -54,7 +54,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { format } from "date-fns";
 import { ArrowRightLeft, PlusCircle, MoreHorizontal, Edit, Trash2, Play, Pause, KeyRound, Copy, Eye, EyeOff, RotateCcw, ListChecks, Sparkles } from "lucide-react";
 import type { Metadata } from 'next';

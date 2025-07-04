@@ -50,7 +50,7 @@ import {
   FileText,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {

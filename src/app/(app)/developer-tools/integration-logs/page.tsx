@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -50,7 +49,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Calendar } from "@/components/ui/calendar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { format, subDays, addDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {
@@ -352,6 +351,7 @@ export default function IntegrationLogsPage() {
       {selectedLogForDetails && (
         <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
             <DialogContent className="sm:max-w-2xl">
+              <DialogTitle>Log Details</DialogTitle>
                 <DialogHeader>
                     <DialogTitle>Log Details: {selectedLogForDetails.id}</DialogTitle>
                     <DialogDescription>

@@ -28,7 +28,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Calendar } from "@/components/ui/calendar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SheetFooter, SheetClose } from "@/components/ui/sheet"; 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { Check, ChevronsUpDown, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import type { Campaign, CampaignType } from "@/app/(app)/campaigns/page";

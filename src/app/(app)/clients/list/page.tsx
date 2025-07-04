@@ -61,7 +61,7 @@ import {
   UserCog, // Added UserCog icon
 } from "lucide-react";
 import { AddClientForm } from "@/components/clients/add-client-form";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { useToast } from "@/components/ui/use-toast"; 
 import type { AddClientFormValues } from "@/components/clients/add-client-form";
 import { Switch } from "@/components/ui/switch";

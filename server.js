@@ -5,12 +5,21 @@ const cors = require("cors");
 const bcrypt = require('bcrypt');
 const multer = require('multer');
 const upload = multer({ dest: 'uploads/' });
+const jwt = require('jsonwebtoken');
+const bcryptjs = require('bcryptjs');
+const cookieParser = require('cookie-parser');
 
 console.log("🟡 Starting backend server...");
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
+
+const JWT_SECRET = 'your-very-secret-key'; // Use env variable in production!
 
 // DB config
 const db = mysql.createConnection({
@@ -719,6 +728,15 @@ app.get('/api/admin_users', (req, res) => {
   });
 });
 
+// Get current admin user's profile
+app.get('/api/admin_users/me', authenticateJWT, (req, res) => {
+  db.query('SELECT * FROM admin_users WHERE id = ?', [req.user.id], (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: 'DB error', error: err });
+    if (!results.length) return res.status(404).json({ success: false, message: 'Admin user not found' });
+    res.json({ success: true, data: results[0] });
+  });
+});
+
 // Get a single admin user by id
 app.get('/api/admin_users/:id', (req, res) => {
   db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [req.params.id], (err, results) => {
@@ -811,52 +829,76 @@ app.post('/api/admin_users/:id/reset-password', (req, res) => {
   });
 });
 
-// Get current admin user's profile
-app.get('/api/admin_users/me', (req, res) => {
-  const userId = req.header('x-user-id');
-  if (!userId) return res.status(401).json({ success: false, message: 'Missing user ID' });
-  db.query('SELECT id, name, email, bio, profile_picture FROM admin_users WHERE id = ?', [userId], (err, results) => {
-    if (err) return res.status(500).json({ success: false, message: err.message });
-    if (results.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, data: results[0] });
-  });
-});
-
 // Update current admin user's profile
-app.patch('/api/admin_users/me', (req, res) => {
-  const userId = req.header('x-user-id');
-  if (!userId) return res.status(401).json({ success: false, message: 'Missing user ID' });
-  const { name, bio, profile_picture } = req.body;
-  db.query('UPDATE admin_users SET name = ?, bio = ?, profile_picture = ? WHERE id = ?', [name, bio, profile_picture, userId], (err) => {
-    if (err) return res.status(500).json({ success: false, message: err.message });
-    db.query('SELECT id, name, email, bio, profile_picture FROM admin_users WHERE id = ?', [userId], (err2, results) => {
-      if (err2) return res.status(500).json({ success: false, message: err2.message });
-      res.json({ success: true, data: results[0] });
-    });
+app.patch('/api/admin_users/me', authenticateJWT, (req, res) => {
+  const { name, avatar_url, bio } = req.body;
+  db.query('UPDATE admin_users SET name = ?, avatar_url = ?, bio = ? WHERE id = ?', [name, avatar_url, bio, req.user.id], (err, result) => {
+    if (err) return res.status(500).json({ success: false, message: 'DB error', error: err });
+    res.json({ success: true });
   });
 });
 
 // Upload profile picture
-app.post('/api/admin_users/me/profile-picture', upload.single('profile_picture'), (req, res) => {
-  const userId = req.header('x-user-id');
+app.post('/api/admin_users/me/avatar_url', authenticateJWT, upload.single('profile_picture'), (req, res) => {
+  const userId = req.user.id;
   if (!userId) return res.status(401).json({ success: false, message: 'Missing user ID' });
   if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
   const filePath = `/uploads/${req.file.filename}`;
-  db.query('UPDATE admin_users SET profile_picture = ? WHERE id = ?', [filePath, userId], (err) => {
+  db.query('UPDATE admin_users SET avatar_url = ? WHERE id = ?', [filePath, userId], (err) => {
     if (err) return res.status(500).json({ success: false, message: err.message });
-    res.json({ success: true, profile_picture: filePath });
+    res.json({ success: true, avatar_url: filePath });
   });
 });
 
 // Delete profile picture
-app.delete('/api/admin_users/me/profile-picture', (req, res) => {
-  const userId = req.header('x-user-id');
+app.delete('/api/admin_users/me/avatar_url', authenticateJWT, (req, res) => {
+  const userId = req.user.id;
   if (!userId) return res.status(401).json({ success: false, message: 'Missing user ID' });
-  db.query('UPDATE admin_users SET profile_picture = NULL WHERE id = ?', [userId], (err) => {
+  db.query('UPDATE admin_users SET avatar_url = NULL WHERE id = ?', [userId], (err) => {
     if (err) return res.status(500).json({ success: false, message: err.message });
     res.json({ success: true });
   });
 });
+
+// Login endpoint
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  db.query('SELECT * FROM admin_users WHERE email = ?', [email], async (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: 'DB error', error: err });
+    if (!results.length) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    const user = results[0];
+    const valid = await bcryptjs.compare(password, user.password);
+    if (!valid) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+
+    // Update lastLogin to now
+    db.query('UPDATE admin_users SET lastLogin = NOW() WHERE id = ?', [user.id], (err2) => {
+      if (err2) return res.status(500).json({ success: false, message: 'Failed to update lastLogin', error: err2 });
+
+      const token = jwt.sign({ id: user.id, email: user.email, role: user.roleName }, JWT_SECRET, { expiresIn: '1d' });
+      res.cookie('token', token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 24*60*60*1000
+      });
+      res.json({ success: true, user: { id: user.id, name: user.name, email: user.email, role: user.roleName } });
+    });
+  });
+});
+
+// JWT middleware
+function authenticateJWT(req, res, next) {
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ success: false, message: 'No token provided' });
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ success: false, message: 'Invalid token' });
+    req.user = user;
+    next();
+  });
+}
+
+// Serve uploads folder statically
+app.use('/uploads', express.static('uploads'));
 
 // Start server
 app.listen(5000, () => {

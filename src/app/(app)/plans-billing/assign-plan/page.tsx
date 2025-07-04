@@ -31,7 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"; 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
 import type { Plan } from "@/app/(app)/plans-billing/page"; 

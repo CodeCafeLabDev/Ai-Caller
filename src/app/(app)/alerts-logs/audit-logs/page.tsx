@@ -35,7 +35,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { format, subDays, addDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { FileText, Filter, UserCircle, CalendarDays, Search, ListFilter, RotateCcw, Server, Users, Edit3, Trash2, KeyRound } from "lucide-react";

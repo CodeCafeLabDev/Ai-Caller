@@ -21,6 +21,8 @@ import { Separator } from "@/components/ui/separator";
 import type { Metadata } from 'next';
 import ProfilePictureUploader from "@/components/ui/ProfilePictureUploader";
 import React from "react";
+import { useUser } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 // export const metadata: Metadata = {
 //   title: 'User Profile - AI Caller',
@@ -45,60 +47,83 @@ const passwordFormSchema = z.object({
 
 export default function ProfilePage() {
   const { toast } = useToast();
+  const { user, setUser } = useUser();
+  const router = useRouter();
   const [loading, setLoading] = React.useState(true);
   const [profile, setProfile] = React.useState({
     id: '',
     name: '',
     email: '',
+    avatar_url: '',
     bio: '',
-    profile_picture: '',
   });
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
-    // Simulate auth: use a hardcoded user ID for demo
     fetch("http://localhost:5000/api/admin_users/me", {
-      headers: { "x-user-id": "1" },
+      credentials: "include",
     })
       .then((res) => res.json())
-      .then((data) => {
+      .then((data: any) => {
         if (data.success) {
-          setProfile(data.data);
+          setUser({
+            userId: data.data.id ? data.data.id.toString() : '',
+            email: data.data.email,
+            fullName: data.data.name,
+            role: data.data.roleName,
+          });
+          console.log('Fetched profile:', data.data);
+          setProfile({
+            id: data.data.id ? data.data.id.toString() : '',
+            name: data.data.name || '',
+            email: data.data.email || '',
+            avatar_url: data.data.avatar_url ?? '',
+            bio: data.data.bio ?? '',
+          });
+          setLoading(false);
+        } else {
+          router.push('/signin');
         }
-        setLoading(false);
+      })
+      .catch(() => {
+        router.push('/signin');
       });
-  }, []);
+  }, [router, setUser]);
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setProfile({ ...profile, [e.target.name]: e.target.value });
   };
 
-  const handlePictureChange = (url) => {
-    setProfile({ ...profile, profile_picture: url });
+  const handlePictureChange = (url: string) => {
+    setProfile({ ...profile, avatar_url: url });
   };
 
   const handleDeletePicture = async () => {
+    if (!user) return;
     await fetch("http://localhost:5000/api/admin_users/me/profile-picture", {
       method: "DELETE",
-      headers: { "x-user-id": "1" },
+      credentials: "include",
     });
-    setProfile({ ...profile, profile_picture: "" });
+    setProfile({ ...profile, avatar_url: "" });
   };
 
   const handleSave = async () => {
+    if (!user) return;
     setSaving(true);
     const res = await fetch("http://localhost:5000/api/admin_users/me", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-user-id": "1" },
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({
         name: profile.name,
+        avatar_url: profile.avatar_url,
         bio: profile.bio,
-        profile_picture: profile.profile_picture,
       }),
     });
     setSaving(false);
     if (res.ok) {
       toast({ title: "Profile updated!" });
+      setUser({ ...user, fullName: profile.name });
     } else {
       toast({ title: "Error updating profile", variant: "destructive" });
     }
@@ -112,11 +137,27 @@ export default function ProfilePage() {
     },
   });
 
-  const onPasswordSubmit = async (data) => {
-    // Handle password change submission
+  const onPasswordSubmit = async (data: { currentPassword: string; newPassword: string; confirmNewPassword: string }) => {
+    if (!user) return;
+    if (data.newPassword !== data.confirmNewPassword) {
+      toast({ title: 'Password Mismatch', description: 'New passwords do not match.', variant: 'destructive' });
+      return;
+    }
+    const res = await fetch(`http://localhost:5000/api/admin_users/${user.userId}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldPassword: data.currentPassword, password: data.newPassword }),
+    });
+    if (res.ok) {
+      toast({ title: 'Password Reset', description: 'Password was reset successfully.' });
+      passwordForm.reset();
+    } else {
+      toast({ title: 'Reset Failed', description: 'Could not reset password. Please check the old password.', variant: 'destructive' });
+    }
   };
 
   if (loading) return <div>Loading...</div>;
+  if (!user) return null;
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
@@ -129,7 +170,7 @@ export default function ProfilePage() {
         <CardHeader>
           <div className="flex items-center gap-4">
             <ProfilePictureUploader
-              value={profile.profile_picture}
+              value={profile.avatar_url}
               onChange={handlePictureChange}
               onDelete={handleDeletePicture}
             />
