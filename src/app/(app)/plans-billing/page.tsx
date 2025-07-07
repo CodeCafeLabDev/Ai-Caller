@@ -55,6 +55,7 @@ import { useRouter } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '@/lib/exportUtils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { AddPlanForm } from "@/components/plans/add-plan-form";
 
 // export const metadata: Metadata = {
 //   title: 'Subscription Plans - AI Caller',
@@ -107,6 +108,7 @@ export default function PlansBillingPage() {
   const [editPlanOpen, setEditPlanOpen] = React.useState(false);
   const [editPlanDetails, setEditPlanDetails] = React.useState<Plan | null>(null);
   const [editPlanLoading, setEditPlanLoading] = React.useState(false);
+  const [isAddPlanSheetOpen, setIsAddPlanSheetOpen] = React.useState(false);
 
   // Fetch plans from API
   const fetchPlans = React.useCallback(async () => {
@@ -315,6 +317,15 @@ export default function PlansBillingPage() {
     }
   };
 
+  const handleAddPlanSuccess = async (newPlan: Plan) => {
+    toast({
+      title: "Success",
+      description: "Plan added successfully",
+    });
+    setIsAddPlanSheetOpen(false);
+    await fetchPlans();
+  };
+
   const filteredPlans = plans.filter((plan) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
     return (
@@ -350,12 +361,9 @@ export default function PlansBillingPage() {
           <h1 className="text-3xl font-bold font-headline">Subscription Plans</h1>
           <p className="text-muted-foreground">Manage service tiers and plan configurations.</p>
         </div>
-        {/* Changed Button to Link for navigating to create page */}
-        <Button size="lg" asChild>
-          <Link href="/plans-billing/create">
-            <PlusCircle className="mr-2 h-5 w-5" />
-            Add New Plan
-          </Link>
+        <Button size="lg" onClick={() => setIsAddPlanSheetOpen(true)}>
+          <PlusCircle className="mr-2 h-5 w-5" />
+          Add New Plan
         </Button>
       </div>
 
@@ -473,10 +481,8 @@ export default function PlansBillingPage() {
                         <DropdownMenuItem onClick={() => handleViewPlan(plan.id)}>
                           <Eye className="mr-2 h-4 w-4" /> View
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Button variant="ghost" className="flex items-center w-full justify-start" onClick={() => handleEditPlan(plan.id)}>
-                            <Edit2 className="mr-2 h-4 w-4" /> Edit
-                          </Button>
+                        <DropdownMenuItem onClick={() => handleEditPlan(plan.id)}>
+                          <Edit2 className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleClonePlan(plan.id)}>
                           <Copy className="mr-2 h-4 w-4" /> Clone (Copy Data)
@@ -595,6 +601,19 @@ export default function PlansBillingPage() {
           ) : (
             <div className="py-8 text-center text-destructive">Failed to load plan details for editing.</div>
           )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Sheet overlay for adding a new plan */}
+      <Sheet open={isAddPlanSheetOpen} onOpenChange={setIsAddPlanSheetOpen}>
+        <SheetContent side="right" className="max-w-lg w-full h-full flex flex-col min-h-0">
+          <SheetHeader>
+            <SheetTitle>Add New Plan</SheetTitle>
+            <SheetDescription>Fill in the details below to create a new subscription plan.</SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 flex flex-col min-h-0 h-full overflow-y-auto">
+            <AddPlanForm onSuccess={handleAddPlanSuccess} onCancel={() => setIsAddPlanSheetOpen(false)} />
+          </div>
         </SheetContent>
       </Sheet>
     </div>

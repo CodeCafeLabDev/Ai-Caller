@@ -22,7 +22,17 @@ export default function EditPlanPage() {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          setPlan(data.data);
+          const plan = data.data;
+          if (plan.status) {
+            const statusMap = {
+              active: "Active",
+              draft: "Draft",
+              archived: "Archived"
+            };
+            const normalizedStatus = statusMap[String(plan.status).toLowerCase()] || "Draft";
+            plan.status = normalizedStatus;
+          }
+          setPlan(plan);
         } else {
           setError(data.message || "Failed to fetch plan");
         }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import IntegrationCard from './integration-card'; // Import the IntegrationCard component
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select } from '@/components/ui/select';
 
 const ELEVEN_LABS_ID = 'elevenlabs';
+const ELEVEN_LABS_API_KEY_STORAGE = 'elevenlabs_api_key';
 
 const Integrations = () => {
   const [integrations, setIntegrations] = useState([
@@ -29,6 +30,12 @@ const Integrations = () => {
   const [userInfo, setUserInfo] = useState<any>(null);
   const [voices, setVoices] = useState<{voice_id: string, name: string}[]>([]);
 
+  // On mount, load API key from localStorage
+  useEffect(() => {
+    const storedKey = typeof window !== 'undefined' ? localStorage.getItem(ELEVEN_LABS_API_KEY_STORAGE) : '';
+    if (storedKey) setApiKey(storedKey);
+  }, []);
+
   const handleConfigure = (integrationId: string) => {
     if (integrationId === ELEVEN_LABS_ID) {
       setSheetOpen(true);
@@ -42,6 +49,9 @@ const Integrations = () => {
 
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setApiKey(e.target.value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ELEVEN_LABS_API_KEY_STORAGE, e.target.value);
+    }
   };
 
   const handleFetchModels = async () => {

@@ -93,6 +93,16 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
   });
 
   React.useEffect(() => {
+    // Normalize status to match enum values
+    let normalizedStatus = "Draft";
+    if (plan.status) {
+      const statusMap = {
+        active: "Active",
+        draft: "Draft",
+        archived: "Archived"
+      };
+      normalizedStatus = statusMap[String(plan.status).toLowerCase()] || "Draft";
+    }
     // Convert numeric values to strings for form inputs
     form.reset({
       name: plan.name || "",
@@ -113,7 +123,7 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
       overagesAllowed: plan.overagesAllowed || false,
       overageChargesPer100Calls: plan.overageChargesPer100Calls?.toString() || "",
       trialEligible: plan.trialEligible || false,
-      status: plan.status || "Draft",
+      status: normalizedStatus,
     });
   }, [plan, form]);
 
