@@ -42,10 +42,10 @@ const editPlanFormSchema = z.object({
   totalCallsAllowedPerMonth: z.string().min(1, { message: "Total calls allowed is required (e.g., '500', 'Unlimited')." }),
   callDurationPerCallMaxMinutes: z.coerce.number().int().min(0, { message: "Max call duration must be a non-negative number." }),
   numberOfAgents: z.coerce.number().int().min(1, { message: "Number of agents must be at least 1." }),
-  templatesAllowed: z.coerce.number().int().min(0, { message: "Templates allowed must be a non-negative integer." }),
+  agentsAllowed: z.coerce.number().int().min(0, { message: "Agents allowed must be a non-negative integer." }),
   voicebotUsageCap: z.string().optional(),
   apiAccess: z.boolean().default(false),
-  customTemplates: z.boolean().default(false),
+  customAgents: z.boolean().default(false),
   reportingAnalytics: z.boolean().default(true),
   liveCallMonitor: z.boolean().default(false),
   overagesAllowed: z.boolean().default(false),
@@ -79,10 +79,10 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
       totalCallsAllowedPerMonth: "",
       callDurationPerCallMaxMinutes: 0,
       numberOfAgents: 1,
-      templatesAllowed: 0,
+      agentsAllowed: 0,
       voicebotUsageCap: "",
       apiAccess: false,
-      customTemplates: false,
+      customAgents: false,
       reportingAnalytics: true,
       liveCallMonitor: false,
       overagesAllowed: false,
@@ -114,10 +114,10 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
       totalCallsAllowedPerMonth: plan.totalCallsAllowedPerMonth || "",
       callDurationPerCallMaxMinutes: plan.callDurationPerCallMaxMinutes || 0,
       numberOfAgents: plan.numberOfAgents || 1,
-      templatesAllowed: plan.templatesAllowed || 0,
+      agentsAllowed: plan.agentsAllowed || 0,
       voicebotUsageCap: plan.voicebotUsageCap || "",
       apiAccess: plan.apiAccess || false,
-      customTemplates: plan.customTemplates || false,
+      customAgents: plan.customAgents || false,
       reportingAnalytics: plan.reportingAnalytics === undefined ? true : plan.reportingAnalytics,
       liveCallMonitor: plan.liveCallMonitor || false,
       overagesAllowed: plan.overagesAllowed || false,
@@ -143,10 +143,10 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
         totalCallsAllowedPerMonth: data.totalCallsAllowedPerMonth,
         callDurationPerCallMaxMinutes: Number(data.callDurationPerCallMaxMinutes),
         numberOfAgents: Number(data.numberOfAgents),
-        templatesAllowed: Number(data.templatesAllowed),
+        agentsAllowed: Number(data.agentsAllowed),
         voicebotUsageCap: data.voicebotUsageCap || undefined,
         apiAccess: data.apiAccess,
-        customTemplates: data.customTemplates,
+        customAgents: data.customAgents,
         reportingAnalytics: data.reportingAnalytics,
         liveCallMonitor: data.liveCallMonitor,
         overagesAllowed: data.overagesAllowed,
@@ -298,10 +298,10 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
             />
             <FormField
               control={form.control}
-              name="templatesAllowed"
+              name="agentsAllowed"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Templates Allowed*</FormLabel>
+                  <FormLabel>Agents Allowed*</FormLabel>
                   <FormControl>
                     <Input type="number" placeholder="e.g., 20" {...field} className="h-9 text-sm" />
                   </FormControl>
@@ -331,9 +331,9 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
                         <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                     </FormItem>
                 )} />
-                <FormField control={form.control} name="customTemplates" render={({ field }) => (
+                <FormField control={form.control} name="customAgents" render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                        <FormLabel className="mb-0">Custom Templates</FormLabel>
+                        <FormLabel className="mb-0">Custom Agents</FormLabel>
                         <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
                     </FormItem>
                 )} />

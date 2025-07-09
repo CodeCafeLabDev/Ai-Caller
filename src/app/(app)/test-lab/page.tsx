@@ -27,7 +27,7 @@ export default function TestLabPage() {
     },
     {
       title: "AI Script Validation",
-      description: "Scan AI script templates for logic errors, missing intents, placeholder issues, and potential infinite loops before deployment.",
+      description: "Scan AI script agents for logic errors, missing intents, placeholder issues, and potential infinite loops before deployment.",
       href: "/test-lab/script-validation",
       icon: CheckSquare,
     }
@@ -73,7 +73,7 @@ export default function TestLabPage() {
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground space-y-2">
                 <p>The Test Lab provides a suite of tools designed to help you thoroughly vet your AI voice agent configurations before they go live. By simulating interactions and testing individual components, you can ensure a high-quality experience for your end-users and catch potential issues early in the development cycle.</p>
-                <p>Use the Call Flow Simulation to walk through conversational scripts and verify branching logic. Utilize Voice Bot Testing to fine-tune TTS outputs, assess STT interpretation, and check the robustness of your voice agent's responses. The Script Validation tool helps identify structural and logical issues in your AI templates.</p>
+                <p>Use the Call Flow Simulation to walk through conversational scripts and verify branching logic. Utilize Voice Bot Testing to fine-tune TTS outputs, assess STT interpretation, and check the robustness of your voice agent's responses. The Script Validation tool helps identify structural and logical issues in your AI agents.</p>
             </CardContent>
         </Card>
     </div>

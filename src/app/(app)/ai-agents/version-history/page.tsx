@@ -51,17 +51,17 @@ import { format } from "date-fns";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'AI Template Version History - AI Caller',
-//   description: 'Track changes, view previous versions, and manage the version history of your AI script templates.',
-//   keywords: ['version history', 'ai templates', 'script versions', 'change tracking', 'AI Caller'],
+//   title: 'AI Agent Version History - AI Caller',
+//   description: 'Track changes, view previous versions, and manage the version history of your AI script agents.',
+//   keywords: ['version history', 'ai agents', 'script versions', 'change tracking', 'AI Caller'],
 // };
 
-interface AITemplateSummary {
+interface AIAgentSummary {
   id: string;
   name: string;
 }
 
-interface TemplateVersion {
+interface AgentVersion {
   id: string;
   versionNumber: string;
   modifiedBy: string;
@@ -71,20 +71,20 @@ interface TemplateVersion {
   isActive?: boolean;
 }
 
-const mockTemplateList: AITemplateSummary[] = [
+const mockAgentList: AIAgentSummary[] = [
   { id: "tpl_1", name: "Lead Qualification Pro" },
   { id: "tpl_2", name: "Appointment Reminder Basic" },
   { id: "tpl_3", name: "Feedback Collector v2" },
 ];
 
-const mockTemplateVersionsData: Record<string, TemplateVersion[]> = {
+const mockAgentVersionsData: Record<string, AgentVersion[]> = {
   "tpl_1": [
     { id: "v1a", versionNumber: "1.0", modifiedBy: "Admin User", modifiedDate: "2024-07-10", notes: "Initial release.", content: "BOT: Hello, is this {{contact_name}}?\nUSER_EXPECTS: Yes/No", isActive: false },
     { id: "v1b", versionNumber: "1.1", modifiedBy: "AI System", modifiedDate: "2024-07-12", notes: "Added fallback for no response.", content: "BOT: Hello, is this {{contact_name}}?\nUSER_EXPECTS: Yes/No\nFALLBACK: Sorry, I didn't catch that.", isActive: false },
     { id: "v1c", versionNumber: "1.2", modifiedBy: "Admin User", modifiedDate: "2024-07-15", notes: "Updated greeting message.", content: "BOT: Hi {{contact_name}}, hope you're having a great day! This is a call from AI Caller.\nUSER_EXPECTS: Greeting Response", isActive: true },
   ],
   "tpl_2": [
-    { id: "v2a", versionNumber: "1.0", modifiedBy: "System", modifiedDate: "2024-06-20", notes: "Basic reminder template.", content: "BOT: Hi {{name}}, this is a reminder for your appointment on {{appointment_date}} at {{appointment_time}}.\nUSER_EXPECTS: Confirmation", isActive: true },
+    { id: "v2a", versionNumber: "1.0", modifiedBy: "System", modifiedDate: "2024-06-20", notes: "Basic reminder agent.", content: "BOT: Hi {{name}}, this is a reminder for your appointment on {{appointment_date}} at {{appointment_time}}.\nUSER_EXPECTS: Confirmation", isActive: true },
   ],
   "tpl_3": [
     { id: "v3a", versionNumber: "0.8", modifiedBy: "Admin User", modifiedDate: "2024-07-01", notes: "Draft for feedback collection.", content: "BOT: Hi {{customer_name}}, we'd love to get your feedback on your recent purchase. Are you free for a quick chat?\nUSER_EXPECTS: Yes/No/Later", isActive: true },
@@ -92,40 +92,40 @@ const mockTemplateVersionsData: Record<string, TemplateVersion[]> = {
 };
 
 
-export default function AiTemplateVersionHistoryPage() {
+export default function AiAgentVersionHistoryPage() {
   const { toast } = useToast();
-  const [availableTemplates] = React.useState<AITemplateSummary[]>(mockTemplateList);
-  const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | undefined>();
-  const [versions, setVersions] = React.useState<TemplateVersion[]>([]);
-  const [templateComboboxOpen, setTemplateComboboxOpen] = React.useState(false);
+  const [availableAgents] = React.useState<AIAgentSummary[]>(mockAgentList);
+  const [selectedAgentId, setSelectedAgentId] = React.useState<string | undefined>();
+  const [versions, setVersions] = React.useState<AgentVersion[]>([]);
+  const [agentComboboxOpen, setAgentComboboxOpen] = React.useState(false);
 
   const [isViewDialogOpen, setIsViewDialogOpen] = React.useState(false);
-  const [viewingVersionDetails, setViewingVersionDetails] = React.useState<TemplateVersion | null>(null);
+  const [viewingVersionDetails, setViewingVersionDetails] = React.useState<AgentVersion | null>(null);
 
   React.useEffect(() => {
-    if (selectedTemplateId) {
-      setVersions(mockTemplateVersionsData[selectedTemplateId] || []);
+    if (selectedAgentId) {
+      setVersions(mockAgentVersionsData[selectedAgentId] || []);
     } else {
       setVersions([]);
     }
-  }, [selectedTemplateId]);
+  }, [selectedAgentId]);
 
-  const handleSelectTemplate = (templateId: string) => {
-    setSelectedTemplateId(templateId);
-    setTemplateComboboxOpen(false);
+  const handleSelectAgent = (agentId: string) => {
+    setSelectedAgentId(agentId);
+    setAgentComboboxOpen(false);
   };
 
-  const handleViewVersion = (version: TemplateVersion) => {
+  const handleViewVersion = (version: AgentVersion) => {
     setViewingVersionDetails(version);
     setIsViewDialogOpen(true);
   };
 
   const handleSetAsActive = (versionId: string) => {
-    const selectedTemplate = availableTemplates.find(t => t.id === selectedTemplateId);
+    const selectedAgent = availableAgents.find(t => t.id === selectedAgentId);
     setVersions(prev => prev.map(v => ({ ...v, isActive: v.id === versionId })));
     toast({
       title: "Version Set to Active (Simulated)",
-      description: `Version ${versions.find(v=>v.id === versionId)?.versionNumber} of template "${selectedTemplate?.name}" is now active.`,
+      description: `Version ${versions.find(v=>v.id === versionId)?.versionNumber} of agent "${selectedAgent?.name}" is now active.`,
     });
   };
   
@@ -144,48 +144,48 @@ export default function AiTemplateVersionHistoryPage() {
     });
   };
   
-  const selectedTemplateName = availableTemplates.find(t => t.id === selectedTemplateId)?.name;
+  const selectedAgentName = availableAgents.find(t => t.id === selectedAgentId)?.name;
 
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-headline">AI Template Version History</h1>
-          <p className="text-muted-foreground">Track changes and manage versions of your AI templates.</p>
+          <h1 className="text-3xl font-bold font-headline">AI Agent Version History</h1>
+          <p className="text-muted-foreground">Track changes and manage versions of your AI agents.</p>
         </div>
-        <Popover open={templateComboboxOpen} onOpenChange={setTemplateComboboxOpen}>
+        <Popover open={agentComboboxOpen} onOpenChange={setAgentComboboxOpen}>
             <PopoverTrigger asChild>
             <Button
                 variant="outline"
                 role="combobox"
-                aria-expanded={templateComboboxOpen}
+                aria-expanded={agentComboboxOpen}
                 className="w-full sm:w-[300px] justify-between"
             >
-                {selectedTemplateId
-                ? availableTemplates.find((template) => template.id === selectedTemplateId)?.name
-                : "Select a template..."}
+                {selectedAgentId
+                ? availableAgents.find((agent) => agent.id === selectedAgentId)?.name
+                : "Select a agent..."}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
             <Command>
-                <CommandInput placeholder="Search template..." />
+                <CommandInput placeholder="Search agent..." />
                 <CommandList>
-                <CommandEmpty>No template found.</CommandEmpty>
+                <CommandEmpty>No agent found.</CommandEmpty>
                 <CommandGroup>
-                    {availableTemplates.map((template) => (
+                    {availableAgents.map((agent) => (
                     <CommandItem
-                        key={template.id}
-                        value={template.name}
-                        onSelect={() => handleSelectTemplate(template.id)}
+                        key={agent.id}
+                        value={agent.name}
+                        onSelect={() => handleSelectAgent(agent.id)}
                     >
                         <Check
                         className={cn(
                             "mr-2 h-4 w-4",
-                            selectedTemplateId === template.id ? "opacity-100" : "opacity-0"
+                            selectedAgentId === agent.id ? "opacity-100" : "opacity-0"
                         )}
                         />
-                        {template.name}
+                        {agent.name}
                     </CommandItem>
                     ))}
                 </CommandGroup>
@@ -195,11 +195,11 @@ export default function AiTemplateVersionHistoryPage() {
         </Popover>
       </div>
 
-      {selectedTemplateId ? (
+      {selectedAgentId ? (
         <Card className="shadow-lg">
           <CardHeader>
-            <CardTitle>Version History for: {selectedTemplateName}</CardTitle>
-            <CardDescription>Review and manage different versions of this template.</CardDescription>
+            <CardTitle>Version History for: {selectedAgentName}</CardTitle>
+            <CardDescription>Review and manage different versions of this agent.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="max-h-[600px]">
@@ -256,7 +256,7 @@ export default function AiTemplateVersionHistoryPage() {
                     )) : (
                     <TableRow>
                         <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                        No versions found for this template.
+                        No versions found for this agent.
                         </TableCell>
                     </TableRow>
                     )}
@@ -268,7 +268,7 @@ export default function AiTemplateVersionHistoryPage() {
       ) : (
         <div className="text-center py-12 text-muted-foreground">
           <History className="mx-auto h-12 w-12 mb-4" />
-          <p className="text-lg">Please select a template to view its version history.</p>
+          <p className="text-lg">Please select a agent to view its version history.</p>
         </div>
       )}
 
@@ -278,7 +278,7 @@ export default function AiTemplateVersionHistoryPage() {
             <DialogTitle>Version Details</DialogTitle>
             <DialogHeader>
               <DialogTitle>
-                Viewing Version {viewingVersionDetails.versionNumber} of {selectedTemplateName}
+                Viewing Version {viewingVersionDetails.versionNumber} of {selectedAgentName}
               </DialogTitle>
               <DialogDescription>
                 Modified by {viewingVersionDetails.modifiedBy} on {format(new Date(viewingVersionDetails.modifiedDate), "PPPp")}.
@@ -292,7 +292,7 @@ export default function AiTemplateVersionHistoryPage() {
                 </p>
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Template Content:</h4>
+                <h4 className="font-semibold mb-1">Agent Content:</h4>
                 <ScrollArea className="h-[300px] w-full rounded-md border">
                   <Textarea
                     value={viewingVersionDetails.content}

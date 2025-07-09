@@ -76,10 +76,10 @@ export type Plan = {
   totalCallsAllowedPerMonth: string; 
   callDurationPerCallMaxMinutes?: number; 
   numberOfAgents: number; 
-  templatesAllowed: number; 
+  agentsAllowed: number; 
   voicebotUsageCap?: string; 
   apiAccess: boolean; 
-  customTemplates: boolean; 
+  customAgents: boolean; 
   reportingAnalytics: boolean; 
   liveCallMonitor: boolean; 
   overagesAllowed: boolean; 
@@ -563,10 +563,10 @@ export default function PlansBillingPage() {
               <div><span className="font-medium">Calls/Month:</span> {planDetails.totalCallsAllowedPerMonth}</div>
               <div><span className="font-medium">Max Call Duration (min):</span> {planDetails.callDurationPerCallMaxMinutes || "-"}</div>
               <div><span className="font-medium">Agents:</span> {planDetails.numberOfAgents}</div>
-              <div><span className="font-medium">Templates Allowed:</span> {planDetails.templatesAllowed}</div>
+              <div><span className="font-medium">Agents Allowed:</span> {planDetails.agentsAllowed}</div>
               <div><span className="font-medium">Voicebot Usage Cap:</span> {planDetails.voicebotUsageCap || "-"}</div>
               <div><span className="font-medium">API Access:</span> {planDetails.apiAccess ? "Yes" : "No"}</div>
-              <div><span className="font-medium">Custom Templates:</span> {planDetails.customTemplates ? "Yes" : "No"}</div>
+              <div><span className="font-medium">Custom Agents:</span> {planDetails.customAgents ? "Yes" : "No"}</div>
               <div><span className="font-medium">Reporting & Analytics:</span> {planDetails.reportingAnalytics ? "Yes" : "No"}</div>
               <div><span className="font-medium">Live Call Monitor:</span> {planDetails.liveCallMonitor ? "Yes" : "No"}</div>
               <div><span className="font-medium">Overages Allowed:</span> {planDetails.overagesAllowed ? "Yes" : "No"}</div>

@@ -80,15 +80,15 @@ const initialNavItems: NavItemType[] = [
     ],
   },
   {
-    label: 'AI Templates',
+    label: 'AI Agents',
     icon: Bot,
-    basePath: '/ai-templates',
+    basePath: '/ai-agents',
     subItems: [
-        { href: '/ai-templates', label: 'Manage Templates', icon: Bot },
-        { href: '/ai-templates/create', label: 'Create Template', icon: UserPlus }, 
-        { href: '/ai-templates/version-history', label: 'Version History', icon: History },
-        { href: '/ai-templates/language-settings', label: 'Language Settings', icon: Languages },
-        { href: '/ai-templates/import-export', label: 'Import/Export JSON', icon: FileJson },
+        { href: '/ai-agents', label: 'Manage Agents', icon: Bot },
+        { href: '/ai-agents/create', label: 'Create Agent', icon: UserPlus }, 
+        { href: '/ai-agents/version-history', label: 'Version History', icon: History },
+        { href: '/ai-agents/language-settings', label: 'Language Settings', icon: Languages },
+        { href: '/ai-agents/import-export', label: 'Import/Export JSON', icon: FileJson },
     ]
   },
   { 

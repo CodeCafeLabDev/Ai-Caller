@@ -109,7 +109,7 @@ const initialLogs: LogEntry[] = [
   { id: "log2", timestamp: subDays(new Date(), 2), clientName: "Solutions Ltd", clientId: "client_2", type: "Webhook", endpoint: "https://hooks.solutions.io/call-end", responseCode: 200, retryAttempted: false, requestBody: JSON.stringify({ callId: "call_123", status: "completed" }) },
   { id: "log3", timestamp: subDays(new Date(), 0), clientName: "Tech Ventures", clientId: "client_3", type: "API Call", endpoint: "/v1/calls/initiate", method: "POST", responseCode: 401, errorMessage: "Invalid API Key", requestBody: JSON.stringify({ to: "+1234567890" }) },
   { id: "log4", timestamp: subDays(new Date(), 3), clientName: "Innovate Corp", clientId: "client_1", type: "Webhook", endpoint: "https://hooks.innovatecorp.com/failed-payment", responseCode: 500, errorMessage: "Internal server error on client side", retryAttempted: true, requestBody: JSON.stringify({ invoiceId: "inv_abc", status: "failed" }) },
-  { id: "log5", timestamp: subDays(new Date(), 4), clientName: "Innovate Corp", clientId: "client_1", type: "API Call", endpoint: "/v1/templates/tpl_abc", method: "GET", responseCode: 200, responseBody: JSON.stringify({ name: "Welcome Script" })},
+  { id: "log5", timestamp: subDays(new Date(), 4), clientName: "Innovate Corp", clientId: "client_1", type: "API Call", endpoint: "/v1/agents/tpl_abc", method: "GET", responseCode: 200, responseBody: JSON.stringify({ name: "Welcome Script" })},
 ];
 
 const httpMethods: HttpMethod[] = ["ALL", "GET", "POST", "PUT", "DELETE", "PATCH"];

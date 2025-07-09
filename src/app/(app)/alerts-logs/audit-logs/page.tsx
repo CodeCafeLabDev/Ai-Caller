@@ -45,7 +45,7 @@ type ActionType =
   | "Client Updated" 
   | "Plan Changed" 
   | "Webhook Deleted" 
-  | "Template Restored" 
+  | "Agent Restored" 
   | "API Key Generated" 
   | "Role Updated" 
   | "User Created"
@@ -56,7 +56,7 @@ interface AuditLogEntry {
   timestamp: Date;
   actor: string; // User email, name, or "System"
   actionType: ActionType;
-  affectedEntity?: string; // e.g., Client Name, Template Name, Plan Name
+  affectedEntity?: string; // e.g., Client Name, Agent Name, Plan Name
   details: string; // Full descriptive log
   ipAddress?: string;
   deviceBrowser?: string;
@@ -65,7 +65,7 @@ interface AuditLogEntry {
 const initialMockAuditLogs: AuditLogEntry[] = [
   { id: "log_1", timestamp: new Date(), actor: "SuperAdmin John", actionType: "Plan Changed", affectedEntity: "Client: Innovate Corp", details: "Edited Client Plan from Basic to Pro for Client: Innovate Corp", ipAddress: "192.168.1.100", deviceBrowser: "Chrome on macOS" },
   { id: "log_2", timestamp: subDays(new Date(), 1), actor: "api@AI Caller.com", actionType: "Webhook Deleted", affectedEntity: "Client: XYZ Corp", details: "Webhook endpoint 'https://xyz.com/hooks' deleted for Client: XYZ Corp", ipAddress: "10.0.0.5" },
-  { id: "log_3", timestamp: subDays(new Date(), 2), actor: "support@AI Caller.com", actionType: "Template Restored", affectedEntity: "Template: Sales Call v2", details: "Script Template ‘Sales Call v2’ restored to Version 4", ipAddress: "203.0.113.45", deviceBrowser: "Firefox on Windows" },
+  { id: "log_3", timestamp: subDays(new Date(), 2), actor: "support@AI Caller.com", actionType: "Agent Restored", affectedEntity: "Agent: Sales Call v2", details: "Script Agent ‘Sales Call v2’ restored to Version 4", ipAddress: "203.0.113.45", deviceBrowser: "Firefox on Windows" },
   { id: "log_4", timestamp: subDays(new Date(), 3), actor: "System", actionType: "API Key Generated", affectedEntity: "Client: Tech Ventures", details: "New API Key generated for Client: Tech Ventures (Key ID: sk_live_...abc)", ipAddress: "N/A" },
   { id: "log_5", timestamp: subDays(new Date(), 4), actor: "admin@AI Caller.com", actionType: "Role Updated", affectedEntity: "User: jane.doe@client.com", details: "User role for 'jane.doe@client.com' changed from Agent to Admin.", ipAddress: "172.16.0.10", deviceBrowser: "Safari on iOS" },
   { id: "log_6", timestamp: subDays(new Date(), 5), actor: "onboarding_service", actionType: "User Created", affectedEntity: "User: new.user@client.com", details: "New user 'new.user@client.com' created for Client: Global Connect.", ipAddress: "N/A" },
@@ -76,7 +76,7 @@ const actionTypeOptions: {value: ActionType | "all", label: string}[] = [
     {value: "Client Updated", label: "Client Updated"},
     {value: "Plan Changed", label: "Plan Changed"},
     {value: "Webhook Deleted", label: "Webhook Deleted"},
-    {value: "Template Restored", label: "Template Restored"},
+    {value: "Agent Restored", label: "Agent Restored"},
     {value: "API Key Generated", label: "API Key Generated"},
     {value: "Role Updated", label: "Role Updated"},
     {value: "User Created", label: "User Created"},
@@ -245,7 +245,7 @@ export default function AuditLogsPage() {
                         } className="text-xs whitespace-nowrap">
                             {log.actionType.startsWith("API") ? <KeyRound className="inline-block mr-1 h-3 w-3"/> : 
                              log.actionType.includes("Client") ? <Users className="inline-block mr-1 h-3 w-3"/> : 
-                             log.actionType.includes("Template") ? <Edit3 className="inline-block mr-1 h-3 w-3"/> :
+                             log.actionType.includes("Agent") ? <Edit3 className="inline-block mr-1 h-3 w-3"/> :
                              log.actionType.includes("Webhook") ? <Trash2 className="inline-block mr-1 h-3 w-3"/> : // Assuming Webhook Deleted for now
                              log.actionType.includes("Role") || log.actionType.includes("User") ? <UserCircle className="inline-block mr-1 h-3 w-3"/> :
                              <Server className="inline-block mr-1 h-3 w-3"/>}

@@ -68,16 +68,16 @@ import {
   Eye,
 } from "lucide-react";
 
-type AffectedModule = "Campaigns" | "Templates" | "Billing" | "User Management" | "Settings";
+type AffectedModule = "Campaigns" | "Agents" | "Billing" | "User Management" | "Settings";
 type ActivityEntry = {
   id: string;
   timestamp: Date;
   clientName: string;
   clientId: string;
   user?: string; // Email or name of the client's user
-  actionPerformed: string; // e.g., "Launched Campaign", "Created Template"
+  actionPerformed: string; // e.g., "Launched Campaign", "Created Agent"
   affectedModule: AffectedModule;
-  details: string; // e.g., "Campaign 'Lead Nurture 1'", "Template 'Loan Reminder Bot'"
+  details: string; // e.g., "Campaign 'Lead Nurture 1'", "Agent 'Loan Reminder Bot'"
 };
 
 const mockClients: { value: string; label: string }[] = [
@@ -90,7 +90,7 @@ const mockClients: { value: string; label: string }[] = [
 const affectedModuleOptions: { value: AffectedModule | "all"; label: string }[] = [
   { value: "all", label: "All Modules" },
   { value: "Campaigns", label: "Campaigns" },
-  { value: "Templates", label: "Templates" },
+  { value: "Agents", label: "Agents" },
   { value: "Billing", label: "Billing" },
   { value: "User Management", label: "User Management" },
   { value: "Settings", label: "Settings" },
@@ -98,7 +98,7 @@ const affectedModuleOptions: { value: AffectedModule | "all"; label: string }[] 
 
 const initialMockActivities: ActivityEntry[] = [
   { id: "act_1", timestamp: subDays(new Date(), 0.1), clientName: "Innovate Corp", clientId: "client_1", user: "alice@innovate.com", actionPerformed: "Launched Campaign", affectedModule: "Campaigns", details: "Campaign 'Q4 Leads' (ID: camp_xyz)" },
-  { id: "act_2", timestamp: subDays(new Date(), 0.5), clientName: "Solutions Ltd", clientId: "client_2", user: "bob@solutions.io", actionPerformed: "Created AI Template", affectedModule: "Templates", details: "Template 'Reminder Script v2' (ID: tpl_abc)" },
+  { id: "act_2", timestamp: subDays(new Date(), 0.5), clientName: "Solutions Ltd", clientId: "client_2", user: "bob@solutions.io", actionPerformed: "Created AI Agent", affectedModule: "Agents", details: "Agent 'Reminder Script v2' (ID: tpl_abc)" },
   { id: "act_3", timestamp: subDays(new Date(), 1), clientName: "Innovate Corp", clientId: "client_1", user: "admin@innovate.com", actionPerformed: "Updated Billing Info", affectedModule: "Billing", details: "Payment method updated to **** **** **** 1234" },
   { id: "act_4", timestamp: subDays(new Date(), 1.5), clientName: "Tech Ventures", clientId: "client_3", user: "carol@tech.dev", actionPerformed: "User Login", affectedModule: "User Management", details: "User carol@tech.dev logged in from IP 192.168.1.10" },
   { id: "act_5", timestamp: subDays(new Date(), 2), clientName: "Solutions Ltd", clientId: "client_2", user: "bob@solutions.io", actionPerformed: "Modified Campaign Settings", affectedModule: "Campaigns", details: "Campaign 'Summer Promo' daily call limit increased" },
@@ -296,7 +296,7 @@ export default function ClientActivityFeedPage() {
                         <TableCell>
                           <Badge variant="secondary" className="text-xs">
                             {activity.affectedModule === "Campaigns" && <Megaphone className="inline-block mr-1 h-3 w-3"/>}
-                            {activity.affectedModule === "Templates" && <FileText className="inline-block mr-1 h-3 w-3"/>}
+                            {activity.affectedModule === "Agents" && <FileText className="inline-block mr-1 h-3 w-3"/>}
                             {activity.affectedModule === "Billing" && <DollarSign className="inline-block mr-1 h-3 w-3"/>}
                             {activity.affectedModule === "User Management" && <Users className="inline-block mr-1 h-3 w-3"/>}
                              {activity.affectedModule === "Settings" && <ListFilter className="inline-block mr-1 h-3 w-3"/>}

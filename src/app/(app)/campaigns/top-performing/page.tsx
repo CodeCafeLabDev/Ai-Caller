@@ -227,7 +227,7 @@ export default function TopPerformingCampaignsPage() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
             <p><strong>Reward high-performing clients:</strong> Identify clients whose campaigns consistently excel and offer them incentives or premium support.</p>
-            <p><strong>Detect best call templates:</strong> Analyze commonalities in top campaigns (e.g., script structure, AI prompts used) to refine template strategies.</p>
+            <p><strong>Detect best call agents:</strong> Analyze commonalities in top campaigns (e.g., script structure, AI prompts used) to refine agent strategies.</p>
             <p><strong>Monitor campaigns that exceed benchmarks:</strong> Set internal benchmarks and use this page to quickly see which campaigns are outperforming, allowing for replication of successful strategies.</p>
             <p><strong>Identify areas for improvement:</strong> While focusing on top performers, implicitly understand what differentiates them from average or underperforming campaigns.</p>
         </CardContent>

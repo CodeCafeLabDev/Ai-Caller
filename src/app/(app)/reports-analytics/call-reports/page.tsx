@@ -190,10 +190,10 @@ export default function CallReportsPage() {
   const handleExport = (format: ExportFormat, period: ReportPeriod) => {
     toast({ 
         title: "Export Initiated (Simulated)", 
-        description: `Preparing ${period} report as ${format}. This would include fields like Call ID, Client Name, Campaign, Phone (masked), Status, Duration, Timestamp, AI Template.`,
+        description: `Preparing ${period} report as ${format}. This would include fields like Call ID, Client Name, Campaign, Phone (masked), Status, Duration, Timestamp, AI Agent.`,
         duration: 5000,
     });
-    console.log(`Simulating export of ${period} as ${format}. Intended fields: Call ID, Client Name, Campaign Name, Phone Number (masked), Status, Duration, Timestamp, AI Template Used. Current filtered (summarized) data:`, filteredData);
+    console.log(`Simulating export of ${period} as ${format}. Intended fields: Call ID, Client Name, Campaign Name, Phone Number (masked), Status, Duration, Timestamp, AI Agent Used. Current filtered (summarized) data:`, filteredData);
   };
 
   return (

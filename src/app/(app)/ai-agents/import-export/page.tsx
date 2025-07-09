@@ -27,34 +27,34 @@ import { Separator } from "@/components/ui/separator";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Import/Export AI Templates - AI Caller',
-//   description: 'Manage AI conversation templates by exporting them for backup or sharing, or importing pre-existing templates in JSON format.',
-//   keywords: ['import templates', 'export templates', 'json templates', 'ai scripts', 'conversation backup', 'AI Caller'],
+//   title: 'Import/Export AI Agents - AI Caller',
+//   description: 'Manage AI conversation agents by exporting them for backup or sharing, or importing pre-existing agents in JSON format.',
+//   keywords: ['import agents', 'export agents', 'json agents', 'ai scripts', 'conversation backup', 'AI Caller'],
 // };
 
-interface MockTemplate {
+interface MockAgent {
   id: string;
   name: string;
   version: string;
   content: object; 
 }
 
-const mockTemplatesForExport: MockTemplate[] = [
+const mockAgentsForExport: MockAgent[] = [
   { id: "tpl_1", name: "Lead Qualification Pro", version: "1.2", content: { info: "Lead gen script details...", nodes: [] } },
   { id: "tpl_2", name: "Appointment Reminder Basic", version: "1.0", content: { info: "Reminder script details...", nodes: [] } },
   { id: "tpl_3", name: "Feedback Collector v2", version: "0.8", content: { info: "Feedback script details...", nodes: [] } },
 ];
 
-interface ImportedTemplateDetails {
+interface ImportedAgentDetails {
   name: string;
   description?: string;
   category?: string;
   language?: string;
 }
 
-export default function AiTemplateImportExportPage() {
+export default function AiAgentImportExportPage() {
   const { toast } = useToast();
-  const [selectedTemplateId, setSelectedTemplateId] = React.useState<string>("");
+  const [selectedAgentId, setSelectedAgentId] = React.useState<string>("");
   const [isExporting, setIsExporting] = React.useState(false);
 
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
@@ -62,7 +62,7 @@ export default function AiTemplateImportExportPage() {
   const [isImporting, setIsImporting] = React.useState(false);
   const [importProgress, setImportProgress] = React.useState(0);
   const [showImportConfirmation, setShowImportConfirmation] = React.useState(false);
-  const [importedTemplateDetails, setImportedTemplateDetails] = React.useState<ImportedTemplateDetails | null>(null);
+  const [importedAgentDetails, setImportedAgentDetails] = React.useState<ImportedAgentDetails | null>(null);
   
   const [editName, setEditName] = React.useState("");
   const [editCategory, setEditCategory] = React.useState(""); 
@@ -70,24 +70,24 @@ export default function AiTemplateImportExportPage() {
 
 
   const handleExport = () => {
-    if (!selectedTemplateId) {
+    if (!selectedAgentId) {
       toast({
-        title: "No Template Selected",
-        description: "Please select a template to export.",
+        title: "No Agent Selected",
+        description: "Please select a agent to export.",
         variant: "destructive",
       });
       return;
     }
     setIsExporting(true);
-    const templateToExport = mockTemplatesForExport.find(t => t.id === selectedTemplateId);
+    const agentToExport = mockAgentsForExport.find(t => t.id === selectedAgentId);
 
     setTimeout(() => {
-      const jsonData = JSON.stringify(templateToExport, null, 2);
+      const jsonData = JSON.stringify(agentToExport, null, 2);
       const blob = new Blob([jsonData], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${templateToExport?.name.replace(/\s+/g, '_')}_v${templateToExport?.version}.json`;
+      link.download = `${agentToExport?.name.replace(/\s+/g, '_')}_v${agentToExport?.version}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -95,7 +95,7 @@ export default function AiTemplateImportExportPage() {
 
       toast({
         title: "Export Successful",
-        description: `Template "${templateToExport?.name}" has been exported.`,
+        description: `Agent "${agentToExport?.name}" has been exported.`,
       });
       setIsExporting(false);
     }, 1500);
@@ -108,7 +108,7 @@ export default function AiTemplateImportExportPage() {
         setSelectedFile(file);
         setFileName(file.name);
         setShowImportConfirmation(false); 
-        setImportedTemplateDetails(null);
+        setImportedAgentDetails(null);
         
         setIsImporting(true);
         setImportProgress(0);
@@ -120,14 +120,14 @@ export default function AiTemplateImportExportPage() {
             clearInterval(interval);
             setIsImporting(false);
             try {
-              const mockParsedData: Partial<MockTemplate> = { name: file.name.replace(".json", ""), description: "Imported from file" };
-              setImportedTemplateDetails({
-                name: mockParsedData.name || "Unnamed Template",
+              const mockParsedData: Partial<MockAgent> = { name: file.name.replace(".json", ""), description: "Imported from file" };
+              setImportedAgentDetails({
+                name: mockParsedData.name || "Unnamed Agent",
                 description: mockParsedData.description || "No description provided.",
                 category: "Other", 
                 language: "English (US)", 
               });
-              setEditName(mockParsedData.name || "Unnamed Template");
+              setEditName(mockParsedData.name || "Unnamed Agent");
               setEditCategory("Other");
               setEditStatus("Draft");
               setShowImportConfirmation(true);
@@ -156,17 +156,17 @@ export default function AiTemplateImportExportPage() {
     setIsImporting(false);
     setImportProgress(0);
     setShowImportConfirmation(false);
-    setImportedTemplateDetails(null);
+    setImportedAgentDetails(null);
   };
 
   const handleFinalizeImport = (status: "Draft" | "Published") => {
-    if (!importedTemplateDetails) return;
+    if (!importedAgentDetails) return;
     
-    const finalName = editName || importedTemplateDetails.name;
+    const finalName = editName || importedAgentDetails.name;
 
     toast({
       title: `Import Complete (Simulated)`,
-      description: `Template "${finalName}" imported as ${status}. Category: ${editCategory}.`,
+      description: `Agent "${finalName}" imported as ${status}. Category: ${editCategory}.`,
     });
     resetImportState();
   };
@@ -175,9 +175,9 @@ export default function AiTemplateImportExportPage() {
     <div className="container mx-auto py-8 space-y-10">
       <div className="flex flex-col items-center text-center">
         <FileJson className="h-16 w-16 text-primary mb-4" />
-        <h1 className="text-4xl font-bold font-headline">Import & Export AI Templates</h1>
+        <h1 className="text-4xl font-bold font-headline">Import & Export AI Agents</h1>
         <p className="text-lg text-muted-foreground mt-2 max-w-2xl">
-          Easily manage your AI conversation templates by exporting them for backup or sharing, or importing pre-existing templates in JSON format.
+          Easily manage your AI conversation agents by exporting them for backup or sharing, or importing pre-existing agents in JSON format.
         </p>
       </div>
 
@@ -185,23 +185,23 @@ export default function AiTemplateImportExportPage() {
         <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
           <CardHeader>
             <CardTitle className="flex items-center text-2xl">
-              <Download className="mr-3 h-6 w-6 text-primary" /> Export Template
+              <Download className="mr-3 h-6 w-6 text-primary" /> Export Agent
             </CardTitle>
             <CardDescription>
-              Select a template to download its configuration as a JSON file.
+              Select a agent to download its configuration as a JSON file.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="select-template-export">Template to Export</Label>
-              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                <SelectTrigger id="select-template-export">
-                  <SelectValue placeholder="Choose a template..." />
+              <Label htmlFor="select-agent-export">Agent to Export</Label>
+              <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+                <SelectTrigger id="select-agent-export">
+                  <SelectValue placeholder="Choose a agent..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockTemplatesForExport.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>
-                      {template.name} (v{template.version})
+                  {mockAgentsForExport.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name} (v{agent.version})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -211,7 +211,7 @@ export default function AiTemplateImportExportPage() {
           <CardFooter>
             <Button
               onClick={handleExport}
-              disabled={isExporting || !selectedTemplateId}
+              disabled={isExporting || !selectedAgentId}
               className="w-full text-base py-3"
             >
               {isExporting ? (
@@ -230,10 +230,10 @@ export default function AiTemplateImportExportPage() {
         <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
           <CardHeader>
             <CardTitle className="flex items-center text-2xl">
-              <UploadCloud className="mr-3 h-6 w-6 text-primary" /> Import Template
+              <UploadCloud className="mr-3 h-6 w-6 text-primary" /> Import Agent
             </CardTitle>
             <CardDescription>
-              Upload a JSON file to import an AI template.
+              Upload a JSON file to import an AI agent.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -261,13 +261,13 @@ export default function AiTemplateImportExportPage() {
               </div>
             )}
             
-            {showImportConfirmation && importedTemplateDetails && (
+            {showImportConfirmation && importedAgentDetails && (
                 <div className="pt-4 border-t">
                     <h3 className="text-md font-semibold mb-3">Review & Finalize Import</h3>
                     <div className="space-y-3">
                          <div className="space-y-1">
-                            <Label htmlFor="edit-name">Template Name*</Label>
-                            <Input id="edit-name" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Enter template name" />
+                            <Label htmlFor="edit-name">Agent Name*</Label>
+                            <Input id="edit-name" value={editName} onChange={e => setEditName(e.target.value)} placeholder="Enter agent name" />
                         </div>
                         <div className="space-y-1">
                              <Label htmlFor="edit-category">Category*</Label>
@@ -285,7 +285,7 @@ export default function AiTemplateImportExportPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <p className="text-xs text-muted-foreground">Original Description: {importedTemplateDetails.description}</p>
+                        <p className="text-xs text-muted-foreground">Original Description: {importedAgentDetails.description}</p>
                     </div>
                 </div>
             )}
@@ -323,9 +323,9 @@ export default function AiTemplateImportExportPage() {
             <CardTitle>How it Works</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
-            <p><strong>Exporting:</strong> Select one of your existing templates from the dropdown. Click "Export as JSON" to download a file containing its structure, script content, and metadata. This file can be used for backup or sharing.</p>
-            <p><strong>Importing:</strong> Click "Choose JSON File" and select a valid template JSON file from your computer. The system will (simulate) parse the file. You can then review/edit basic details like name and category, and choose to save it as a draft or publish it directly.</p>
-            <p><strong>JSON Structure (Conceptual):</strong> A valid template JSON should ideally contain fields like `name`, `description`, `version`, `category`, `language`, `scriptNodes` (an array of conversation steps), and `globalVariables`.</p>
+            <p><strong>Exporting:</strong> Select one of your existing agents from the dropdown. Click "Export as JSON" to download a file containing its structure, script content, and metadata. This file can be used for backup or sharing.</p>
+            <p><strong>Importing:</strong> Click "Choose JSON File" and select a valid agent JSON file from your computer. The system will (simulate) parse the file. You can then review/edit basic details like name and category, and choose to save it as a draft or publish it directly.</p>
+            <p><strong>JSON Structure (Conceptual):</strong> A valid agent JSON should ideally contain fields like `name`, `description`, `version`, `category`, `language`, `scriptNodes` (an array of conversation steps), and `globalVariables`.</p>
         </CardContent>
       </Card>
     </div>

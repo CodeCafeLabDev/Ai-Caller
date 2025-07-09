@@ -25,14 +25,14 @@ const Notifications = () => {
       <p className="text-muted-foreground">Configure notification settings for your AI Caller.</p>
 
       <div className="grid grid-cols-1 gap-6">
-        {/* Email & SMS Templates (Placeholder) */}
+        {/* Email & SMS Agents (Placeholder) */}
         <div>
-          <Label>Email & SMS Templates</Label>
-          <p className="text-muted-foreground text-sm">Manage your email and SMS notification templates.</p>
-          {/* You can add links or buttons here to navigate to template management pages/modals */}
+          <Label>Email & SMS Agents</Label>
+          <p className="text-muted-foreground text-sm">Manage your email and SMS notification agents.</p>
+          {/* You can add links or buttons here to navigate to agent management pages/modals */}
           <div className="mt-2">
-            <Button variant="outline" onClick={() => console.log('Go to Email Templates')}>Manage Email Templates</Button>
-            <Button variant="outline" className="ml-4" onClick={() => console.log('Go to SMS Templates')}>Manage SMS Templates</Button>
+            <Button variant="outline" onClick={() => console.log('Go to Email Agents')}>Manage Email Agents</Button>
+            <Button variant="outline" className="ml-4" onClick={() => console.log('Go to SMS Agents')}>Manage SMS Agents</Button>
           </div>
         </div>
 

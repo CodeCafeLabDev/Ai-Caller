@@ -696,7 +696,7 @@ export default function UsersAdminsPage() {
         <CardContent>
           <p className="text-muted-foreground">
             Define what actions users within each role can perform across the platform. 
-            This section will allow fine-grained control over access to features like client management, campaign setup, billing information, AI template editing, and system settings.
+            This section will allow fine-grained control over access to features like client management, campaign setup, billing information, AI agent editing, and system settings.
           </p>
           <Button variant="outline" className="mt-4" onClick={() => toast({ title: "Manage Permissions (Simulated)", description: "Navigation to detailed permission matrix/editor."})}>
             <ShieldCheck className="mr-2 h-4 w-4" /> Configure Permissions Matrix

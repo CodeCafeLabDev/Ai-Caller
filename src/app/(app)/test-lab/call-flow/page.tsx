@@ -32,7 +32,7 @@ const mockClients = [
   { id: "client_2", name: "Solutions Ltd" },
 ];
 
-const mockCampaignsTemplates = {
+const mockCampaignsAgents = {
   client_1: [
     { id: "tpl_leadgen_c1", name: "Lead Qualification v1.2" },
     { id: "tpl_feedback_c1", name: "Customer Feedback Survey" },
@@ -91,7 +91,7 @@ export default function SimulateCallFlowPage() {
   const [isSimulating, setIsSimulating] = React.useState(false);
   const [currentStepId, setCurrentStepId] = React.useState<string | null>(null);
 
-  const availableCampaigns = selectedClientId ? mockCampaignsTemplates[selectedClientId as keyof typeof mockCampaignsTemplates] || [] : [];
+  const availableCampaigns = selectedClientId ? mockCampaignsAgents[selectedClientId as keyof typeof mockCampaignsAgents] || [] : [];
 
   const logEvent = (message: string) => {
     setSimulationLog(prev => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
@@ -179,7 +179,7 @@ export default function SimulateCallFlowPage() {
 
   const handleStartSimulation = () => {
     if (!selectedClientId || !selectedCampaignId) {
-      toast({ title: "Setup Required", description: "Please select a client and campaign/template.", variant: "destructive" });
+      toast({ title: "Setup Required", description: "Please select a client and campaign/agent.", variant: "destructive" });
       return;
     }
     try {
@@ -284,13 +284,13 @@ export default function SimulateCallFlowPage() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="select-campaign">Campaign / AI Template</Label>
+            <Label htmlFor="select-campaign">Campaign / AI Agent</Label>
             <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId} disabled={!selectedClientId || isSimulating}>
-              <SelectTrigger id="select-campaign"><SelectValue placeholder="Select campaign/template" /></SelectTrigger>
+              <SelectTrigger id="select-campaign"><SelectValue placeholder="Select campaign/agent" /></SelectTrigger>
               <SelectContent>
                 {availableCampaigns.length > 0 ? 
                   availableCampaigns.map(ct => <SelectItem key={ct.id} value={ct.id}>{ct.name}</SelectItem>) :
-                  <SelectItem value="none" disabled>No templates for this client</SelectItem>
+                  <SelectItem value="none" disabled>No agents for this client</SelectItem>
                 }
               </SelectContent>
             </Select>

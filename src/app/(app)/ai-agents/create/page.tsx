@@ -28,24 +28,24 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { Settings2, BookOpen, ListTree, Tag, Play, Save, UploadCloud } from "lucide-react";
-import type { AITemplateUseCase, AITemplateLanguage } from "@/app/(app)/ai-templates/page";
+import type { AIAgentUseCase, AIAgentLanguage } from "@/app/(app)/ai-agents/page";
 import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
-//   title: 'Create AI Template - AI Caller',
+//   title: 'Create AI Agent - AI Caller',
 //   description: 'Design and configure a new voice conversation flow for your AI caller.',
-//   keywords: ['create ai template', 'conversation flow designer', 'script builder', 'AI Caller'],
+//   keywords: ['create ai agent', 'conversation flow designer', 'script builder', 'AI Caller'],
 // };
 
 
-const templateUseCases: AITemplateUseCase[] = ["Lead Generation", "Reminder", "Feedback", "Support", "Sales", "Payment Collection", "Survey", "Other"];
-const templateLanguages: AITemplateLanguage[] = ["English (US)", "Spanish (ES)", "French (FR)", "German (DE)", "Hindi (IN)", "Other"];
+const agentUseCases: AIAgentUseCase[] = ["Lead Generation", "Reminder", "Feedback", "Support", "Sales", "Payment Collection", "Survey", "Other"];
+const agentLanguages: AIAgentLanguage[] = ["English (US)", "Spanish (ES)", "French (FR)", "German (DE)", "Hindi (IN)", "Other"];
 
-const createTemplateFormSchema = z.object({
-  templateName: z.string().min(3, { message: "Template name must be at least 3 characters." }),
+const createAgentFormSchema = z.object({
+  agentName: z.string().min(3, { message: "Agent name must be at least 3 characters." }),
   description: z.string().max(250, { message: "Description must be 250 characters or less." }).optional(),
-  category: z.enum(templateUseCases, { required_error: "Please select a category." }),
-  defaultLanguage: z.enum(templateLanguages, { required_error: "Please select a default language." }),
+  category: z.enum(agentUseCases, { required_error: "Please select a category." }),
+  defaultLanguage: z.enum(agentLanguages, { required_error: "Please select a default language." }),
   tags: z.string().optional(),
   scriptContent: z.string().min(10, { message: "Script content must be at least 10 characters." }),
   globalVariables: z.string().optional().refine(val => {
@@ -61,15 +61,15 @@ const createTemplateFormSchema = z.object({
   }, { message: "Global variables must be valid JSON or key:value pairs per line if provided." }),
 });
 
-type CreateTemplateFormValues = z.infer<typeof createTemplateFormSchema>;
+type CreateAgentFormValues = z.infer<typeof createAgentFormSchema>;
 
-export default function CreateAITemplatePage() {
+export default function CreateAIAgentPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const form = useForm<CreateTemplateFormValues>({
-    resolver: zodResolver(createTemplateFormSchema),
+  const form = useForm<CreateAgentFormValues>({
+    resolver: zodResolver(createAgentFormSchema),
     defaultValues: {
-      templateName: "",
+      agentName: "",
       description: "",
       category: undefined,
       defaultLanguage: undefined,
@@ -81,15 +81,15 @@ export default function CreateAITemplatePage() {
 
   function handleFormSubmit(status: "Draft" | "Published") {
     form.handleSubmit((data) => {
-      console.log("Create Template Data:", data, "Status:", status);
+      console.log("Create Agent Data:", data, "Status:", status);
       toast({
-        title: `Template ${status}`,
-        description: `Template "${data.templateName}" has been ${status.toLowerCase()} (Simulated).`,
+        title: `Agent ${status}`,
+        description: `Agent "${data.agentName}" has been ${status.toLowerCase()} (Simulated).`,
       });
       // Potentially redirect or update global state
       // For now, just a simulation
       if (status === "Published") {
-        // router.push("/ai-templates");
+        // router.push("/ai-agents");
       }
     })();
   }
@@ -111,7 +111,7 @@ export default function CreateAITemplatePage() {
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-            <h1 className="text-3xl font-bold font-headline">Create New AI Template</h1>
+            <h1 className="text-3xl font-bold font-headline">Create New AI Agent</h1>
             <p className="text-muted-foreground">
             Design and configure a new voice conversation flow for your AI caller.
             </p>
@@ -122,15 +122,15 @@ export default function CreateAITemplatePage() {
         <form className="space-y-8">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center text-lg"><Settings2 className="mr-2 h-5 w-5" />Template Information</CardTitle>
+                <CardTitle className="flex items-center text-lg"><Settings2 className="mr-2 h-5 w-5" />Agent Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <FormField
                   control={form.control}
-                  name="templateName"
+                  name="agentName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs">Template Name*</FormLabel>
+                      <FormLabel className="text-xs">Agent Name*</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g., Welcome Call" {...field} className="h-9 text-sm"/>
                       </FormControl>
@@ -145,7 +145,7 @@ export default function CreateAITemplatePage() {
                     <FormItem>
                       <FormLabel className="text-xs">Description</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Briefly describe this template." {...field} className="text-sm"/>
+                        <Textarea placeholder="Briefly describe this agent." {...field} className="text-sm"/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -163,7 +163,7 @@ export default function CreateAITemplatePage() {
                             <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select a category" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {templateUseCases.map(cat => <SelectItem key={cat} value={cat} className="text-sm">{cat}</SelectItem>)}
+                            {agentUseCases.map(cat => <SelectItem key={cat} value={cat} className="text-sm">{cat}</SelectItem>)}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -181,7 +181,7 @@ export default function CreateAITemplatePage() {
                             <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select a language" /></SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {templateLanguages.map(lang => <SelectItem key={lang} value={lang} className="text-sm">{lang}</SelectItem>)}
+                            {agentLanguages.map(lang => <SelectItem key={lang} value={lang} className="text-sm">{lang}</SelectItem>)}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -267,7 +267,7 @@ export default function CreateAITemplatePage() {
                 <Save className="mr-2 h-4 w-4" /> Save as Draft
             </Button>
             <Button type="button" onClick={() => handleFormSubmit("Published")} className="w-full sm:w-auto">
-                <UploadCloud className="mr-2 h-4 w-4" /> Publish Template
+                <UploadCloud className="mr-2 h-4 w-4" /> Publish Agent
             </Button>
           </div>
         </form>

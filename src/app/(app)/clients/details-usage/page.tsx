@@ -112,8 +112,8 @@ export default function ClientDetailsUsagePage() {
     address: client.address || "",
     voiceMinutesUsed: client.voiceMinutesUsed || 0,
     voiceMinutesLimit: client.voiceMinutesLimit || 0,
-    templatesUsed: client.templatesUsed || 0,
-    templatesLimit: client.templatesLimit || 0,
+    agentsUsed: client.agentsUsed || 0,
+    agentsLimit: client.agentsLimit || 0,
     callSuccessRate: client.callSuccessRate || "N/A",
     renewalDate: client.renewalDate || new Date().toISOString(),
     billingCycle: client.billingCycle || "Monthly",
@@ -216,11 +216,11 @@ export default function ClientDetailsUsagePage() {
           </div>
           <Card>
             <CardHeader>
-                <CardTitle>Templates Used</CardTitle>
+                <CardTitle>Agents Used</CardTitle>
             </CardHeader>
             <CardContent>
-                <p className="text-2xl font-bold">{displayClient.templatesUsed} / {displayClient.templatesLimit}</p>
-                <Progress value={(displayClient.templatesUsed / displayClient.templatesLimit) * 100} className="mt-2 h-2" />
+                <p className="text-2xl font-bold">{displayClient.agentsUsed} / {displayClient.agentsLimit}</p>
+                <Progress value={(displayClient.agentsUsed / displayClient.agentsLimit) * 100} className="mt-2 h-2" />
                 <p className="text-xs text-muted-foreground mt-1">Monthly Limit</p>
             </CardContent>
           </Card>
@@ -258,7 +258,7 @@ export default function ClientDetailsUsagePage() {
                 <ul className="list-disc list-inside pl-4 space-y-1 text-sm text-muted-foreground">
                   <li>Monthly Calls: {displayClient.monthlyCallLimit}</li>
                   <li>Voice Minutes: {displayClient.voiceMinutesLimit} / month</li>
-                  <li>AI Templates: {displayClient.templatesLimit}</li>
+                  <li>AI Agents: {displayClient.agentsLimit}</li>
                 </ul>
               </div>
               <div>

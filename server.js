@@ -68,10 +68,10 @@ db.connect(err => {
             totalCallsAllowedPerMonth VARCHAR(64),
             callDurationPerCallMaxMinutes INT,
             numberOfAgents INT,
-            templatesAllowed INT,
+            agentsAllowed INT,
             voicebotUsageCap VARCHAR(64),
             apiAccess BOOLEAN,
-            customTemplates BOOLEAN,
+            customAgents BOOLEAN,
             reportingAnalytics BOOLEAN,
             liveCallMonitor BOOLEAN,
             overagesAllowed BOOLEAN,
@@ -128,6 +128,25 @@ db.connect(err => {
             return;
           }
           console.log("✅ Clients table created successfully");
+        });
+
+        // --- LANGUAGES TABLE CREATION ---
+        const createLanguagesTable = `
+          CREATE TABLE IF NOT EXISTS languages (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            code VARCHAR(20) NOT NULL,
+            country_code VARCHAR(5) NOT NULL,
+            calling_code VARCHAR(10) NOT NULL,
+            enabled BOOLEAN DEFAULT TRUE
+          );
+        `;
+        tempDb.query(createLanguagesTable, (err) => {
+          if (err) {
+            console.error("Failed to create languages table:", err);
+          } else {
+            console.log("✅ Languages table ready");
+          }
         });
       });
     });
@@ -229,10 +248,10 @@ app.put("/api/plans/:id", (req, res) => {
       totalCallsAllowedPerMonth: updatedPlan.totalCallsAllowedPerMonth !== undefined ? updatedPlan.totalCallsAllowedPerMonth : currentPlan.totalCallsAllowedPerMonth,
       callDurationPerCallMaxMinutes: updatedPlan.callDurationPerCallMaxMinutes !== undefined ? updatedPlan.callDurationPerCallMaxMinutes : currentPlan.callDurationPerCallMaxMinutes,
       numberOfAgents: updatedPlan.numberOfAgents !== undefined ? updatedPlan.numberOfAgents : currentPlan.numberOfAgents,
-      templatesAllowed: updatedPlan.templatesAllowed !== undefined ? updatedPlan.templatesAllowed : currentPlan.templatesAllowed,
+      agentsAllowed: updatedPlan.agentsAllowed !== undefined ? updatedPlan.agentsAllowed : currentPlan.agentsAllowed,
       voicebotUsageCap: updatedPlan.voicebotUsageCap !== undefined ? updatedPlan.voicebotUsageCap : currentPlan.voicebotUsageCap,
       apiAccess: updatedPlan.apiAccess !== undefined ? updatedPlan.apiAccess : currentPlan.apiAccess,
-      customTemplates: updatedPlan.customTemplates !== undefined ? updatedPlan.customTemplates : currentPlan.customTemplates,
+      customAgents: updatedPlan.customAgents !== undefined ? updatedPlan.customAgents : currentPlan.customAgents,
       reportingAnalytics: updatedPlan.reportingAnalytics !== undefined ? updatedPlan.reportingAnalytics : currentPlan.reportingAnalytics,
       liveCallMonitor: updatedPlan.liveCallMonitor !== undefined ? updatedPlan.liveCallMonitor : currentPlan.liveCallMonitor,
       overagesAllowed: updatedPlan.overagesAllowed !== undefined ? updatedPlan.overagesAllowed : currentPlan.overagesAllowed,
@@ -899,6 +918,69 @@ function authenticateJWT(req, res, next) {
 
 // Serve uploads folder statically
 app.use('/uploads', express.static('uploads'));
+
+// --- LANGUAGES API ---
+// Get all languages
+app.get("/api/languages", (req, res) => {
+  db.query("SELECT * FROM languages ORDER BY name ASC", (err, results) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: "Failed to fetch languages", error: err });
+    }
+    res.json({ success: true, data: results });
+  });
+});
+
+// Add a new language
+app.post("/api/languages", (req, res) => {
+  const { name, code, country_code, calling_code, enabled } = req.body;
+  db.query(
+    "INSERT INTO languages (name, code, country_code, calling_code, enabled) VALUES (?, ?, ?, ?, ?)",
+    [name, code, country_code, calling_code, enabled],
+    (err, result) => {
+      if (err) {
+        return res.status(500).json({ success: false, message: "Failed to add language", error: err });
+      }
+      db.query("SELECT * FROM languages WHERE id = ?", [result.insertId], (err, results) => {
+        if (err || results.length === 0) {
+          return res.status(500).json({ success: false, message: "Language added but failed to fetch", error: err });
+        }
+        res.status(201).json({ success: true, data: results[0] });
+      });
+    }
+  );
+});
+
+// Update (enable/disable) a language
+app.patch("/api/languages/:id", (req, res) => {
+  const { id } = req.params;
+  const { enabled } = req.body;
+  db.query(
+    "UPDATE languages SET enabled = ? WHERE id = ?",
+    [enabled, id],
+    (err) => {
+      if (err) {
+        return res.status(500).json({ success: false, message: "Failed to update language", error: err });
+      }
+      db.query("SELECT * FROM languages WHERE id = ?", [id], (err, results) => {
+        if (err || results.length === 0) {
+          return res.status(500).json({ success: false, message: "Language updated but failed to fetch", error: err });
+        }
+        res.json({ success: true, data: results[0] });
+      });
+    }
+  );
+});
+
+// Delete a language
+app.delete("/api/languages/:id", (req, res) => {
+  const { id } = req.params;
+  db.query("DELETE FROM languages WHERE id = ?", [id], (err) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: "Failed to delete language", error: err });
+    }
+    res.json({ success: true });
+  });
+});
 
 // Start server
 app.listen(5000, () => {

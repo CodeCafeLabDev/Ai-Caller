@@ -35,13 +35,13 @@ import {
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress"; // Added Progress
 
-interface MockAiTemplate {
+interface MockAiAgent {
   id: string;
   name: string;
   content: string; // Mock script content
 }
 
-const mockAiTemplates: MockAiTemplate[] = [
+const mockAiAgents: MockAiAgent[] = [
   { id: "tpl_1", name: "Lead Qualification v1.2", content: "BOT: Hello, is this {{name}}?\nUSER_EXPECTS: Greeting\nIF intent:positive THEN GOTO:qualify_interest\nELSE GOTO:end_call_negative" },
   { id: "tpl_2", name: "Customer Support - Billing", content: "BOT: Welcome to billing support. How can I help?\nUSER_EXPECTS: BillingQuery\n..." },
   { id: "tpl_3", name: "Appointment Reminder Flow", content: "BOT: Hi {{contact_name}}, reminding you about your appointment on {{date}}.\nUSER_EXPECTS: Confirmation\nIF intent:confirm THEN GOTO:confirmed\nIF intent:reschedule THEN GOTO:reschedule_options" },
@@ -66,17 +66,17 @@ const mockValidationResults: ValidationResult[] = [
 
 export default function ScriptValidationPage() {
   const { toast } = useToast();
-  const [selectedTemplateId, setSelectedTemplateId] = React.useState<string>("");
+  const [selectedAgentId, setSelectedAgentId] = React.useState<string>("");
   const [scriptContent, setScriptContent] = React.useState<string>("");
   const [validationResults, setValidationResults] = React.useState<ValidationResult[]>([]);
   const [isValidating, setIsValidating] = React.useState(false);
   const [validationProgress, setValidationProgress] = React.useState(0);
 
 
-  const handleTemplateSelect = (templateId: string) => {
-    setSelectedTemplateId(templateId);
-    const template = mockAiTemplates.find(t => t.id === templateId);
-    setScriptContent(template ? template.content : "Select a template to view its content.");
+  const handleAgentSelect = (agentId: string) => {
+    setSelectedAgentId(agentId);
+    const agent = mockAiAgents.find(t => t.id === agentId);
+    setScriptContent(agent ? agent.content : "Select a agent to view its content.");
     setValidationResults([]); // Clear previous results
   };
   
@@ -88,7 +88,7 @@ export default function ScriptValidationPage() {
             reader.onload = (e) => {
                 const content = e.target?.result as string;
                 setScriptContent(content);
-                setSelectedTemplateId(""); // Clear selected template if file uploaded
+                setSelectedAgentId(""); // Clear selected agent if file uploaded
                 setValidationResults([]);
                 toast({ title: "File Uploaded", description: `${file.name} loaded for validation.` });
             };
@@ -101,7 +101,7 @@ export default function ScriptValidationPage() {
 
   const handleValidateScript = () => {
     if (!scriptContent.trim()) {
-      toast({ title: "No Script Loaded", description: "Please select a template or upload a script file.", variant: "destructive" });
+      toast({ title: "No Script Loaded", description: "Please select a agent or upload a script file.", variant: "destructive" });
       return;
     }
     setIsValidating(true);
@@ -140,7 +140,7 @@ export default function ScriptValidationPage() {
             <CheckSquare className="mr-3 h-8 w-8 text-primary" /> AI Script Validation Tool
           </h1>
           <p className="text-muted-foreground">
-            Scan AI script templates for logic errors, missing intents, and potential issues.
+            Scan AI script agents for logic errors, missing intents, and potential issues.
           </p>
         </div>
       </div>
@@ -148,16 +148,16 @@ export default function ScriptValidationPage() {
       <Card>
         <CardHeader>
           <CardTitle>Script Input</CardTitle>
-          <CardDescription>Upload a script file or select an existing AI template to validate.</CardDescription>
+          <CardDescription>Upload a script file or select an existing AI agent to validate.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4 items-end">
             <div>
-              <Label htmlFor="select-template">Select Existing Template</Label>
-              <Select value={selectedTemplateId} onValueChange={handleTemplateSelect} disabled={isValidating}>
-                <SelectTrigger id="select-template"><SelectValue placeholder="Choose a template..." /></SelectTrigger>
+              <Label htmlFor="select-agent">Select Existing Agent</Label>
+              <Select value={selectedAgentId} onValueChange={handleAgentSelect} disabled={isValidating}>
+                <SelectTrigger id="select-agent"><SelectValue placeholder="Choose a agent..." /></SelectTrigger>
                 <SelectContent>
-                  {mockAiTemplates.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                  {mockAiAgents.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -228,8 +228,8 @@ export default function ScriptValidationPage() {
                 </Button>
             </CardContent>
             <CardFooter className="gap-2">
-                 <Button onClick={() => toast({title: "Edit in AI Templates", description: "Redirecting to template editor (simulated)."})}>
-                    <Edit className="mr-2 h-4 w-4"/> Edit in AI Templates
+                 <Button onClick={() => toast({title: "Edit in AI Agents", description: "Redirecting to agent editor (simulated)."})}>
+                    <Edit className="mr-2 h-4 w-4"/> Edit in AI Agents
                 </Button>
                 <Button variant="secondary" onClick={() => toast({title: "Test in Simulator", description: "Loading script in Call Flow Simulator (simulated)."})}>
                     <Bot className="mr-2 h-4 w-4"/> Test in Call Flow Simulator

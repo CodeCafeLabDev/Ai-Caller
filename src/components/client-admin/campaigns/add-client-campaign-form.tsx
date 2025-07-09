@@ -33,17 +33,17 @@ import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
 
-// Mock AI Templates available to clients
-const mockClientAiTemplates = [
-  { id: "tpl_client_welcome", name: "Client Welcome Call Template" },
-  { id: "tpl_client_feedback", name: "Client Feedback Survey Template" },
-  { id: "tpl_client_promo", name: "Client Promotional Offer Template" },
+// Mock AI Agents available to clients
+const mockClientAiAgents = [
+  { id: "tpl_client_welcome", name: "Client Welcome Call Agent" },
+  { id: "tpl_client_feedback", name: "Client Feedback Survey Agent" },
+  { id: "tpl_client_promo", name: "Client Promotional Offer Agent" },
 ];
 
 const addClientCampaignFormSchema = z.object({
   campaignName: z.string().min(3, { message: "Campaign name must be at least 3 characters." }),
   campaignDescription: z.string().max(200, { message: "Description must be 200 characters or less." }).optional(),
-  aiTemplateId: z.string({ required_error: "Please select an AI template." }),
+  aiAgentId: z.string({ required_error: "Please select an AI agent." }),
   targetAudienceDescription: z.string().max(500, { message: "Target audience description is too long." }).optional(),
   startDate: z.date({ required_error: "Start date is required." }),
   endDate: z.date({ required_error: "End date is required." }),
@@ -66,7 +66,7 @@ export function AddClientCampaignForm({ onSuccess, onCancel }: AddClientCampaign
     defaultValues: {
       campaignName: "",
       campaignDescription: "",
-      aiTemplateId: undefined,
+      aiAgentId: undefined,
       targetAudienceDescription: "",
       startDate: new Date(),
       endDate: new Date(new Date().setDate(new Date().getDate() + 7)), // Default to 7 days from start
@@ -120,19 +120,19 @@ export function AddClientCampaignForm({ onSuccess, onCancel }: AddClientCampaign
 
             <FormField
               control={form.control}
-              name="aiTemplateId"
+              name="aiAgentId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>AI Call Template*</FormLabel>
+                  <FormLabel>AI Call Agent*</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Select an AI template for calls" />
+                        <SelectValue placeholder="Select an AI agent for calls" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {mockClientAiTemplates.map(template => (
-                        <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                      {mockClientAiAgents.map(agent => (
+                        <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
