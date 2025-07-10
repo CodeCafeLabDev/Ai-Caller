@@ -1,4 +1,5 @@
 //server.js
+require('dotenv').config();
 const express = require("express");
 const mysql = require("mysql");
 const cors = require("cors");
@@ -8,6 +9,7 @@ const upload = multer({ dest: 'uploads/' });
 const jwt = require('jsonwebtoken');
 const bcryptjs = require('bcryptjs');
 const cookieParser = require('cookie-parser');
+const fetch = (...args) => import('node-fetch').then(mod => mod.default(...args));
 
 console.log("🟡 Starting backend server...");
 
@@ -175,6 +177,29 @@ db.on('error', function(err) {
 // Test API route
 app.get("/", (req, res) => {
   res.send("🟢 Backend is running!");
+});
+
+// ElevenLabs Voices Proxy Endpoint
+app.get('/api/voices', async (req, res) => {
+  try {
+    console.log('ELEVENLABS_API_KEY:', process.env.ELEVENLABS_API_KEY);
+    const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: {
+        'xi-api-key': process.env.ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('ElevenLabs API error:', response.status, errorText);
+      return res.status(response.status).json({ error: 'Failed to fetch voices from ElevenLabs', details: errorText });
+    }
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching voices:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // CRUD API for Plans

@@ -62,8 +62,10 @@ export default function SignInPage() {
           setUser({
             userId: profileData.data.id ? profileData.data.id.toString() : '',
             email: profileData.data.email,
-            fullName: profileData.data.name,
+            name: profileData.data.name,
+            fullName: profileData.data.name, // for backward compatibility
             role: loginData.user.role,
+            avatarUrl: profileData.data.avatar_url,
           });
           toast({
             title: "Sign In Successful",

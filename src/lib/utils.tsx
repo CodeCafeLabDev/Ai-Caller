@@ -7,9 +7,11 @@ import React, { createContext, useContext, useState } from 'react';
 
 export type AuthUser = {
   userId: string;
-  email: string;
-  fullName: string;
+  email?: string;
+  name?: string;
+  fullName?: string;
   role: string;
+  avatarUrl?: string;
 };
 
 interface UserContextType {

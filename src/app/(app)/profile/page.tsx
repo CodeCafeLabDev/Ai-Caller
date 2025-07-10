@@ -69,6 +69,8 @@ export default function ProfilePage() {
           setUser({
             userId: data.data.id ? data.data.id.toString() : '',
             email: data.data.email,
+            name: data.data.name, // add name
+            avatarUrl: data.data.avatar_url, // add avatarUrl
             fullName: data.data.name,
             role: data.data.roleName,
           });

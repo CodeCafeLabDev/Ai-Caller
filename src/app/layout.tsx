@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { UserProvider } from '@/lib/utils';
+import { UserHydrator } from '@/components/UserHydrator';
 
 export const metadata: Metadata = {
   title: 'AI Caller',
@@ -23,9 +24,11 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <UserProvider>
-          <SidebarProvider defaultOpen={true}>
-            {children}
-          </SidebarProvider>
+          <UserHydrator>
+            <SidebarProvider defaultOpen={true}>
+              {children}
+            </SidebarProvider>
+          </UserHydrator>
         </UserProvider>
         <Toaster />
       </body>

@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/components/ui/use-toast';
 import React, { useState } from 'react';
+import { useUser } from '@/lib/utils';
 
 // Define types for navigation items
 type SubNavItem = {
@@ -88,6 +89,8 @@ const initialNavItems: NavItemType[] = [
         { href: '/ai-agents/create', label: 'Create Agent', icon: UserPlus }, 
         { href: '/ai-agents/version-history', label: 'Version History', icon: History },
         { href: '/ai-agents/language-settings', label: 'Language Settings', icon: Languages },
+        { href: '/ai-agents/voices', label: 'Voices', icon: Megaphone },
+        { href: '/ai-agents/knowledge-base', label: 'Knowledge Base', icon: BookOpen },
         { href: '/ai-agents/import-export', label: 'Import/Export JSON', icon: FileJson },
     ]
   },
@@ -174,6 +177,8 @@ export function SideNavigation() {
     router.push('/signin');
   };
 
+  const { user } = useUser();
+
   return (
     <Sidebar collapsible="icon" variant="sidebar" side="left" className="border-r">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
@@ -186,7 +191,7 @@ export function SideNavigation() {
               <SidebarMenuButton
                 asChild={!item.subItems} 
                 onClick={item.subItems ? () => toggleSubmenu(item.label) : undefined}
-                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.basePath && pathname.startsWith(item.basePath) && item.href !=='/dashboard')) : false)}
+                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.basePath && pathname.startsWith(item.basePath) && item.href !=='/dashboard')) : false) || false}
                 tooltip={{ children: item.label, className: "bg-popover text-popover-foreground border-border" }}
                 className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
               >
@@ -228,16 +233,46 @@ export function SideNavigation() {
       <SidebarFooter className="p-3 border-t border-sidebar-border">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start p-2 h-auto text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:p-0">
-              <Avatar className="h-8 w-8 mr-2 group-data-[collapsible=icon]:mr-0">
-                <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user avatar" />
-                <AvatarFallback>AU</AvatarFallback>
-              </Avatar>
-              <div className="group-data-[collapsible=icon]:hidden flex flex-col items-start">
-                <span className="font-medium">Admin User</span>
-                <span className="text-xs text-sidebar-foreground/70">admin@AI Caller.com</span>
-              </div>
-            </Button>
+            {/* Fetch and display real user data from /api/profile */}
+            {(() => {
+              // Use React hooks in the parent component, not here!
+              // So, this code assumes you have something like:
+              // const [user, setUser] = useState(null);
+              // useEffect(() => {
+              //   fetch('/api/profile', { credentials: 'include' })
+              //     .then(res => res.json())
+              //     .then(data => setUser(data.user));
+              // }, []);
+              // And user is available in scope.
+
+              // For this snippet, we assume `user` is available in scope.
+              // Fallbacks for avatar and initials
+              const getInitials = (name: string) => {
+                if (!name) return "U";
+                const parts = name.split(" ");
+                if (parts.length === 1) return parts[0][0]?.toUpperCase() || "U";
+                return (parts[0][0] + parts[1][0]).toUpperCase();
+              };
+
+              return (
+                <Button variant="ghost" className="w-full justify-start p-2 h-auto text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:p-0">
+                  <Avatar className="h-8 w-8 mr-2 group-data-[collapsible=icon]:mr-0">
+                    <AvatarImage
+                      src={user?.avatarUrl || "https://placehold.co/100x100.png"}
+                      alt={user?.name || "User Avatar"}
+                      data-ai-hint="user avatar"
+                    />
+                    <AvatarFallback>
+                      {getInitials(user?.name || "User")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="group-data-[collapsible=icon]:hidden flex flex-col items-start">
+                    <span className="font-medium">{user?.name || "User"}</span>
+                    <span className="text-xs text-sidebar-foreground/70">{user?.email || "user@email.com"}</span>
+                  </div>
+                </Button>
+              );
+            })()}
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="start" className="w-56 ml-2 mb-2">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
