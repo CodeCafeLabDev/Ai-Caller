@@ -10,6 +10,7 @@ const jwt = require('jsonwebtoken');
 const bcryptjs = require('bcryptjs');
 const cookieParser = require('cookie-parser');
 const fetch = (...args) => import('node-fetch').then(mod => mod.default(...args));
+const axios = require('axios');
 
 console.log("🟡 Starting backend server...");
 
@@ -148,6 +149,30 @@ db.connect(err => {
             console.error("Failed to create languages table:", err);
           } else {
             console.log("✅ Languages table ready");
+          }
+        });
+
+        // --- KNOWLEDGE BASE TABLE CREATION ---
+        const createKnowledgeBaseTable = `
+          CREATE TABLE IF NOT EXISTS knowledge_base (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            client_id INT,
+            type VARCHAR(32) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            url TEXT,
+            file_path VARCHAR(255),
+            text_content TEXT,
+            size VARCHAR(32),
+            created_by VARCHAR(255),
+            created_at DATETIME,
+            updated_at DATETIME
+          );
+        `;
+        tempDb.query(createKnowledgeBaseTable, (err) => {
+          if (err) {
+            console.error("Failed to create knowledge base table:", err);
+          } else {
+            console.log("✅ Knowledge base table ready");
           }
         });
       });
@@ -918,7 +943,11 @@ app.post('/api/login', async (req, res) => {
     db.query('UPDATE admin_users SET lastLogin = NOW() WHERE id = ?', [user.id], (err2) => {
       if (err2) return res.status(500).json({ success: false, message: 'Failed to update lastLogin', error: err2 });
 
-      const token = jwt.sign({ id: user.id, email: user.email, role: user.roleName }, JWT_SECRET, { expiresIn: '1d' });
+      const token = jwt.sign(
+        { id: user.id, name: user.name, email: user.email, role: user.roleName },
+        JWT_SECRET,
+        { expiresIn: '1d' }
+      );
       res.cookie('token', token, {
         httpOnly: true,
         sameSite: 'lax',
@@ -1008,19 +1037,101 @@ app.delete("/api/languages/:id", (req, res) => {
 });
 
 // POST /api/knowledge-base
-app.post('/api/knowledge-base', authenticateJWT, (req, res) => {
+app.post('/api/knowledge-base', authenticateJWT, async (req, res) => {
   const { client_id, type, name, url, file_path, text_content, size } = req.body;
+  let extractedText = text_content;
+
+  if (type === 'url' && url) {
+    try {
+      const { extract } = await import('@extractus/article-extractor');
+      const article = await extract(url, {
+        fetch: (input, init) => fetch(input, {
+          ...init,
+          headers: {
+            ...(init?.headers || {}),
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        })
+      });
+      extractedText = article?.content?.replace(/<[^>]+>/g, '') || '';
+      // Fallback: if still empty, try cheerio to get visible text from <body>
+      if (!extractedText) {
+        const cheerio = (await import('cheerio')).default;
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        extractedText = $('body').text().replace(/\s+/g, ' ').trim();
+      }
+      // Final fallback: Puppeteer for JS-rendered sites
+      if (!extractedText) {
+        const puppeteer = await import('puppeteer');
+        const browser = await puppeteer.launch({ headless: 'new' });
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 20000 });
+        extractedText = await page.evaluate(() => document.body.innerText.trim());
+        await browser.close();
+      }
+      // Remove extra spacing between paragraphs (replace multiple newlines or blank lines with a single space)
+      if (extractedText) {
+        extractedText = extractedText.replace(/\n{2,}/g, ' ').replace(/\s{2,}/g, ' ').trim();
+      }
+    } catch (e) {
+      // Fallback: try cheerio if article-extractor fails
+      try {
+        const cheerio = (await import('cheerio')).default;
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        extractedText = $('body').text().replace(/\s+/g, ' ').trim();
+        // Final fallback: Puppeteer for JS-rendered sites
+        if (!extractedText) {
+          const puppeteer = await import('puppeteer');
+          const browser = await puppeteer.launch({ headless: 'new' });
+          const page = await browser.newPage();
+          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+          await page.goto(url, { waitUntil: 'networkidle2', timeout: 20000 });
+          extractedText = await page.evaluate(() => document.body.innerText.trim());
+          await browser.close();
+        }
+        // Remove extra spacing between paragraphs (replace multiple newlines or blank lines with a single space)
+        if (extractedText) {
+          extractedText = extractedText.replace(/\n{2,}/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        }
+      } catch (err) {
+        extractedText = '';
+      }
+    }
+  }
+
   const created_by = req.user.name || req.user.email || 'Unknown';
   const created_at = new Date();
   const updated_at = new Date();
   const query = `INSERT INTO knowledge_base (client_id, type, name, url, file_path, text_content, size, created_by, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-  db.query(query, [client_id, type, name, url, file_path, text_content, size, created_by, created_at, updated_at], (err, result) => {
+  db.query(query, [client_id, type, name, url, file_path, extractedText, size, created_by, created_at, updated_at], (err, result) => {
     if (err) return res.status(500).json({ success: false, message: err.message });
     db.query('SELECT * FROM knowledge_base WHERE id = ?', [result.insertId], (err2, rows) => {
       if (err2) return res.status(500).json({ success: false, message: err2.message });
       res.status(201).json({ success: true, data: rows[0] });
     });
+  });
+});
+
+// DELETE /api/knowledge-base/:id
+app.delete('/api/knowledge-base/:id', authenticateJWT, (req, res) => {
+  db.query('DELETE FROM knowledge_base WHERE id = ?', [req.params.id], (err, result) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Not found' });
+    res.json({ success: true });
   });
 });
 

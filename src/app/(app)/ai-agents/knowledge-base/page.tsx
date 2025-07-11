@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Search, PlusCircle, Edit2, Eye, Archive, BookOpen, Check, ChevronsUpDown, ListFilter } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/cn";
-import { Globe, FileText, Upload, MoreHorizontal } from "lucide-react";
+import { Globe, FileText, Upload, MoreHorizontal, Download } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
@@ -25,6 +25,8 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { useEffect, useState } from 'react';
+import { Sheet, SheetHeader, SheetTitle, SheetFooter, SheetClose, SheetContent } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const ragStorage = {
   used: 0,
@@ -67,6 +69,8 @@ export default function KnowledgeBasePage() {
   const [file, setFile] = useState<File | null>(null);
   const [fileUploading, setFileUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0); // 0 to 100
+  const [isDetailsSheetOpen, setIsDetailsSheetOpen] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<KnowledgeBaseArticle | null>(null);
 
   // Fetch articles on load
   useEffect(() => {
@@ -238,6 +242,34 @@ export default function KnowledgeBasePage() {
 
     xhr.send(formData);
   }
+
+  // Add handlers for delete and copy ID
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    try {
+      const res = await fetch(`http://localhost:5000/api/knowledge-base/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        setArticles(prev => prev.filter(a => a.id !== id));
+        toast({ title: "Deleted", description: "Knowledge base item deleted." });
+      } else {
+        toast({ title: "Delete failed", description: "Could not delete item.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Delete failed", description: "Network or server error.", variant: "destructive" });
+    }
+  };
+
+  const handleCopyId = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id);
+      toast({ title: "Copied", description: "Document ID copied to clipboard." });
+    } catch (err) {
+      toast({ title: "Copy failed", description: "Could not copy ID.", variant: "destructive" });
+    }
+  };
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -486,7 +518,14 @@ export default function KnowledgeBasePage() {
           </thead>
           <tbody>
             {paginatedArticles.map(article => (
-              <tr key={article.id} className="border-b hover:bg-gray-50">
+              <tr
+                key={article.id}
+                className="border-b hover:bg-gray-50 cursor-pointer"
+                onClick={() => {
+                  setSelectedDocument(article);
+                  setIsDetailsSheetOpen(true);
+                }}
+              >
                 <td className="flex items-center gap-3 px-6 py-4">
                   {/* Use the correct icon for each type */}
                   {(() => {
@@ -494,7 +533,22 @@ export default function KnowledgeBasePage() {
                     return Icon ? <Icon className="w-5 h-5 text-black" /> : null;
                   })()}
                   <div>
-                    <div className="font-medium text-base">{article.name}</div>
+                    <div className="font-medium text-base flex items-center gap-2">
+                      {article.name}
+                      {/* Download link for files */}
+                      {article.type === "file" && article.file_path && (
+                        <a
+                          href={`http://localhost:5000${article.file_path}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 text-gray-500 hover:text-black"
+                          title="Download file"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <Download className="w-4 h-4 inline" />
+                        </a>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground">{article.size}</div>
                   </div>
                 </td>
@@ -504,13 +558,23 @@ export default function KnowledgeBasePage() {
                 <td className="px-6 py-4 text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="bg-gray-100 rounded-xl p-2 hover:bg-gray-200 focus:outline-none">
+                      <button className="bg-gray-100 rounded-xl p-2 hover:bg-gray-200 focus:outline-none" onClick={e => e.stopPropagation()}>
                         <MoreHorizontal className="w-5 h-5" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-48 mt-2 rounded-xl border shadow-lg">
-                      <DropdownMenuItem className="text-base px-4 py-2 cursor-pointer">Copy document ID</DropdownMenuItem>
-                      <DropdownMenuItem className="text-base px-4 py-2 cursor-pointer text-red-600">Delete document</DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-base px-4 py-2 cursor-pointer"
+                        onClick={e => { e.stopPropagation(); handleCopyId(article.id); }}
+                      >
+                        Copy document ID
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-base px-4 py-2 cursor-pointer text-red-600"
+                        onClick={e => { e.stopPropagation(); handleDelete(article.id); }}
+                      >
+                        Delete document
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </td>
@@ -519,6 +583,56 @@ export default function KnowledgeBasePage() {
           </tbody>
         </table>
       </div>
+      {/* Right-side details panel as overlay */}
+      <Sheet open={isDetailsSheetOpen} onOpenChange={setIsDetailsSheetOpen}>
+        <SheetContent side="right" className="sm:max-w-sm w-full flex flex-col">
+          <SheetHeader>
+            <SheetTitle>{selectedDocument?.name}</SheetTitle>
+            <div className="text-gray-500 mb-2 capitalize">{selectedDocument?.type}</div>
+          </SheetHeader>
+          <ScrollArea className="flex-1 px-0 pb-4">
+            {selectedDocument && (
+              <>
+                <div className="mb-2 text-sm">Document ID: <span className="font-mono text-xs">{selectedDocument.id}</span></div>
+                <div className="mb-2 text-sm">Client: {clients.find(c => c.id === selectedDocument.client_id)?.companyName}</div>
+                <div className="mb-2 text-sm">Created by: {selectedDocument.created_by}</div>
+                <div className="mb-2 text-sm">Last updated: {new Date(selectedDocument.updated_at).toLocaleString()}</div>
+                {selectedDocument.type === "url" && (
+                  <div className="mt-4">
+                    <div className="font-semibold mb-1">URL Content</div>
+                    <div className="bg-gray-50 p-3 rounded min-h-[120px] whitespace-pre-wrap text-sm">
+                      {selectedDocument.text_content || "No content extracted."}
+                    </div>
+                  </div>
+                )}
+                {selectedDocument.type === "text" && (
+                  <div className="mt-4">
+                    <div className="font-semibold mb-1">Text Content</div>
+                    <div className="bg-gray-50 p-3 rounded min-h-[120px] whitespace-pre-wrap text-sm">
+                      {selectedDocument.text_content}
+                    </div>
+                  </div>
+                )}
+                {selectedDocument.type === "file" && selectedDocument.file_path && (
+                  <div className="mt-4">
+                    <div className="font-semibold mb-1">File</div>
+                    <a
+                      href={`http://localhost:5000${selectedDocument.file_path}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline"
+                    >
+                      Download File
+                    </a>
+                  </div>
+                )}
+              </>
+            )}
+          </ScrollArea>
+          <SheetFooter className="px-0 pb-6 flex flex-row gap-2 justify-end">
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 } 
