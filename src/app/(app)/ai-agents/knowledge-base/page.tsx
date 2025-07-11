@@ -86,13 +86,23 @@ export default function KnowledgeBasePage() {
     client.companyName.toLowerCase().includes(search.toLowerCase())
   );
 
+  const selectedTypes = Object.entries(typeFilter).filter(([_, v]) => v).map(([k]) => k);
+  const typeLabels = { file: 'File', url: 'URL', text: 'Text' };
+  const typeIcons = { file: Upload, url: Globe, text: FileText };
+
   const filteredArticles = articles.filter((article) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
     const matchesSearch =
       (article.name?.toLowerCase() ?? '').includes(lowerSearchTerm);
+
+    // Type filter logic
+    const matchesType =
+      selectedTypes.length === 0 || selectedTypes.includes(article.type);
+
     const matchesCategory = categoryFilter === "all" || article.type === categoryFilter;
     const matchesStatus = statusFilter === "all" || article.type === statusFilter;
-    return matchesSearch && matchesCategory && matchesStatus;
+
+    return matchesSearch && matchesType && matchesCategory && matchesStatus;
   });
 
   const totalPages = Math.ceil(filteredArticles.length / itemsPerPage);
@@ -107,10 +117,6 @@ export default function KnowledgeBasePage() {
       description: `Action performed on article: ${articleTitle}.`,
     });
   };
-
-  const selectedTypes = Object.entries(typeFilter).filter(([_, v]) => v).map(([k]) => k);
-  const typeLabels = { file: 'File', url: 'URL', text: 'Text' };
-  const typeIcons = { file: FileText, url: Globe, text: FileText };
 
   // Add URL handler
   async function handleAddUrl() {
@@ -482,7 +488,11 @@ export default function KnowledgeBasePage() {
             {paginatedArticles.map(article => (
               <tr key={article.id} className="border-b hover:bg-gray-50">
                 <td className="flex items-center gap-3 px-6 py-4">
-                  <FileText className="w-5 h-5 text-black" />
+                  {/* Use the correct icon for each type */}
+                  {(() => {
+                    const Icon = typeIcons[article.type as keyof typeof typeIcons];
+                    return Icon ? <Icon className="w-5 h-5 text-black" /> : null;
+                  })()}
                   <div>
                     <div className="font-medium text-base">{article.name}</div>
                     <div className="text-xs text-muted-foreground">{article.size}</div>
