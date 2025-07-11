@@ -1007,6 +1007,37 @@ app.delete("/api/languages/:id", (req, res) => {
   });
 });
 
+// POST /api/knowledge-base
+app.post('/api/knowledge-base', authenticateJWT, (req, res) => {
+  const { client_id, type, name, url, file_path, text_content, size } = req.body;
+  const created_by = req.user.name || req.user.email || 'Unknown';
+  const created_at = new Date();
+  const updated_at = new Date();
+  const query = `INSERT INTO knowledge_base (client_id, type, name, url, file_path, text_content, size, created_by, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  db.query(query, [client_id, type, name, url, file_path, text_content, size, created_by, created_at, updated_at], (err, result) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    db.query('SELECT * FROM knowledge_base WHERE id = ?', [result.insertId], (err2, rows) => {
+      if (err2) return res.status(500).json({ success: false, message: err2.message });
+      res.status(201).json({ success: true, data: rows[0] });
+    });
+  });
+});
+
+// GET all knowledge base entries
+app.get('/api/knowledge-base', authenticateJWT, (req, res) => {
+  db.query('SELECT * FROM knowledge_base', (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    res.json({ success: true, data: results });
+  });
+});
+
+// File upload endpoint
+app.post('/api/upload', authenticateJWT, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+  res.json({ success: true, file_path: `/uploads/${req.file.filename}` });
+});
+
 // Start server
 app.listen(5000, () => {
   console.log("🚀 Server running at http://localhost:5000");

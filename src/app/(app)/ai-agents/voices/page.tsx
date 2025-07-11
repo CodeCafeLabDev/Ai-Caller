@@ -471,6 +471,13 @@ export default function VoicesPage() {
                     >
                       <Copy className="w-5 h-5" />
                     </Button>
+                    {/* Hidden audio element for playback */}
+                    <audio
+                      ref={el => (audioRefs.current[voice.voice_id] = el)}
+                      src={voice.preview_url || voice.audio_url || ''}
+                      onEnded={handleAudioEnded}
+                      style={{ display: 'none' }}
+                    />
                   </td>
                 </tr>
               );

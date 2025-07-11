@@ -21,6 +21,10 @@ import { Globe, FileText, Upload, MoreHorizontal } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { useEffect, useState } from 'react';
 
 const ragStorage = {
   used: 0,
@@ -28,20 +32,24 @@ const ragStorage = {
   unit: "MB"
 };
 
-const mockArticles = [
-  {
-    id: "1",
-    type: "text",
-    name: "sana bank",
-    size: "1.4 kB",
-    createdBy: "CodeCafe Lab Development",
-    lastUpdated: "Jul 9, 2025, 1:54 PM"
-  }
-];
-
 export default function KnowledgeBasePage() {
   const { toast } = useToast();
-  const [articles, setArticles] = React.useState(mockArticles);
+  // Article type
+  type KnowledgeBaseArticle = {
+    id: string;
+    type: string;
+    name: string;
+    size?: string;
+    created_by: string;
+    created_at: string;
+    updated_at: string;
+    client_id: string;
+    url?: string;
+    file_path?: string;
+    text_content?: string;
+  };
+
+  const [articles, setArticles] = useState<KnowledgeBaseArticle[]>([]);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [categoryFilter, setCategoryFilter] = React.useState<"all">("all");
   const [statusFilter, setStatusFilter] = React.useState<"all">("all");
@@ -49,6 +57,34 @@ export default function KnowledgeBasePage() {
   const itemsPerPage = 10;
   const [openDialog, setOpenDialog] = React.useState<null | 'url' | 'files' | 'text'>(null);
   const [typeFilter, setTypeFilter] = React.useState({ file: false, url: false, text: false });
+  const [clients, setClients] = React.useState<{ id: string; companyName: string }[]>([]);
+  const [selectedClientId, setSelectedClientId] = React.useState<string | undefined>(undefined);
+  const [clientComboboxOpen, setClientComboboxOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const [urlInput, setUrlInput] = useState("");
+  const [textName, setTextName] = useState("");
+  const [textContent, setTextContent] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [fileUploading, setFileUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // 0 to 100
+
+  // Fetch articles on load
+  useEffect(() => {
+    fetch("http://localhost:5000/api/knowledge-base", { credentials: "include" })
+      .then(res => res.json())
+      .then(data => setArticles(data.data || []));
+  }, []);
+
+  // Fetch clients on load
+  useEffect(() => {
+    fetch("http://localhost:5000/api/clients")
+      .then(res => res.json())
+      .then(data => setClients(data.data || []));
+  }, []);
+
+  const filteredClients = clients.filter(client =>
+    client.companyName.toLowerCase().includes(search.toLowerCase())
+  );
 
   const filteredArticles = articles.filter((article) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
@@ -76,6 +112,127 @@ export default function KnowledgeBasePage() {
   const typeLabels = { file: 'File', url: 'URL', text: 'Text' };
   const typeIcons = { file: FileText, url: Globe, text: FileText };
 
+  // Add URL handler
+  async function handleAddUrl() {
+    if (!selectedClientId || !urlInput) return;
+    const res = await fetch("http://localhost:5000/api/knowledge-base", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        client_id: selectedClientId,
+        type: "url",
+        name: urlInput,
+        url: urlInput,
+        file_path: null,
+        text_content: null,
+        size: null,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setArticles(prev => [data.data, ...prev]);
+      setUrlInput("");
+      setOpenDialog(null);
+    }
+  }
+
+  // Add Text handler
+  async function handleAddText() {
+    if (!selectedClientId || !textName || !textContent) return;
+    const res = await fetch("http://localhost:5000/api/knowledge-base", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        client_id: selectedClientId,
+        type: "text",
+        name: textName,
+        url: null,
+        file_path: null,
+        text_content: textContent,
+        size: `${textContent.length} chars`,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setArticles(prev => [data.data, ...prev]);
+      setTextName("");
+      setTextContent("");
+      setOpenDialog(null);
+    }
+  }
+
+  // Add File handler
+  async function handleAddFile() {
+    if (!selectedClientId || !file) return;
+    setFileUploading(true);
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    // Use XMLHttpRequest for progress
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "http://localhost:5000/api/upload", true);
+    xhr.withCredentials = true;
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress(percent);
+      }
+    };
+
+    xhr.onload = async function () {
+      setFileUploading(false);
+      if (xhr.status === 200) {
+        const uploadData = JSON.parse(xhr.responseText);
+        if (!uploadData.success) {
+          toast({ title: "Upload failed", description: uploadData.message || "Unknown error", variant: "destructive" });
+          setUploadProgress(0);
+          return;
+        }
+        // Save file metadata
+        const res = await fetch("http://localhost:5000/api/knowledge-base", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            client_id: selectedClientId,
+            type: "file",
+            name: file.name,
+            url: null,
+            file_path: uploadData.file_path,
+            text_content: null,
+            size: `${(file.size / 1024).toFixed(1)} kB`,
+          }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setArticles(prev => [data.data, ...prev]);
+          setFile(null);
+          setOpenDialog(null);
+          setUploadProgress(0);
+        } else {
+          toast({ title: "Save failed", description: data.message || "Unknown error", variant: "destructive" });
+          setUploadProgress(0);
+        }
+      } else {
+        toast({ title: "Upload failed", description: "Server error", variant: "destructive" });
+        setUploadProgress(0);
+      }
+    };
+
+    xhr.onerror = function () {
+      setFileUploading(false);
+      setUploadProgress(0);
+      toast({ title: "Upload failed", description: "Network error", variant: "destructive" });
+    };
+
+    xhr.send(formData);
+  }
+
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex justify-between items-start mb-4">
@@ -84,6 +241,46 @@ export default function KnowledgeBasePage() {
           <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
           RAG Storage: <span className="font-bold ml-1">{ragStorage.used} B</span> / {ragStorage.total} {ragStorage.unit}
         </div>
+      </div>
+      <div className="max-w-xl mb-6">
+        <Popover open={clientComboboxOpen} onOpenChange={setClientComboboxOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="w-full justify-between">
+              {selectedClientId
+                ? clients.find(client => client.id === selectedClientId)?.companyName
+                : "Select client..."}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[550px] p-0">
+            <Command>
+              <CommandInput
+                placeholder="Search client..."
+                value={search}
+                onValueChange={setSearch}
+              />
+              <CommandList>
+                <CommandEmpty>No client found.</CommandEmpty>
+                <CommandGroup>
+                  {filteredClients.map(client => (
+                    <CommandItem
+                      key={client.id}
+                      value={client.companyName}
+                      onSelect={() => {
+                        setSelectedClientId(client.id);
+                        setClientComboboxOpen(false);
+                        setSearch("");
+                      }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", selectedClientId === client.id ? "opacity-100" : "opacity-0")} />
+                      {client.companyName}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
       <div className="flex gap-4 mb-6">
         <Dialog open={openDialog === 'url'} onOpenChange={v => setOpenDialog(v ? 'url' : null)}>
@@ -102,10 +299,10 @@ export default function KnowledgeBasePage() {
               </div>
               <div>
                 <label className="block font-medium mb-2">URL</label>
-                <Input placeholder="https://example.com" className="h-12 text-base" />
+                <Input placeholder="https://example.com" className="h-12 text-base" value={urlInput} onChange={e => setUrlInput(e.target.value)} />
               </div>
               <div className="flex justify-end">
-                <Button className="bg-black text-white px-6 py-2 rounded-lg text-base">Add URL</Button>
+                <Button className="bg-black text-white px-6 py-2 rounded-lg text-base" onClick={handleAddUrl}>Add URL</Button>
               </div>
             </div>
           </DialogContent>
@@ -125,19 +322,53 @@ export default function KnowledgeBasePage() {
                 <span className="text-2xl font-semibold">Add Files</span>
               </div>
               <div>
-                <div className="border-2 border-black border-dashed rounded-xl flex flex-col items-center justify-center py-12 mb-4 bg-white">
+                <div
+                  className="border-2 border-black border-dashed rounded-xl flex flex-col items-center justify-center py-12 mb-4 bg-white cursor-pointer"
+                  onClick={() => document.getElementById('file-upload-input')?.click()}
+                  onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                      setFile(e.dataTransfer.files[0]);
+                    }
+                  }}
+                >
+                  <input
+                    id="file-upload-input"
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={e => setFile(e.target.files?.[0] || null)}
+                  />
                   <Upload className="w-10 h-10 mb-2 text-black" />
                   <div className="font-medium text-lg mb-1">Click or drag files to upload</div>
                   <div className="text-gray-500 text-sm mb-2">Up to 21 MB each.</div>
+                  {file && <div className="text-sm text-black font-semibold mb-2">{file.name}</div>}
                   <div className="flex gap-2 flex-wrap justify-center">
                     {['epub','pdf','docx','txt','html'].map(type => (
                       <span key={type} className="bg-gray-100 rounded-full px-3 py-1 text-xs font-medium text-gray-700">{type}</span>
                     ))}
                   </div>
                 </div>
-              </div>
-              <div className="flex justify-end">
-                <Button className="bg-black text-white px-6 py-2 rounded-lg text-base">Add File</Button>
+                {fileUploading ? (
+                  <div className="w-full flex flex-col items-center">
+                    <div className="w-3/4 bg-gray-200 rounded-full h-3 mb-2">
+                      <div
+                        className="bg-black h-3 rounded-full transition-all"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <div className="text-sm text-gray-700">{uploadProgress}%</div>
+                  </div>
+                ) : (
+                  <Button
+                    className="bg-black text-white px-6 py-2 rounded-lg text-base"
+                    onClick={handleAddFile}
+                    disabled={!file}
+                  >
+                    Add File
+                  </Button>
+                )}
               </div>
             </div>
           </DialogContent>
@@ -158,14 +389,14 @@ export default function KnowledgeBasePage() {
               </div>
               <div>
                 <label className="block font-medium mb-2">Text Name</label>
-                <Input placeholder="Enter a name for your text" className="h-12 text-base" />
+                <Input placeholder="Enter a name for your text" className="h-12 text-base" value={textName} onChange={e => setTextName(e.target.value)} />
               </div>
               <div>
                 <label className="block font-medium mb-2">Text Content</label>
-                <Textarea placeholder="Enter your text content here" className="min-h-[120px] text-base" />
+                <Textarea placeholder="Enter your text content here" className="min-h-[120px] text-base" value={textContent} onChange={e => setTextContent(e.target.value)} />
               </div>
               <div className="flex justify-end">
-                <Button className="bg-black text-white px-6 py-2 rounded-lg text-base">Create Text</Button>
+                <Button className="bg-black text-white px-6 py-2 rounded-lg text-base" onClick={handleAddText}>Create Text</Button>
               </div>
             </div>
           </DialogContent>
@@ -240,14 +471,15 @@ export default function KnowledgeBasePage() {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b">
-              <th className="text-left font-medium px-6 py-3">Name</th>
+              <th className="text-left font-medium px-6 py-3">Knowledge Base</th>
+              <th className="text-left font-medium px-6 py-3">Client</th>
               <th className="text-left font-medium px-6 py-3">Created by</th>
               <th className="text-left font-medium px-6 py-3">Last updated <span className="inline-block align-middle">↓</span></th>
               <th className="w-10"></th>
             </tr>
           </thead>
           <tbody>
-            {mockArticles.map(article => (
+            {paginatedArticles.map(article => (
               <tr key={article.id} className="border-b hover:bg-gray-50">
                 <td className="flex items-center gap-3 px-6 py-4">
                   <FileText className="w-5 h-5 text-black" />
@@ -256,8 +488,9 @@ export default function KnowledgeBasePage() {
                     <div className="text-xs text-muted-foreground">{article.size}</div>
                   </div>
                 </td>
-                <td className="px-6 py-4">{article.createdBy}</td>
-                <td className="px-6 py-4">{article.lastUpdated}</td>
+                <td className="px-6 py-4">{clients.find(c => c.id === article.client_id)?.companyName || '-'}</td>
+                <td className="px-6 py-4">{article.created_by || '-'}</td>
+                <td className="px-6 py-4">{article.updated_at ? new Date(article.updated_at).toLocaleString() : '-'}</td>
                 <td className="px-6 py-4 text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
