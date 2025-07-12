@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select } from '@/components/ui/select';
+import { api } from '@/lib/apiConfig';
 
 const ELEVEN_LABS_ID = 'elevenlabs';
 const ELEVEN_LABS_API_KEY_STORAGE = 'elevenlabs_api_key';
@@ -64,11 +65,7 @@ const Integrations = () => {
     if (apiKey) {
       setLoading(true);
       try {
-        const response = await fetch('https://api.elevenlabs.io/v1/models', {
-          headers: {
-            'xi-api-key': apiKey,
-          },
-        });
+        const response = await api.elevenLabs.getModels(apiKey);
         if (!response.ok) {
           throw new Error('Invalid API key or failed to fetch models.');
         }
@@ -81,31 +78,19 @@ const Integrations = () => {
           )
         );
         // Fetch subscription info
-        const subRes = await fetch('https://api.elevenlabs.io/v1/user/subscription', {
-          headers: {
-            'xi-api-key': apiKey,
-          },
-        });
+        const subRes = await api.elevenLabs.getUserSubscription(apiKey);
         if (subRes.ok) {
           const subData = await subRes.json();
           setSubscriptionInfo(subData);
         }
         // Fetch user info
-        const userRes = await fetch('https://api.elevenlabs.io/v1/user', {
-          headers: {
-            'xi-api-key': apiKey,
-          },
-        });
+        const userRes = await api.elevenLabs.getUser(apiKey);
         if (userRes.ok) {
           const userData = await userRes.json();
           setUserInfo(userData);
         }
         // Fetch voices
-        const voicesRes = await fetch('https://api.elevenlabs.io/v1/voices', {
-          headers: {
-            'xi-api-key': apiKey,
-          },
-        });
+        const voicesRes = await api.elevenLabs.getVoices(apiKey);
         if (voicesRes.ok) {
           const voicesData = await voicesRes.json();
           setVoices(Array.isArray(voicesData.voices) ? voicesData.voices.map((v: any) => ({ voice_id: v.voice_id, name: v.name })) : []);

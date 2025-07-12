@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { api } from '@/lib/apiConfig';
 
 const statusOptions = ["Active", "Suspended", "Pending"];
 
@@ -31,9 +32,9 @@ export default function EditClientUserPage() {
     }
     setLoading(true);
     Promise.all([
-      fetch(`http://localhost:5000/api/client-users/${userId}`).then(res => res.json()),
-      fetch("http://localhost:5000/api/user-roles").then(res => res.json()),
-      fetch("http://localhost:5000/api/clients").then(res => res.json()),
+      api.getClientUser(userId).then(res => res.json()),
+      api.getUserRoles().then(res => res.json()),
+      api.getClients().then(res => res.json()),
     ]).then(([userRes, rolesRes, clientsRes]) => {
       if (userRes.success) {
         setForm(userRes.data);
@@ -63,7 +64,7 @@ export default function EditClientUserPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:5000/api/client-users/${userId}`, {
+      const res = await api.updateClientUser(userId, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

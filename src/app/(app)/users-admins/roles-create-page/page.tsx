@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
+import { api } from '@/lib/apiConfig';
 
 // Define the Role type
 interface Role {
@@ -50,7 +51,7 @@ export default function RolesCreatePage() {
 
   // Fetch roles from backend
   const fetchRoles = async () => {
-    const res = await fetch("http://localhost:5000/api/admin_roles");
+    const res = await api.getAdminRoles();
     const data = await res.json();
     if (data.success) setRoles(data.data);
   };
@@ -71,7 +72,7 @@ export default function RolesCreatePage() {
 
   async function onSubmit(data: AdminRoleFormValues) {
     setLoading(true);
-    const res = await fetch("http://localhost:5000/api/admin_roles", {
+    const res = await api.createAdminRole({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),

@@ -16,6 +16,7 @@ import { UserCircle, BarChart3, FileBadge, NotebookText, Edit3, Phone, Mail, Cal
 import Image from "next/image"; 
 import type { Metadata } from 'next';
 import { useSearchParams } from "next/navigation";
+import { api } from '@/lib/apiConfig';
 
 // Metadata should be defined in a server component or route handler if possible.
 // For client components, the nearest server layout/page handles overall metadata.
@@ -44,7 +45,7 @@ export default function ClientDetailsUsagePage() {
       return;
     }
     setLoading(true);
-    fetch(`http://localhost:5000/api/clients/${clientId}`)
+    api.getClient(clientId)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {

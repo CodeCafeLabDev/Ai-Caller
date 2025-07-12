@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/cn";
 import type { Metadata } from 'next';
+import { api } from '@/lib/apiConfig';
 
 // export const metadata: Metadata = {
 //   title: 'Client Account Status - AI Caller',
@@ -41,7 +42,7 @@ export default function AccountStatusManagementPage() {
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
-    fetch("http://localhost:5000/api/clients")
+    api.getClients()
       .then(res => res.json())
       .then(data => {
         if (data.success && Array.isArray(data.data)) {
@@ -64,7 +65,7 @@ export default function AccountStatusManagementPage() {
     const newStatus = actionName === "Suspend Account" ? "Suspended" : "Active";
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/clients/${selectedClientId}`, {
+      const res = await api.updateClient(selectedClientId, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

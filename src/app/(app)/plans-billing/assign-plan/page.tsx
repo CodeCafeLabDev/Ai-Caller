@@ -37,6 +37,7 @@ import { format } from "date-fns";
 import type { Plan } from "@/app/(app)/plans-billing/page"; 
 import type { Metadata } from 'next';
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '@/lib/exportUtils';
+import { api } from '@/lib/apiConfig';
 
 // export const metadata: Metadata = {
 //   title: 'Assign Plan to Client - AI Caller',
@@ -73,13 +74,13 @@ export default function AssignPlanToClientPage() {
   const [clients, setClients] = React.useState<{ id: string; companyName: string }[]>([]);
 
   React.useEffect(() => {
-    fetch("http://localhost:5000/api/clients")
+    api.getClients()
       .then(res => res.json())
       .then(data => setClients(data.data || []));
   }, []);
 
   React.useEffect(() => {
-    fetch('http://localhost:5000/api/plans')
+    api.getPlans()
       .then(res => res.json())
       .then(data => {
         console.log('Fetched plans:', data.data);
@@ -105,7 +106,7 @@ export default function AssignPlanToClientPage() {
   const discountType = form.watch("discountType");
 
   function onSubmit(data: AssignPlanFormValues) {
-    fetch('http://localhost:5000/api/assigned-plans', {
+    api.getAssignedPlans()
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -59,6 +59,7 @@ import {
 import { useUser } from '@/lib/utils';
 
 // Removed: import type { Metadata } from 'next';
+import { api } from '@/lib/apiConfig';
 // Removed: export const metadata: Metadata = { ... };
 
 type AdminUserStatus = "Active" | "Suspended";
@@ -130,7 +131,7 @@ export default function UsersAdminsPage() {
   const [userToDelete, setUserToDelete] = React.useState<AdminUser | null>(null);
 
   React.useEffect(() => {
-    fetch("http://localhost:5000/api/admin_users")
+    api.getAdminUsers()
       .then(res => res.json())
       .then(data => {
         if (data.success) setAdminUsers(data.data);
@@ -142,7 +143,7 @@ export default function UsersAdminsPage() {
     if (!user) return;
     // If the current user is in the admin users list, refetch
     if (adminUsers.some(u => u.id === user.userId)) {
-      fetch("http://localhost:5000/api/admin_users")
+      api.getAdminUsers()
         .then(res => res.json())
         .then(data => {
           if (data.success) setAdminUsers(data.data);
@@ -151,7 +152,7 @@ export default function UsersAdminsPage() {
   }, [user?.fullName, user]);
 
   React.useEffect(() => {
-    fetch("http://localhost:5000/api/admin_roles")
+    api.getAdminRoles()
       .then(res => res.json())
       .then(data => {
         if (data.success) setAdminRoles(data.data);
@@ -226,7 +227,7 @@ export default function UsersAdminsPage() {
     e.preventDefault();
     if (!selectedRole) return;
     setEditLoading(true);
-    const res = await fetch(`http://localhost:5000/api/admin_roles/${selectedRole.id}`, {
+    const res = await api.updateAdminRole(selectedRole.id, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -248,7 +249,7 @@ export default function UsersAdminsPage() {
 
   async function handleDeleteRole() {
     if (!roleToDelete) return;
-    const res = await fetch(`http://localhost:5000/api/admin_roles/${roleToDelete.id}`, {
+    const res = await api.deleteAdminRole(roleToDelete.id)
       method: "DELETE",
     });
     if (res.ok) {
@@ -265,7 +266,7 @@ export default function UsersAdminsPage() {
     e.preventDefault();
     if (!roleBeingEdited) return;
     setEditRoleLoading(true);
-    const res = await fetch(`http://localhost:5000/api/admin_roles/${roleBeingEdited.id}`, {
+    const res = await api.updateAdminRole(roleBeingEdited.id, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editRoleForm),
@@ -288,7 +289,7 @@ export default function UsersAdminsPage() {
       return;
     }
     setAddAdminLoading(true);
-    const res = await fetch("http://localhost:5000/api/admin_users", {
+    const res = await api.createAdminUser({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...addAdminForm, confirmPassword: undefined }),
@@ -312,7 +313,7 @@ export default function UsersAdminsPage() {
       return;
     }
     setCreateRoleLoading(true);
-    const res = await fetch("http://localhost:5000/api/admin_roles", {
+    const res = await api.createAdminRole({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(createRoleForm),
@@ -332,7 +333,7 @@ export default function UsersAdminsPage() {
   async function handleViewDetails(userId: string) {
     setUserDetailsLoading(true);
     setViewDetailsOpen(true);
-    const res = await fetch(`http://localhost:5000/api/admin_users/${userId}`);
+    const res = await api.getAdminUser(userId);
     if (res.ok) {
       const data = await res.json();
       setUserDetails(data.data);
@@ -345,7 +346,7 @@ export default function UsersAdminsPage() {
   async function handleEditUserOpen(userId: string) {
     setEditUserLoading(true);
     setEditUserOpen(true);
-    const res = await fetch(`http://localhost:5000/api/admin_users/${userId}`);
+    const res = await api.getAdminUser(userId);
     if (res.ok) {
       const data = await res.json();
       setEditUserForm({
@@ -371,7 +372,7 @@ export default function UsersAdminsPage() {
     const { confirmPassword, password, ...rest } = editUserForm;
     const payload: any = { ...rest };
     if (password) payload.password = password;
-    const res = await fetch(`http://localhost:5000/api/admin_users/${editUserForm.id}`, {
+    const res = await api.updateAdminUser(editUserForm.id, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -390,7 +391,7 @@ export default function UsersAdminsPage() {
   async function handleResetPasswordOpen(userId: string) {
     setResetPasswordLoading(true);
     setResetPasswordOpen(true);
-    const res = await fetch(`http://localhost:5000/api/admin_users/${userId}`);
+    const res = await api.getAdminUser(userId);
     if (res.ok) {
       const data = await res.json();
       setResetPasswordForm({
@@ -411,7 +412,7 @@ export default function UsersAdminsPage() {
       return;
     }
     setResetPasswordLoading(true);
-    const res = await fetch(`http://localhost:5000/api/admin_users/${resetPasswordForm.id}/reset-password`, {
+    const res = await api.resetAdminUserPassword(resetPasswordForm.id)
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ oldPassword: resetPasswordForm.oldPassword, password: resetPasswordForm.newPassword }),
@@ -427,7 +428,7 @@ export default function UsersAdminsPage() {
 
   async function handleForceLogout() {
     if (!userToForceLogout) return;
-    const res = await fetch(`http://localhost:5000/api/admin_users/${userToForceLogout.id}/force-logout`, {
+    const res = await api.forceLogoutUser(userToForceLogout.id)
       method: 'POST',
     });
     setForceLogoutOpen(false);
@@ -443,7 +444,7 @@ export default function UsersAdminsPage() {
     setActivityUser(user);
     setActivityLoading(true);
     setViewActivityOpen(true);
-    const res = await fetch(`http://localhost:5000/api/admin_users/${user.id}/activity`);
+    const res = await api.getUserActivity(user.id);
     if (res.ok) {
       const data = await res.json();
       setActivityLogs(data.data || []);
@@ -455,7 +456,7 @@ export default function UsersAdminsPage() {
 
   async function handleDeleteUser() {
     if (!userToDelete) return;
-    const res = await fetch(`http://localhost:5000/api/admin_users/${userToDelete.id}`, {
+    const res = await api.deleteAdminUser(userToDelete.id)
       method: 'DELETE',
     });
     if (res.ok) {
@@ -564,7 +565,7 @@ export default function UsersAdminsPage() {
                           <DropdownMenuItem onClick={async () => {
                             const newStatus = user.status === 'Active' ? 'Suspended' : 'Active';
                             // Update backend
-                            const res = await fetch(`http://localhost:5000/api/admin_users/${user.id}`, {
+                            const res = await api.updateAdminUser(user.id, {
                               method: 'PUT',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ ...user, status: newStatus }),

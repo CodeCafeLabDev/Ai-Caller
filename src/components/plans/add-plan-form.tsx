@@ -28,6 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 // Removed SheetFooter as action buttons will be on the page
 import type { Plan, PlanStatus } from "@/app/(app)/plans-billing/page";
 import { toast } from "@/components/ui/use-toast";
+import { api } from '@/lib/apiConfig';
 
 const planStatusOptions = ["Active", "Draft", "Archived"] as const;
 
@@ -106,7 +107,7 @@ export function AddPlanForm({ onSuccess, onCancel }: AddPlanFormProps) {
 
       console.log("Submitting plan data:", submittedData);
 
-      const response = await fetch('http://localhost:5000/api/plans', {
+      const response = await api.createPlan({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

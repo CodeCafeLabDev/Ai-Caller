@@ -56,6 +56,7 @@ import { Switch } from "@/components/ui/switch";
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '@/lib/exportUtils';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { AddPlanForm } from "@/components/plans/add-plan-form";
+import { api } from '@/lib/apiConfig';
 
 // export const metadata: Metadata = {
 //   title: 'Subscription Plans - AI Caller',
@@ -114,7 +115,7 @@ export default function PlansBillingPage() {
   const fetchPlans = React.useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('http://localhost:5000/api/plans');
+      const response = await api.getPlans();
       const data = await response.json();
       if (data.success) {
         setPlans(data.data || []);
@@ -158,7 +159,7 @@ export default function PlansBillingPage() {
     if (actionName === "Archive Plan" || actionName === "Unarchive Plan") {
       const newStatus = actionName === "Archive Plan" ? "Archived" : "Active";
       try {
-        const response = await fetch(`http://localhost:5000/api/plans/${planId}`, {
+        const response = await api.getPlan(planId)
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -191,7 +192,7 @@ export default function PlansBillingPage() {
     setPlanDetailsLoading(true);
     setViewPlanOpen(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/plans/${planId}`);
+      const response = await api.getPlan(planId);
       const data = await response.json();
       if (data.success && data.data) {
         setPlanDetails(data.data);
@@ -220,7 +221,7 @@ export default function PlansBillingPage() {
     setEditPlanLoading(true);
     setEditPlanOpen(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/plans/${planId}`);
+      const response = await api.getPlan(planId);
       const data = await response.json();
       if (data.success && data.data) {
         const plan = data.data;
@@ -255,7 +256,7 @@ export default function PlansBillingPage() {
     });
     console.log('Submitting plan to backend:', cleanPlan);
     try {
-      const res = await fetch(`http://localhost:5000/api/plans/${updatedPlan.id}`, {
+      const res = await api.updatePlan(updatedPlan.id, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cleanPlan),
@@ -293,7 +294,7 @@ export default function PlansBillingPage() {
 
   const handleClonePlan = async (planId: number) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/plans/${planId}`);
+      const response = await api.getPlan(planId);
       const data = await response.json();
       if (data.success && data.data) {
         await navigator.clipboard.writeText(JSON.stringify(data.data, null, 2));

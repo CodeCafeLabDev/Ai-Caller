@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import languagesData from "@/data/languages.json";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { api } from "@/lib/apiConfig";
 
 // Remove image upload and emoji flag logic
 // Add flag image fetching using flagcdn.com
@@ -23,8 +24,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 const sortedLanguagesData = languagesData
   .map((lang, idx) => ({ id: idx + 1, ...lang }))
   .sort((a, b) => a.name.localeCompare(b.name));
-
-const API_URL = "http://localhost:5000/api/languages";
 
 export default function SupportedLanguagesPage() {
   const [languages, setLanguages] = React.useState<any[]>([]);
@@ -39,7 +38,7 @@ export default function SupportedLanguagesPage() {
 
   // Fetch languages from backend
   React.useEffect(() => {
-    fetch(API_URL)
+    api.getLanguages()
       .then(res => res.json())
       .then(data => setLanguages(data.data || []))
       .catch(() => setLanguages([]));
@@ -57,11 +56,7 @@ export default function SupportedLanguagesPage() {
       calling_code: lang.callingCode,
       enabled: enableSwitch,
     };
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const res = await api.createLanguage(payload);
     const newLang = (await res.json()).data;
     setLanguages(prev => [...prev, newLang]);
     setIsSheetOpen(false);
@@ -72,11 +67,7 @@ export default function SupportedLanguagesPage() {
 
   // Enable/disable
   const handleToggle = async (id: number, enabled: boolean) => {
-    const res = await fetch(`${API_URL}/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled }),
-    });
+    const res = await api.updateLanguage(id.toString(), { enabled });
     const updated = (await res.json()).data;
     setLanguages(langs => langs.map(lang => lang.id === id ? updated : lang));
   };
@@ -89,7 +80,7 @@ export default function SupportedLanguagesPage() {
 
   const confirmDelete = async () => {
     if (pendingDeleteId == null) return;
-    await fetch(`${API_URL}/${pendingDeleteId}`, { method: "DELETE" });
+    await api.deleteLanguage(pendingDeleteId.toString());
     setLanguages(langs => langs.filter(lang => lang.id !== pendingDeleteId));
     setDeleteDialogOpen(false);
     setPendingDeleteId(null);

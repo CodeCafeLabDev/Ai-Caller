@@ -23,6 +23,7 @@ import ProfilePictureUploader from "@/components/ui/ProfilePictureUploader";
 import React from "react";
 import { useUser } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { api } from '@/lib/apiConfig';
 
 // export const metadata: Metadata = {
 //   title: 'User Profile - AI Caller',
@@ -60,9 +61,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
-    fetch("http://localhost:5000/api/admin_users/me", {
-      credentials: "include",
-    })
+    api.getCurrentUser()
       .then((res) => res.json())
       .then((data: any) => {
         if (data.success) {
@@ -102,25 +101,17 @@ export default function ProfilePage() {
 
   const handleDeletePicture = async () => {
     if (!user) return;
-    await fetch("http://localhost:5000/api/admin_users/me/profile-picture", {
-      method: "DELETE",
-      credentials: "include",
-    });
+    await api.deleteAdminUser(user.userId);
     setProfile({ ...profile, avatar_url: "" });
   };
 
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
-    const res = await fetch("http://localhost:5000/api/admin_users/me", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        name: profile.name,
-        avatar_url: profile.avatar_url,
-        bio: profile.bio,
-      }),
+    const res = await api.updateAdminUser(user.userId, {
+      name: profile.name,
+      avatar_url: profile.avatar_url,
+      bio: profile.bio,
     });
     setSaving(false);
     if (res.ok) {
@@ -145,11 +136,7 @@ export default function ProfilePage() {
       toast({ title: 'Password Mismatch', description: 'New passwords do not match.', variant: 'destructive' });
       return;
     }
-    const res = await fetch(`http://localhost:5000/api/admin_users/${user.userId}/reset-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ oldPassword: data.currentPassword, password: data.newPassword }),
-    });
+    const res = await api.resetAdminUserPassword(user.userId);
     if (res.ok) {
       toast({ title: 'Password Reset', description: 'Password was reset successfully.' });
       passwordForm.reset();

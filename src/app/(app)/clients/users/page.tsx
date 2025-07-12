@@ -78,6 +78,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
+import { api } from '@/lib/apiConfig';
 
 // export const metadata: Metadata = {
 //   title: 'Client Users Management - AI Caller',
@@ -153,17 +154,17 @@ export default function ClientUsersPage() {
 
   React.useEffect(() => {
     // Fetch users from backend
-    fetch("http://localhost:5000/api/client-users")
+    api.getClientUsers()
       .then(res => res.json())
       .then(data => setUsers(data.data || []));
     // Fetch user roles from backend
-    fetch("http://localhost:5000/api/user-roles")
+    api.getUserRoles()
       .then(res => res.json())
       .then(data => setUserRoles(data.data || []));
-    fetch("http://localhost:5000/api/clients")
+    api.getClients()
       .then(res => res.json())
       .then(data => setClients(data.data || []));
-    fetch("http://localhost:5000/api/plans")
+    api.getPlans()
       .then(res => res.json())
       .then(data => {
         if (data.success) setPlans(data.data);
@@ -177,7 +178,7 @@ export default function ClientUsersPage() {
     if (newStatus) {
       try {
         // 1. Fetch the full user data
-        const resGet = await fetch(`http://localhost:5000/api/client-users/${userId}`);
+        const resGet = await api.getClientUser(userId);
         const dataGet = await resGet.json();
         if (!dataGet.success) {
           toast({ title: 'Error', description: 'Failed to fetch user data', variant: 'destructive' });
@@ -186,7 +187,7 @@ export default function ClientUsersPage() {
         // 2. Update status
         const userData = { ...dataGet.data, status: newStatus };
         // 3. Send full object in PUT request
-        const res = await fetch(`http://localhost:5000/api/client-users/${userId}`, {
+        const res = await api.updateClientUser(userId, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(userData),
@@ -279,7 +280,7 @@ export default function ClientUsersPage() {
     }
     if (editingUser) {
       // Edit
-      fetch(`http://localhost:5000/api/client-users/${editingUser.id}`, {
+      api.updateClientUser(editingUser.id, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -293,7 +294,7 @@ export default function ClientUsersPage() {
     } else {
       // Add
       const clientData = { ...form };
-      fetch("http://localhost:5000/api/client-users", {
+      api.createClientUser({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(clientData),
@@ -309,7 +310,7 @@ export default function ClientUsersPage() {
 
   const handleDeleteUser = async (id: number) => {
     if (!confirm("Are you sure you want to delete this user?")) return;
-    const res = await fetch(`http://localhost:5000/api/client-users/${id}`, { method: "DELETE" });
+    const res = await api.deleteClientUser(id);
     if (res.ok) setUsers(users => users.filter(u => u.id !== id));
   };
 
@@ -341,7 +342,7 @@ export default function ClientUsersPage() {
     }
     setResetSubmitting(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/client-users/${resetUserId}/reset-password`, {
+      const res = await api.resetClientUserPassword(resetUserId)
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: resetPassword }),

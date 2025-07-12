@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { useRouter, useParams } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
+import { api } from '@/lib/apiConfig';
 
 const adminRoleSchema = z.object({
   name: z.string().min(2, { message: "Role name must be at least 2 characters." }),
@@ -43,7 +44,7 @@ export default function RolesEditPage() {
 
   React.useEffect(() => {
     async function fetchRole() {
-      const res = await fetch(`http://localhost:5000/api/admin_roles/${roleId}`);
+      const res = await api.getAdminRole(roleId);
       const data = await res.json();
       if (data.success && data.data) {
         setInitialData({
@@ -76,7 +77,7 @@ export default function RolesEditPage() {
 
   async function onSubmit(data: AdminRoleFormValues) {
     setLoading(true);
-    const res = await fetch(`http://localhost:5000/api/admin_roles/${roleId}`, {
+    const res = await api.updateAdminRole(roleId, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),

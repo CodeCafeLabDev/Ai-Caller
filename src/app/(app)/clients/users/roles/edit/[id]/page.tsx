@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { api } from '@/lib/apiConfig';
 
 export default function EditUserRolePage() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function EditUserRolePage() {
 
   useEffect(() => {
     if (!id) return;
-    fetch(`http://localhost:5000/api/user-roles/${id}`)
+    api.getUserRole(id)
       .then(res => res.json())
       .then(data => {
         if (data && data.data) setForm(data.data);
@@ -42,7 +43,7 @@ export default function EditUserRolePage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`http://localhost:5000/api/user-roles/${id}`, {
+      const res = await api.updateUserRole(id, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

@@ -67,6 +67,7 @@ import type { AddClientFormValues } from "@/components/clients/add-client-form";
 import { Switch } from "@/components/ui/switch";
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '@/lib/exportUtils';
 import { useSearchParams } from "next/navigation";
+import { api } from '@/lib/apiConfig';
 
 // Removed: export const metadata: Metadata = { ... };
 
@@ -125,7 +126,7 @@ export default function AllClientsListPage() {
 
   // Fetch clients from API and update state
   const fetchClients = React.useCallback(() => {
-    fetch('http://localhost:5000/api/clients')
+    api.getClients()
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -155,7 +156,7 @@ export default function AllClientsListPage() {
   React.useEffect(() => {
     fetchClients();
     // Fetch plans from API
-    fetch('http://localhost:5000/api/plans')
+    api.getPlans()
       .then(res => res.json())
       .then(data => {
         if (data.success) setPlans(data.data.map((p: any) => ({ id: p.id, name: p.name })));
@@ -205,7 +206,7 @@ export default function AllClientsListPage() {
 
   const handleAddClientSuccess = async (formData: AddClientFormValues) => {
     // Call backend to add client
-    const response = await fetch('http://localhost:5000/api/clients', {
+    const response = await api.createClient({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData),
@@ -235,7 +236,7 @@ export default function AllClientsListPage() {
   const handleStatusChange = async (clientId: string, newStatus: 'Active' | 'Suspended') => {
     try {
       // 1. Fetch the full client data
-      const resGet = await fetch(`http://localhost:5000/api/clients/${clientId}`);
+      const resGet = await api.getClient(clientId);
       const dataGet = await resGet.json();
       if (!dataGet.success) {
         toast({ title: 'Error', description: 'Failed to fetch client data', variant: 'destructive' });
@@ -246,7 +247,7 @@ export default function AllClientsListPage() {
       // 3. Update status
       clientData.status = newStatus;
       // 4. Send full object in PUT request
-      const res = await fetch(`http://localhost:5000/api/clients/${clientId}`, {
+      const res = await api.updateClient(clientId, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(clientData),

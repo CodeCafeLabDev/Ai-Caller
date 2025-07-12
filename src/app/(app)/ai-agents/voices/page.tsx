@@ -7,10 +7,11 @@ import { Copy } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import languages from '@/data/languages.json';
+import { api } from '@/lib/apiConfig';
 
 // Helper to fetch voices from your backend (server.js)
 async function fetchVoicesClient() {
-  const res = await fetch('/api/voices');
+  const res = await api.getVoices();
   if (!res.ok) throw new Error('Failed to fetch voices');
   const data = await res.json();
   return data.voices || [];

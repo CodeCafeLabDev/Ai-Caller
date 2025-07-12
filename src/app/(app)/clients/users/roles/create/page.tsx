@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { api } from '@/lib/apiConfig';
 
 export default function CreateUserRolePage() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function CreateUserRolePage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("http://localhost:5000/api/user-roles", {
+      const res = await api.createUserRole({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

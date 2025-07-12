@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { EditPlanForm } from "@/components/plans/edit-plan-form";
 import type { Plan } from "../../page";
 import { useToast } from "@/components/ui/use-toast";
+import { api } from '@/lib/apiConfig';
 
 export default function EditPlanPage() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function EditPlanPage() {
   useEffect(() => {
     if (!planId) return;
     setLoading(true);
-    fetch(`http://localhost:5000/api/plans/${planId}`)
+    api.getPlan(planId)
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -50,7 +51,7 @@ export default function EditPlanPage() {
       // @ts-ignore
       if (cleanPlan[key] === undefined) delete cleanPlan[key];
     });
-    const res = await fetch(`http://localhost:5000/api/plans/${planId}`, {
+    const res = await api.updatePlan(planId, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(cleanPlan),

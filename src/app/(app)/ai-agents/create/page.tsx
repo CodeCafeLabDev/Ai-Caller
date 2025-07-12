@@ -1,277 +1,39 @@
 
 "use client";
+import { Check } from "lucide-react";
+import { useState } from "react";
 
-import * as React from "react";
-import { useRouter } from 'next/navigation';
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
-import { Settings2, BookOpen, ListTree, Tag, Play, Save, UploadCloud } from "lucide-react";
-import type { AIAgentUseCase, AIAgentLanguage } from "@/app/(app)/ai-agents/page";
-import type { Metadata } from 'next';
+const MAX_LENGTH = 50;
 
-// export const metadata: Metadata = {
-//   title: 'Create AI Agent - AI Caller',
-//   description: 'Design and configure a new voice conversation flow for your AI caller.',
-//   keywords: ['create ai agent', 'conversation flow designer', 'script builder', 'AI Caller'],
-// };
+export default function CreateAgentPage() {
+  const [name, setName] = useState("");
 
-
-const agentUseCases: AIAgentUseCase[] = ["Lead Generation", "Reminder", "Feedback", "Support", "Sales", "Payment Collection", "Survey", "Other"];
-const agentLanguages: AIAgentLanguage[] = ["English (US)", "Spanish (ES)", "French (FR)", "German (DE)", "Hindi (IN)", "Other"];
-
-const createAgentFormSchema = z.object({
-  agentName: z.string().min(3, { message: "Agent name must be at least 3 characters." }),
-  description: z.string().max(250, { message: "Description must be 250 characters or less." }).optional(),
-  category: z.enum(agentUseCases, { required_error: "Please select a category." }),
-  defaultLanguage: z.enum(agentLanguages, { required_error: "Please select a default language." }),
-  tags: z.string().optional(),
-  scriptContent: z.string().min(10, { message: "Script content must be at least 10 characters." }),
-  globalVariables: z.string().optional().refine(val => {
-    if (!val || !val.trim()) return true; 
-    try {
-      if (val.trim().startsWith("{") && val.trim().endsWith("}")) {
-        JSON.parse(val);
-      }
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }, { message: "Global variables must be valid JSON or key:value pairs per line if provided." }),
-});
-
-type CreateAgentFormValues = z.infer<typeof createAgentFormSchema>;
-
-export default function CreateAIAgentPage() {
-  const { toast } = useToast();
-  const router = useRouter();
-  const form = useForm<CreateAgentFormValues>({
-    resolver: zodResolver(createAgentFormSchema),
-    defaultValues: {
-      agentName: "",
-      description: "",
-      category: undefined,
-      defaultLanguage: undefined,
-      tags: "",
-      scriptContent: "",
-      globalVariables: "",
-    },
-  });
-
-  function handleFormSubmit(status: "Draft" | "Published") {
-    form.handleSubmit((data) => {
-      console.log("Create Agent Data:", data, "Status:", status);
-      toast({
-        title: `Agent ${status}`,
-        description: `Agent "${data.agentName}" has been ${status.toLowerCase()} (Simulated).`,
-      });
-      // Potentially redirect or update global state
-      // For now, just a simulation
-      if (status === "Published") {
-        // router.push("/ai-agents");
-      }
-    })();
-  }
-
-  const handleSimulateScript = () => {
-    const script = form.getValues("scriptContent");
-    if (!script.trim()) {
-        toast({ title: "Cannot Simulate", description: "Script content is empty.", variant: "destructive"});
-        return;
-    }
-    toast({
-      title: "Simulate Script (Mock)",
-      description: "Script simulation functionality to be implemented. Content logged to console.",
-    });
-    console.log("Simulating script:", script);
-  };
+  const isValid = name.trim().length > 0;
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-            <h1 className="text-3xl font-bold font-headline">Create New AI Agent</h1>
-            <p className="text-muted-foreground">
-            Design and configure a new voice conversation flow for your AI caller.
-            </p>
-        </div>
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-white overflow-hidden">
+      <div className="w-full max-w-xl flex flex-col items-center">
+        <h1 className="text-xl md:text-2xl font-bold mb-1 w-full text-left">Name your agent</h1>
+        <p className="text-sm text-gray-500 mb-4 w-full text-left">
+          Choose a name that reflects your agent's purpose
+        </p>
+        <input
+          type="text"
+          placeholder="Enter agent name..."
+          value={name}
+          maxLength={MAX_LENGTH}
+          onChange={e => setName(e.target.value)}
+          className="w-full text-base px-4 py-3 border rounded-lg mb-1 focus:outline-none focus:ring-2 focus:ring-black transition-all text-center font-semibold"
+          style={{ boxSizing: "border-box" }}
+        />
+        <div className="w-full text-center text-xs text-gray-500 mb-5">{name.length}/{MAX_LENGTH} characters</div>
+        <button
+          className={`w-full max-w-md flex items-center justify-center gap-2 py-2 rounded-lg text-base font-medium transition-colors mb-6 ${isValid ? 'bg-black text-white cursor-pointer' : 'bg-gray-400 text-white cursor-not-allowed'}`}
+          disabled={!isValid}
+        >
+          <Check className="w-4 h-4" /> Create Agent
+        </button>
       </div>
-
-      <Form {...form}>
-        <form className="space-y-8">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center text-lg"><Settings2 className="mr-2 h-5 w-5" />Agent Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="agentName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Agent Name*</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Welcome Call" {...field} className="h-9 text-sm"/>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs">Description</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Briefly describe this agent." {...field} className="text-sm"/>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="category"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">Category/Use Case*</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select a category" /></SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {agentUseCases.map(cat => <SelectItem key={cat} value={cat} className="text-sm">{cat}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="defaultLanguage"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs">Default Language*</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select a language" /></SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {agentLanguages.map(lang => <SelectItem key={lang} value={lang} className="text-sm">{lang}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="tags"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center text-xs"><Tag className="mr-1 h-3 w-3 text-muted-foreground" />Tags (comma-separated)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., onboarding, v2" {...field} className="h-9 text-sm"/>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center text-lg"><BookOpen className="mr-2 h-5 w-5" />Script Content*</CardTitle>
-                <CardDescription className="text-xs">
-                  Define the conversation flow. Use {"`{{variable_name}}`"} for placeholders.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FormField
-                  control={form.control}
-                  name="scriptContent"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Textarea
-                          placeholder={"Example:\nBOT: Hello {{name}}, welcome!\nUSER_EXPECTS: Greeting"}
-                          className="min-h-[200px] font-mono text-xs"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                  <CardTitle className="flex items-center text-lg"><ListTree className="mr-2 h-5 w-5" />Global Variables</CardTitle>
-                  <CardDescription className="text-xs">Define key-value pairs (e.g., {"`name: Example Customer`"}) or JSON object.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                  <FormField
-                      control={form.control}
-                      name="globalVariables"
-                      render={({ field }) => (
-                      <FormItem>
-                          <FormControl>
-                          <Textarea
-                              placeholder={"Example key-value (one per line):\nname: Example Customer\npromotion_code: PROMO123\n\nExample JSON:\n{\n  \"name\": \"Example Customer\",\n  \"promotion_code\": \"PROMO123\"\n}"}
-                              className="min-h-[100px] font-mono text-xs"
-                              {...field}
-                          />
-                          </FormControl>
-                          <FormMessage />
-                      </FormItem>
-                      )}
-                  />
-              </CardContent>
-            </Card>
-            
-            <p className="text-xs text-muted-foreground pt-2">* Required fields</p>
-
-          <div className="flex flex-col sm:flex-row gap-2 justify-end pt-4 border-t">
-            <Button type="button" variant="outline" onClick={handleSimulateScript} className="w-full sm:w-auto">
-                <Play className="mr-2 h-4 w-4" /> Simulate (Mock)
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => handleFormSubmit("Draft")} className="w-full sm:w-auto">
-                <Save className="mr-2 h-4 w-4" /> Save as Draft
-            </Button>
-            <Button type="button" onClick={() => handleFormSubmit("Published")} className="w-full sm:w-auto">
-                <UploadCloud className="mr-2 h-4 w-4" /> Publish Agent
-            </Button>
-          </div>
-        </form>
-      </Form>
     </div>
   );
 }

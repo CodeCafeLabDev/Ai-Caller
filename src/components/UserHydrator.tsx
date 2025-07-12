@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { useUser } from "@/lib/utils";
+import { api } from "@/lib/apiConfig";
 
 export function UserHydrator({ children }: { children: React.ReactNode }) {
   const { setUser } = useUser();
@@ -13,7 +14,7 @@ export function UserHydrator({ children }: { children: React.ReactNode }) {
         setUser(JSON.parse(stored));
       } catch {}
     }
-    fetch("http://localhost:5000/api/admin_users/me", { credentials: "include" })
+    api.getCurrentUser()
       .then(res => res.json())
       .then(data => {
         if (data.success) {

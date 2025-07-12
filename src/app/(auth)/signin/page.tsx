@@ -20,6 +20,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { signInUserAction } from '@/actions/auth'; 
 import { useState, useTransition } from 'react';
 import { useUser } from '@/lib/utils';
+import { api } from '@/lib/apiConfig';
 
 // For this temporary bypass, the user can enter any non-empty string
 // into the "Email" field (acting as a User ID) and any non-empty string for "Password".
@@ -45,18 +46,11 @@ export default function SignInPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     startTransition(async () => {
       // Call backend login endpoint
-      const loginRes = await fetch("http://localhost:5000/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(values),
-      });
+      const loginRes = await api.login(values);
       const loginData = await loginRes.json();
       if (loginData.success) {
         // Fetch user profile using cookie
-        const profileRes = await fetch("http://localhost:5000/api/admin_users/me", {
-          credentials: "include",
-        });
+        const profileRes = await api.getCurrentUser();
         const profileData = await profileRes.json();
         if (profileData.success) {
           setUser({

@@ -1,6 +1,7 @@
 // NOTE: You must install react-easy-crop: npm install react-easy-crop
 import React, { useRef, useState } from "react";
 import Cropper, { Area } from "react-easy-crop";
+import { api, API_BASE_URL } from "@/lib/apiConfig";
 
 interface ProfilePictureUploaderProps {
   value: string;
@@ -39,11 +40,7 @@ export default function ProfilePictureUploader({ value, onChange, onDelete }: Pr
     if (!croppedBlob) return;
     const formData = new FormData();
     formData.append("profile_picture", croppedBlob, "profile.jpg");
-    const res = await fetch("http://localhost:5000/api/admin_users/me/avatar_url", {
-      method: "POST",
-      credentials: "include",
-      body: formData,
-    });
+    const res = await api.uploadFile(formData);
     const data = await res.json();
     if (data.success) {
       onChange(data.avatar_url);
@@ -58,7 +55,7 @@ export default function ProfilePictureUploader({ value, onChange, onDelete }: Pr
           value
             ? value.startsWith('http')
               ? value
-              : `http://localhost:5000${value}`
+              : `${API_BASE_URL}${value}`
             : "/default-avatar.png"
         }
         alt="Profile"

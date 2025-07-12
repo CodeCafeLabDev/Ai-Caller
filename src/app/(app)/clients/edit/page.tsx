@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { api } from '@/lib/apiConfig';
 
 export default function EditClientPage() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export default function EditClientPage() {
       return;
     }
     setLoading(true);
-    fetch(`http://localhost:5000/api/clients/${clientId}`)
+    api.getClient(clientId)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -51,7 +52,7 @@ export default function EditClientPage() {
     setError(null);
     try {
       const { planName, ...formToSend } = form;
-      const res = await fetch(`http://localhost:5000/api/clients/${clientId}`, {
+      const res = await api.updateClient(clientId, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formToSend),

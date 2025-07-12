@@ -27,12 +27,8 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, Command
 import { useEffect, useState } from 'react';
 import { Sheet, SheetHeader, SheetTitle, SheetFooter, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { api, API_BASE_URL } from "@/lib/apiConfig";
 
-const ragStorage = {
-  used: 0,
-  total: 2.1,
-  unit: "MB"
-};
 
 export default function KnowledgeBasePage() {
   const { toast } = useToast();
@@ -74,14 +70,14 @@ export default function KnowledgeBasePage() {
 
   // Fetch articles on load
   useEffect(() => {
-    fetch("http://localhost:5000/api/knowledge-base", { credentials: "include" })
+    api.getKnowledgeBase()
       .then(res => res.json())
       .then(data => setArticles(data.data || []));
   }, []);
 
   // Fetch clients on load
   useEffect(() => {
-    fetch("http://localhost:5000/api/clients")
+    api.getClients()
       .then(res => res.json())
       .then(data => setClients(data.data || []));
   }, []);
@@ -125,19 +121,14 @@ export default function KnowledgeBasePage() {
   // Add URL handler
   async function handleAddUrl() {
     if (!selectedClientId || !urlInput) return;
-    const res = await fetch("http://localhost:5000/api/knowledge-base", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        client_id: selectedClientId,
-        type: "url",
-        name: urlInput,
-        url: urlInput,
-        file_path: null,
-        text_content: null,
-        size: null,
-      }),
+    const res = await api.createKnowledgeBaseItem({
+      client_id: selectedClientId,
+      type: "url",
+      name: urlInput,
+      url: urlInput,
+      file_path: null,
+      text_content: null,
+      size: null,
     });
     const data = await res.json();
     if (data.success) {
@@ -150,19 +141,14 @@ export default function KnowledgeBasePage() {
   // Add Text handler
   async function handleAddText() {
     if (!selectedClientId || !textName || !textContent) return;
-    const res = await fetch("http://localhost:5000/api/knowledge-base", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        client_id: selectedClientId,
-        type: "text",
-        name: textName,
-        url: null,
-        file_path: null,
-        text_content: textContent,
-        size: `${textContent.length} chars`,
-      }),
+    const res = await api.createKnowledgeBaseItem({
+      client_id: selectedClientId,
+      type: "text",
+      name: textName,
+      url: null,
+      file_path: null,
+      text_content: textContent,
+      size: `${textContent.length} chars`,
     });
     const data = await res.json();
     if (data.success) {
@@ -184,7 +170,7 @@ export default function KnowledgeBasePage() {
 
     // Use XMLHttpRequest for progress
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "http://localhost:5000/api/upload", true);
+    xhr.open("POST", `${API_BASE_URL}/api/upload`, true);
     xhr.withCredentials = true;
 
     xhr.upload.onprogress = (event) => {
@@ -204,19 +190,14 @@ export default function KnowledgeBasePage() {
           return;
         }
         // Save file metadata
-        const res = await fetch("http://localhost:5000/api/knowledge-base", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            client_id: selectedClientId,
-            type: "file",
-            name: file.name,
-            url: null,
-            file_path: uploadData.file_path,
-            text_content: null,
-            size: `${(file.size / 1024).toFixed(1)} kB`,
-          }),
+        const res = await api.createKnowledgeBaseItem({
+          client_id: selectedClientId,
+          type: "file",
+          name: file.name,
+          url: null,
+          file_path: uploadData.file_path,
+          text_content: null,
+          size: `${(file.size / 1024).toFixed(1)} kB`,
         });
         const data = await res.json();
         if (data.success) {
@@ -247,10 +228,7 @@ export default function KnowledgeBasePage() {
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/knowledge-base/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const res = await api.deleteKnowledgeBaseItem(id);
       if (res.ok) {
         setArticles(prev => prev.filter(a => a.id !== id));
         toast({ title: "Deleted", description: "Knowledge base item deleted." });
@@ -275,10 +253,6 @@ export default function KnowledgeBasePage() {
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex justify-between items-start mb-4">
         <h1 className="text-3xl font-bold">Knowledge Base</h1>
-        <div className="flex items-center gap-2 bg-white rounded-full px-4 py-1 border text-sm font-medium">
-          <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
-          RAG Storage: <span className="font-bold ml-1">{ragStorage.used} B</span> / {ragStorage.total} {ragStorage.unit}
-        </div>
       </div>
       <div className="max-w-xl mb-6">
         <Popover open={clientComboboxOpen} onOpenChange={setClientComboboxOpen}>
@@ -538,7 +512,7 @@ export default function KnowledgeBasePage() {
                       {/* Download link for files */}
                       {article.type === "file" && article.file_path && (
                         <a
-                          href={`http://localhost:5000${article.file_path}`}
+                          href={`${API_BASE_URL}${article.file_path}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="ml-2 text-gray-500 hover:text-black"
@@ -617,7 +591,7 @@ export default function KnowledgeBasePage() {
                   <div className="mt-4">
                     <div className="font-semibold mb-1">File</div>
                     <a
-                      href={`http://localhost:5000${selectedDocument.file_path}`}
+                      href={`${API_BASE_URL}${selectedDocument.file_path}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 underline"
