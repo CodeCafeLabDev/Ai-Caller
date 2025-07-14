@@ -227,6 +227,195 @@ app.get('/api/voices', async (req, res) => {
   }
 });
 
+// ElevenLabs Create Agent Proxy Endpoint
+app.post('/api/elevenlabs/create-agent', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+    };
+    const payload = req.body;
+    const response = await fetch('https://api.elevenlabs.io/v1/convai/agents/create', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to create agent', details: data });
+    }
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ElevenLabs Get Agent Details Endpoint
+app.get('/api/elevenlabs/agent/:id', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+    };
+    const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${req.params.id}`, {
+      method: 'GET',
+      headers,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch agent', details: data });
+    }
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ElevenLabs Update Agent Details Endpoint
+app.patch('/api/elevenlabs/agent/:id', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+    };
+    const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${req.params.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to update agent', details: data });
+    }
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// --- ElevenLabs Agent Tab Endpoints ---
+
+// Settings (Agent tab)
+app.get('/api/elevenlabs/agent/:id/settings', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+    };
+    const response = await fetch(`https://api.elevenlabs.io/v1/agents/${req.params.id}/settings`, {
+      method: 'GET',
+      headers,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch agent settings', details: data });
+    }
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+app.patch('/api/elevenlabs/agent/:id/settings', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+    };
+    const response = await fetch(`https://api.elevenlabs.io/v1/agents/${req.params.id}/settings`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to update agent settings', details: data });
+    }
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Widget Config
+app.get('/api/elevenlabs/agent/:id/widget-config', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+    };
+    const response = await fetch(`https://api.elevenlabs.io/v1/agents/${req.params.id}/widget-config`, {
+      method: 'GET',
+      headers,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch widget config', details: data });
+    }
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+app.patch('/api/elevenlabs/agent/:id/widget-config', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+    };
+    const response = await fetch(`https://api.elevenlabs.io/v1/agents/${req.params.id}/widget-config`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to update widget config', details: data });
+    }
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Voice Config (stub, as ElevenLabs may not support this directly)
+app.get('/api/elevenlabs/agent/:id/voice', (req, res) => {
+  res.status(200).json({ stub: true, message: 'Voice config endpoint not implemented in ElevenLabs API yet.' });
+});
+app.patch('/api/elevenlabs/agent/:id/voice', (req, res) => {
+  res.status(501).json({ error: 'Voice config update not implemented in ElevenLabs API yet.' });
+});
+
+// Security Config (stub)
+app.get('/api/elevenlabs/agent/:id/security', (req, res) => {
+  res.status(200).json({ stub: true, message: 'Security config endpoint not implemented in ElevenLabs API yet.' });
+});
+app.patch('/api/elevenlabs/agent/:id/security', (req, res) => {
+  res.status(501).json({ error: 'Security config update not implemented in ElevenLabs API yet.' });
+});
+
+// Advanced Config (stub)
+app.get('/api/elevenlabs/agent/:id/advanced', (req, res) => {
+  res.status(200).json({ stub: true, message: 'Advanced config endpoint not implemented in ElevenLabs API yet.' });
+});
+app.patch('/api/elevenlabs/agent/:id/advanced', (req, res) => {
+  res.status(501).json({ error: 'Advanced config update not implemented in ElevenLabs API yet.' });
+});
+
+// Analysis Config (stub)
+app.get('/api/elevenlabs/agent/:id/analysis', (req, res) => {
+  res.status(200).json({ stub: true, message: 'Analysis config endpoint not implemented in ElevenLabs API yet.' });
+});
+app.patch('/api/elevenlabs/agent/:id/analysis', (req, res) => {
+  res.status(501).json({ error: 'Analysis config update not implemented in ElevenLabs API yet.' });
+});
+
 // CRUD API for Plans
 
 // Get all plans
