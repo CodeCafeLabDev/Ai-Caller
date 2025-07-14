@@ -508,7 +508,7 @@ export default function AgentDetailsPage() {
                   <div className="font-semibold">Workspace Secrets</div>
                   <div className="text-gray-500 text-sm mb-2">Create and manage secure secrets that can be accessed across your workspace.</div>
                   <button type="button" className="bg-gray-200 px-3 py-2 rounded w-fit">Add secret</button>
-                  <div className="text-xs text-gray-500 mt-1">REMOVED<br />Used by 1 phone number: Test call</div>
+                  <div className="text-xs text-gray-500 mt-1">Used by 1 phone number: Test call</div>
                 </div>
                 {/* Workspace Auth Connections */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
