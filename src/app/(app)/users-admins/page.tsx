@@ -250,7 +250,7 @@ export default function UsersAdminsPage() {
   async function handleDeleteRole() {
     if (!roleToDelete) return;
     const res = await api.deleteAdminRole(roleToDelete.id)
-      method: "DELETE",
+      method: "DELETE"
     });
     if (res.ok) {
       setAdminRoles((prev) => prev.filter((r) => r.id !== roleToDelete.id));
