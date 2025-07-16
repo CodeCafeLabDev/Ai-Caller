@@ -32,11 +32,7 @@ export default function CreateUserRolePage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.createUserRole({
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await api.createUserRole(form);
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to create role");
       router.push("/clients/users");

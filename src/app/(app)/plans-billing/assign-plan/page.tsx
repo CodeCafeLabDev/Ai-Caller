@@ -106,20 +106,16 @@ export default function AssignPlanToClientPage() {
   const discountType = form.watch("discountType");
 
   function onSubmit(data: AssignPlanFormValues) {
-    api.getAssignedPlans()
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: data.clientId,
-        plan_id: data.planId,
-        start_date: data.startDate,
-        duration_override_days: data.durationOverrideDays,
-        is_trial: data.isTrial,
-        discount_type: data.discountType,
-        discount_value: data.discountValue,
-        notes: data.notes,
-        auto_send_notifications: data.autoSendNotifications,
-      }),
+    api.assignPlan({
+      client_id: data.clientId,
+      plan_id: data.planId,
+      start_date: data.startDate,
+      duration_override_days: data.durationOverrideDays,
+      is_trial: data.isTrial,
+      discount_type: data.discountType,
+      discount_value: data.discountValue,
+      notes: data.notes,
+      auto_send_notifications: data.autoSendNotifications,
     })
       .then(res => res.json())
       .then(result => {

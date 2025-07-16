@@ -19,7 +19,7 @@ export default function EditPlanPage() {
   useEffect(() => {
     if (!planId) return;
     setLoading(true);
-    api.getPlan(planId)
+    api.getPlan(String(Array.isArray(planId) ? planId[0] : planId))
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -30,7 +30,8 @@ export default function EditPlanPage() {
               draft: "Draft",
               archived: "Archived"
             };
-            const normalizedStatus = statusMap[String(plan.status).toLowerCase()] || "Draft";
+            const statusKey = String(plan.status).toLowerCase() as keyof typeof statusMap;
+            const normalizedStatus = statusMap[statusKey] || "Draft";
             plan.status = normalizedStatus;
           }
           setPlan(plan);
@@ -51,11 +52,7 @@ export default function EditPlanPage() {
       // @ts-ignore
       if (cleanPlan[key] === undefined) delete cleanPlan[key];
     });
-    const res = await api.updatePlan(planId, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(cleanPlan),
-    });
+    const res = await api.updatePlan(String(planId), cleanPlan);
     if (res.ok) {
       toast({
         title: "Success",

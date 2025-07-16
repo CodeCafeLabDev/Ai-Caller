@@ -159,17 +159,18 @@ export default function PlansBillingPage() {
     if (actionName === "Archive Plan" || actionName === "Unarchive Plan") {
       const newStatus = actionName === "Archive Plan" ? "Archived" : "Active";
       try {
-        const response = await api.getPlan(planId)
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ status: newStatus }),
-        });
+        // Fetch the full plan first
+        const resGet = await api.getPlan(String(planId));
+        const dataGet = await resGet.json();
+        if (!dataGet.success) throw new Error("Failed to fetch plan data");
+
+        // Update status and send full object
+        const planData = { ...dataGet.data, status: newStatus };
+        const response = await api.updatePlan(String(planId), planData);
         const data = await response.json();
-        
+
         if (data.success) {
-          await fetchPlans(); // Refresh plans after update
+          await fetchPlans();
           toast({
             title: `${actionName} Successful`,
             description: `Plan "${planName}" has been ${newStatus.toLowerCase()}.`,
@@ -185,6 +186,7 @@ export default function PlansBillingPage() {
           variant: "destructive",
         });
       }
+      return;
     }
   };
 
@@ -192,7 +194,7 @@ export default function PlansBillingPage() {
     setPlanDetailsLoading(true);
     setViewPlanOpen(true);
     try {
-      const response = await api.getPlan(planId);
+      const response = await api.getPlan(String(planId));
       const data = await response.json();
       if (data.success && data.data) {
         setPlanDetails(data.data);
@@ -221,7 +223,7 @@ export default function PlansBillingPage() {
     setEditPlanLoading(true);
     setEditPlanOpen(true);
     try {
-      const response = await api.getPlan(planId);
+      const response = await api.getPlan(String(planId));
       const data = await response.json();
       if (data.success && data.data) {
         const plan = data.data;
@@ -256,11 +258,7 @@ export default function PlansBillingPage() {
     });
     console.log('Submitting plan to backend:', cleanPlan);
     try {
-      const res = await api.updatePlan(updatedPlan.id, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cleanPlan),
-      });
+      const res = await api.updatePlan(String(updatedPlan.id), cleanPlan);
       const result = await res.json();
       console.log('Backend response:', result);
       if (res.ok && result.success) {
@@ -294,7 +292,7 @@ export default function PlansBillingPage() {
 
   const handleClonePlan = async (planId: number) => {
     try {
-      const response = await api.getPlan(planId);
+      const response = await api.getPlan(String(planId));
       const data = await response.json();
       if (data.success && data.data) {
         await navigator.clipboard.writeText(JSON.stringify(data.data, null, 2));

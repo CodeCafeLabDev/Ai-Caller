@@ -394,7 +394,7 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {planStatusOptions.map(option => (
+                      {planStatusOptions.filter(option => option && option !== "").map(option => (
                         <SelectItem key={option} value={option}>{option}</SelectItem>
                       ))}
                     </SelectContent>

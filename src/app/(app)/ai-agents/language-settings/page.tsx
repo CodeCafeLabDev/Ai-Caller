@@ -14,6 +14,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import languagesData from "@/data/languages.json";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { api } from "@/lib/apiConfig";
+import { useToast } from "@/components/ui/use-toast";
 
 // Remove image upload and emoji flag logic
 // Add flag image fetching using flagcdn.com
@@ -35,6 +36,7 @@ export default function SupportedLanguagesPage() {
   const [dropdownSearch, setDropdownSearch] = React.useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [pendingDeleteId, setPendingDeleteId] = React.useState<number | null>(null);
+  const { toast } = useToast();
 
   // Fetch languages from backend
   React.useEffect(() => {
@@ -70,6 +72,10 @@ export default function SupportedLanguagesPage() {
     const res = await api.updateLanguage(id.toString(), { enabled });
     const updated = (await res.json()).data;
     setLanguages(langs => langs.map(lang => lang.id === id ? updated : lang));
+    toast({
+      title: `Language ${enabled ? "enabled" : "disabled"}`,
+      description: updated?.name ? `${updated.name} has been ${enabled ? "enabled" : "disabled"}.` : undefined,
+    });
   };
 
   // Delete
@@ -138,7 +144,7 @@ export default function SupportedLanguagesPage() {
                     {filteredDropdownOptions.length === 0 && (
                       <div className="px-4 py-2 text-muted-foreground text-sm">No languages found.</div>
                     )}
-                    {filteredDropdownOptions.map(opt => (
+                    {filteredDropdownOptions.filter(opt => opt.id).map(opt => (
                       <SelectItem key={opt.id} value={String(opt.id)}>
                         <span className="flex items-center gap-2">
                           <img

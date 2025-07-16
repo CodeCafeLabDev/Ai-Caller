@@ -60,6 +60,7 @@ import { useUser } from '@/lib/utils';
 
 // Removed: import type { Metadata } from 'next';
 import { api } from '@/lib/apiConfig';
+import { DialogTitle } from '@/components/ui/dialog';
 // Removed: export const metadata: Metadata = { ... };
 
 type AdminUserStatus = "Active" | "Suspended";
@@ -227,14 +228,11 @@ export default function UsersAdminsPage() {
     e.preventDefault();
     if (!selectedRole) return;
     setEditLoading(true);
+    // Send only the plain data object
     const res = await api.updateAdminRole(selectedRole.id, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...selectedRole,
-        name: editForm.name,
-        permission_summary: editForm.permission_summary,
-      }),
+      ...selectedRole,
+      name: editForm.name,
+      permission_summary: editForm.permission_summary,
     });
     setEditLoading(false);
     if (res.ok) {
@@ -249,9 +247,7 @@ export default function UsersAdminsPage() {
 
   async function handleDeleteRole() {
     if (!roleToDelete) return;
-    const res = await api.deleteAdminRole(roleToDelete.id)
-      method: "DELETE"
-    });
+    const res = await api.deleteAdminRole(roleToDelete.id);
     if (res.ok) {
       setAdminRoles((prev) => prev.filter((r) => r.id !== roleToDelete.id));
       toast({ title: "Role Deleted", description: `Role '${roleToDelete.name}' deleted successfully.` });
@@ -266,11 +262,8 @@ export default function UsersAdminsPage() {
     e.preventDefault();
     if (!roleBeingEdited) return;
     setEditRoleLoading(true);
-    const res = await api.updateAdminRole(roleBeingEdited.id, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editRoleForm),
-    });
+    // Send only the plain data object
+    const res = await api.updateAdminRole(roleBeingEdited.id, editRoleForm);
     setEditRoleLoading(false);
     if (res.ok) {
       const updated = await res.json();
@@ -289,15 +282,30 @@ export default function UsersAdminsPage() {
       return;
     }
     setAddAdminLoading(true);
-    const res = await api.createAdminUser({
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...addAdminForm, confirmPassword: undefined }),
-    });
+    // Always send all required fields, remove confirmPassword, set lastLogin to null if not present
+    const payload = {
+      name: addAdminForm.name,
+      email: addAdminForm.email,
+      roleName: addAdminForm.roleName,
+      password: addAdminForm.password,
+      status: addAdminForm.status,
+      lastLogin: null
+    };
+    const res = await api.createAdminUser(payload);
     setAddAdminLoading(false);
     if (res.ok) {
       const created = await res.json();
-      setAdminUsers((prev) => [created.data, ...prev]);
+      // Use API response, but fallback to addAdminForm values if any field is missing
+      const newUser = {
+        name: created.data.name || addAdminForm.name,
+        email: created.data.email || addAdminForm.email,
+        roleName: created.data.roleName || addAdminForm.roleName,
+        status: created.data.status || addAdminForm.status || 'Active',
+        lastLogin: created.data.lastLogin || null,
+        createdOn: created.data.createdOn || new Date().toISOString(),
+        id: created.data.id,
+      };
+      setAdminUsers((prev) => [newUser, ...prev]);
       setAddAdminOpen(false);
       setAddAdminForm({ name: "", email: "", roleName: "", password: "", confirmPassword: "", status: "Active" });
       toast({ title: "Admin User Created", description: "The admin user was created successfully." });
@@ -313,11 +321,7 @@ export default function UsersAdminsPage() {
       return;
     }
     setCreateRoleLoading(true);
-    const res = await api.createAdminRole({
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(createRoleForm),
-    });
+    const res = await api.createAdminRole(createRoleForm);
     setCreateRoleLoading(false);
     if (res.ok) {
       const created = await res.json();
@@ -369,14 +373,16 @@ export default function UsersAdminsPage() {
       return;
     }
     setEditUserLoading(true);
-    const { confirmPassword, password, ...rest } = editUserForm;
-    const payload: any = { ...rest };
-    if (password) payload.password = password;
-    const res = await api.updateAdminUser(editUserForm.id, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const { confirmPassword, ...rest } = editUserForm;
+    // Always send all required fields
+    const payload: any = {
+      name: rest.name,
+      email: rest.email,
+      roleName: rest.roleName,
+      status: rest.status,
+    };
+    if (rest.password) payload.password = rest.password;
+    const res = await api.updateAdminUser(editUserForm.id, payload);
     setEditUserLoading(false);
     if (res.ok) {
       const updated = await res.json();
@@ -412,10 +418,10 @@ export default function UsersAdminsPage() {
       return;
     }
     setResetPasswordLoading(true);
-    const res = await api.resetAdminUserPassword(resetPasswordForm.id)
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ oldPassword: resetPasswordForm.oldPassword, password: resetPasswordForm.newPassword }),
+    // Send oldPassword and newPassword to the backend
+    const res = await api.resetAdminUserPassword(resetPasswordForm.id, {
+      oldPassword: resetPasswordForm.oldPassword,
+      password: resetPasswordForm.newPassword,
     });
     setResetPasswordLoading(false);
     if (res.ok) {
@@ -428,9 +434,7 @@ export default function UsersAdminsPage() {
 
   async function handleForceLogout() {
     if (!userToForceLogout) return;
-    const res = await api.forceLogoutUser(userToForceLogout.id)
-      method: 'POST',
-    });
+    const res = await api.forceLogoutUser(userToForceLogout.id);
     setForceLogoutOpen(false);
     setUserToForceLogout(null);
     if (res.ok) {
@@ -456,9 +460,7 @@ export default function UsersAdminsPage() {
 
   async function handleDeleteUser() {
     if (!userToDelete) return;
-    const res = await api.deleteAdminUser(userToDelete.id)
-      method: 'DELETE',
-    });
+    const res = await api.deleteAdminUser(userToDelete.id);
     if (res.ok) {
       setAdminUsers(prev => prev.filter(u => u.id !== userToDelete.id));
       toast({ title: 'User Deleted', description: `User '${userToDelete.name}' deleted successfully.` });
@@ -507,7 +509,9 @@ export default function UsersAdminsPage() {
                 <SelectValue placeholder="Filter by Role" />
               </SelectTrigger>
               <SelectContent>
-                {uniqueRoles.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}
+                {uniqueRoles.filter(role => role && role !== "").map(role => (
+                  <SelectItem key={role} value={role}>{role}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as AdminUserStatus | "All Statuses")}>
@@ -537,18 +541,20 @@ export default function UsersAdminsPage() {
               <TableBody>
                 {paginatedAdminUsers.length > 0 ? paginatedAdminUsers.map((user) => (
                   <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.roleName}</TableCell>
+                    <TableCell className="font-medium">{user.name || '—'}</TableCell>
+                    <TableCell>{user.email || '—'}</TableCell>
+                    <TableCell>{user.roleName || '—'}</TableCell>
                     <TableCell>
-                      <Badge className={cn("text-xs", adminUserStatusVariants[user.status])}>{user.status}</Badge>
+                      <Badge className={cn("text-xs", adminUserStatusVariants[user.status] || "bg-gray-200 text-gray-700")}>{
+                        user.status === 'Active' ? 'Active' : user.status === 'Suspended' ? 'Suspended' : 'Suspended'
+                      }</Badge>
                     </TableCell>
                     <TableCell>
                       {user.lastLogin && new Date(user.lastLogin).getTime() > 0 && user.lastLogin !== '1970-01-01T00:00:00.000Z'
                         ? format(new Date(user.lastLogin), "MMM dd, yyyy")
                         : 'N/A'}
                     </TableCell>
-                    <TableCell>{format(new Date(user.createdOn), "MMM dd, yyyy")}</TableCell>
+                    <TableCell>{user.createdOn ? format(new Date(user.createdOn), "MMM dd, yyyy") : 'N/A'}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -565,12 +571,11 @@ export default function UsersAdminsPage() {
                           <DropdownMenuItem onClick={async () => {
                             const newStatus = user.status === 'Active' ? 'Suspended' : 'Active';
                             // Update backend
-                            const res = await api.updateAdminUser(user.id, {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ ...user, status: newStatus }),
-                            });
+                            const res = await api.updateAdminUser(user.id, { ...user, status: newStatus });
+                            const backendData = res.ok ? await res.json() : null;
+                            console.log('Backend response for status update:', backendData);
                             if (res.ok) {
+                              // Merge all fields from previous user, only update status
                               setAdminUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: newStatus } : u));
                               toast({ title: `User ${newStatus === 'Suspended' ? 'Suspended' : 'Activated'}`, description: `User status updated to ${newStatus}.` });
                             } else {
@@ -649,11 +654,13 @@ export default function UsersAdminsPage() {
             <TableBody>
               {adminRoles.map((role) => (
                 <TableRow key={role.id}>
-                  <TableCell className="font-medium">{role.name}</TableCell>
-                  <TableCell className="max-w-sm truncate" title={role.description}>{role.description}</TableCell>
-                  <TableCell className="max-w-xs truncate" title={role.permission_summary || role.permissionsSummary}>{role.permission_summary || role.permissionsSummary}</TableCell>
+                  <TableCell className="font-medium">{role.name || '—'}</TableCell>
+                  <TableCell>{role.description || '—'}</TableCell>
+                  <TableCell>{role.permission_summary || role.permissionsSummary || '—'}</TableCell>
                   <TableCell>
-                    <Badge className={adminRoleStatusVariants[role.status]}>{role.status}</Badge>
+                    <Badge className={cn("text-xs", adminRoleStatusVariants[role.status] || "bg-gray-200 text-gray-700")}>{
+                      role.status === 'Active' ? 'Active' : role.status === 'Archived' ? 'Archived' : 'Inactive'
+                    }</Badge>
                   </TableCell>
                   <TableCell className="text-right">
                      <DropdownMenu>
@@ -679,6 +686,22 @@ export default function UsersAdminsPage() {
                             </DropdownMenuItem>
                           </AlertDialogTrigger>
                         </AlertDialog>
+                        <DropdownMenuItem onClick={async () => {
+                          const newStatus = role.status === 'Active' ? 'Archived' : 'Active';
+                          // Update backend
+                          const res = await api.updateAdminRole(role.id, { ...role, status: newStatus });
+                          const backendData = res.ok ? await res.json() : null;
+                          console.log('Backend response for admin role status update:', backendData);
+                          if (res.ok) {
+                            setAdminRoles(prev => prev.map(r => r.id === role.id ? { ...r, status: newStatus } : r));
+                            toast({ title: `Role ${newStatus === 'Archived' ? 'Archived' : 'Activated'}`, description: `Role status updated to ${newStatus}.` });
+                          } else {
+                            toast({ title: 'Update Failed', description: 'Could not update role status.', variant: 'destructive' });
+                          }
+                        }}>
+                          {role.status === 'Active' ? <UserX className="mr-2 h-4 w-4" /> : <UserCheck className="mr-2 h-4 w-4" />}
+                          {role.status === 'Active' ? 'Archive' : 'Activate'}
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -864,7 +887,7 @@ export default function UsersAdminsPage() {
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    {adminRoles.map(role => (
+                    {adminRoles.filter(role => role.name && role.name !== "").map(role => (
                       <SelectItem key={role.id} value={role.name}>{role.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1043,7 +1066,7 @@ export default function UsersAdminsPage() {
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
                     <SelectContent>
-                      {adminRoles.map(role => (
+                      {adminRoles.filter(role => role.name && role.name !== "").map(role => (
                         <SelectItem key={role.id} value={role.name}>{role.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -1162,6 +1185,9 @@ export default function UsersAdminsPage() {
 
       <Sheet open={viewActivityOpen} onOpenChange={setViewActivityOpen}>
         <SheetContent side="right">
+          <SheetHeader>
+            <SheetTitle>User Activity</SheetTitle>
+          </SheetHeader>
           <div className="py-6 px-4">
             <h2 className="text-2xl font-bold mb-1">User Activity</h2>
             <p className="text-muted-foreground mb-6">Login and logout activity for {activityUser?.name}.</p>

@@ -66,7 +66,7 @@ import { useToast } from "@/components/ui/use-toast";
 import type { AddClientFormValues } from "@/components/clients/add-client-form";
 import { Switch } from "@/components/ui/switch";
 import { exportAsCSV, exportAsExcel, exportAsPDF } from '@/lib/exportUtils';
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from '@/lib/apiConfig';
 
 // Removed: export const metadata: Metadata = { ... };
@@ -116,6 +116,9 @@ export default function AllClientsListPage() {
   const [planFilter, setPlanFilter] = React.useState("all");
   const [sortBy, setSortBy] = React.useState("joinedDateDesc");
   const [isAddClientSheetOpen, setIsAddClientSheetOpen] = React.useState(false);
+  const [isEditClientSheetOpen, setIsEditClientSheetOpen] = React.useState(false);
+  const [editingClient, setEditingClient] = React.useState<any>(null);
+  const router = useRouter();
 
   const [statusComboboxOpen, setStatusComboboxOpen] = React.useState(false);
   const [planComboboxOpen, setPlanComboboxOpen] = React.useState(false);
@@ -169,6 +172,46 @@ export default function AllClientsListPage() {
     }
   }, [searchParams]);
 
+  // Open Edit Sheet if ?editClient=ID is in the URL
+  React.useEffect(() => {
+    const editId = searchParams.get("editClient");
+    if (editId) {
+      api.getClient(editId)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setEditingClient(data.data);
+            setIsEditClientSheetOpen(true);
+          }
+        });
+    } else {
+      setIsEditClientSheetOpen(false);
+      setEditingClient(null);
+    }
+  }, [searchParams]);
+
+  const handleEditClient = (client: any) => {
+    setEditingClient(client);
+    setIsEditClientSheetOpen(true);
+    router.push(`/clients/list?editClient=${client.id}`);
+  };
+
+  const handleEditClientSuccess = async (formData: any) => {
+    if (!editingClient) return;
+    const { planName, ...formToSend } = formData;
+    const res = await api.updateClient(editingClient.id, formToSend);
+    const data = await res.json();
+    if (data.success) {
+      setIsEditClientSheetOpen(false);
+      setEditingClient(null);
+      fetchClients();
+      toast({ title: "Client updated successfully!" });
+      router.push("/clients/list");
+    } else {
+      toast({ title: "Error", description: data.message || "Failed to update client", variant: "destructive" });
+    }
+  };
+
   // Plan filter options are now dynamic
   const dynamicPlanOptions = [
     { value: "all", label: "All Plans" },
@@ -206,11 +249,7 @@ export default function AllClientsListPage() {
 
   const handleAddClientSuccess = async (formData: AddClientFormValues) => {
     // Call backend to add client
-    const response = await api.createClient({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-    });
+    const response = await api.createClient(formData);
     const data = await response.json();
     if (data.success) {
       setIsAddClientSheetOpen(false);
@@ -247,11 +286,7 @@ export default function AllClientsListPage() {
       // 3. Update status
       clientData.status = newStatus;
       // 4. Send full object in PUT request
-      const res = await api.updateClient(clientId, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clientData),
-      });
+      const res = await api.updateClient(clientId, clientData);
       const data = await res.json();
       if (data.success) {
         toast({ title: `Client ${newStatus === 'Suspended' ? 'suspended' : 'activated'} successfully!` });
@@ -529,10 +564,8 @@ export default function AllClientsListPage() {
                                 <Eye className="mr-2 h-4 w-4" /> View Details
                             </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                            <Link href={`/clients/edit?clientId=${client.id}`}>
-                                <Edit2 className="mr-2 h-4 w-4" /> Edit Client
-                            </Link>
+                        <DropdownMenuItem onClick={() => handleEditClient(client)}>
+                          <Edit2 className="mr-2 h-4 w-4" /> Edit Client
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
                             <Link href={`/client-admin/dashboard`}> {}
@@ -588,6 +621,55 @@ export default function AllClientsListPage() {
            </div>
         </CardFooter>
       </Card>
+
+      <Sheet open={isEditClientSheetOpen} onOpenChange={open => {
+        setIsEditClientSheetOpen(open);
+        if (!open) router.push("/clients/list");
+      }}>
+        <SheetContent side="right" className="sm:max-w-sm w-full flex flex-col">
+          <SheetHeader>
+            <SheetTitle>Edit Client</SheetTitle>
+            <SheetDescription>
+              Update the details below to edit the client.
+            </SheetDescription>
+          </SheetHeader>
+          {editingClient && (
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              await handleEditClientSuccess(editingClient);
+            }} className="space-y-4">
+              <div>
+                <label className="block mb-1 font-medium">Company Name</label>
+                <Input name="companyName" value={editingClient.companyName || ""} onChange={e => setEditingClient({ ...editingClient, companyName: e.target.value })} required />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Company Email</label>
+                <Input name="companyEmail" type="email" value={editingClient.companyEmail || ""} onChange={e => setEditingClient({ ...editingClient, companyEmail: e.target.value })} required />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Phone Number</label>
+                <Input name="phoneNumber" value={editingClient.phoneNumber || ""} onChange={e => setEditingClient({ ...editingClient, phoneNumber: e.target.value })} required />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Address</label>
+                <Input name="address" value={editingClient.address || ""} onChange={e => setEditingClient({ ...editingClient, address: e.target.value })} />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Contact Person Name</label>
+                <Input name="contactPersonName" value={editingClient.contactPersonName || ""} onChange={e => setEditingClient({ ...editingClient, contactPersonName: e.target.value })} required />
+              </div>
+              <div>
+                <label className="block mb-1 font-medium">Admin Password</label>
+                <Input name="adminPassword" type="password" value={editingClient.adminPassword || ""} onChange={e => setEditingClient({ ...editingClient, adminPassword: e.target.value })} required autoComplete="new-password" />
+              </div>
+              <div className="flex gap-4 mt-6">
+                <Button type="submit">Save Changes</Button>
+                <Button type="button" variant="outline" onClick={() => { setIsEditClientSheetOpen(false); router.push("/clients/list"); }}>Cancel</Button>
+              </div>
+            </form>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

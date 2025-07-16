@@ -17,6 +17,7 @@ import Image from "next/image";
 import type { Metadata } from 'next';
 import { useSearchParams } from "next/navigation";
 import { api } from '@/lib/apiConfig';
+import { useRouter } from "next/navigation";
 
 // Metadata should be defined in a server component or route handler if possible.
 // For client components, the nearest server layout/page handles overall metadata.
@@ -37,6 +38,7 @@ export default function ClientDetailsUsagePage() {
   const [error, setError] = React.useState<string | null>(null);
   const [clientStatus, setClientStatus] = React.useState(true);
   const [newNote, setNewNote] = React.useState("");
+  const router = useRouter();
 
   React.useEffect(() => {
     if (!clientId) {
@@ -63,13 +65,36 @@ export default function ClientDetailsUsagePage() {
       });
   }, [clientId]);
 
-  const handleStatusChange = (checked: boolean) => {
-    setClientStatus(checked);
-    toast({
-      title: "Account Status Updated",
-      description: `${client?.companyName}'s account is now ${checked ? "Active" : "Suspended"}. (Simulated)`,
-    });
-    // In a real app, you would call an API to update the status
+  const handleStatusChange = async (checked: boolean) => {
+    if (!client) return;
+    const newStatus = checked ? "Active" : "Suspended";
+    // Remove planName before sending to backend
+    const { planName, ...clientData } = client;
+    try {
+      // Send update to backend
+      const res = await api.updateClient(client.id.toString(), { ...clientData, status: newStatus });
+      const data = await res.json();
+      if (data.success) {
+        setClientStatus(checked);
+        setClient((prev: any) => prev ? { ...prev, status: newStatus } : prev);
+        toast({
+          title: "Account Status Updated",
+          description: `${client.companyName}'s account is now ${newStatus}.`,
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Failed to update status.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to update status.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSaveNote = () => {
@@ -142,7 +167,7 @@ export default function ClientDetailsUsagePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="lg">
+          <Button variant="outline" size="lg" onClick={() => router.push(`/clients/edit?clientId=${displayClient.id}`)}>
             <Edit3 className="mr-2 h-4 w-4" /> Edit Client
           </Button>
         </div>

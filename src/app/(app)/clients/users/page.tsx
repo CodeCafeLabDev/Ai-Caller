@@ -78,7 +78,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from "next/navigation";
 import { Switch } from "@/components/ui/switch";
-import { api } from '@/lib/apiConfig';
+import { api, apiUtils } from '@/lib/apiConfig';
 
 // export const metadata: Metadata = {
 //   title: 'Client Users Management - AI Caller',
@@ -178,7 +178,7 @@ export default function ClientUsersPage() {
     if (newStatus) {
       try {
         // 1. Fetch the full user data
-        const resGet = await api.getClientUser(userId);
+        const resGet = await api.getClientUser(String(userId));
         const dataGet = await resGet.json();
         if (!dataGet.success) {
           toast({ title: 'Error', description: 'Failed to fetch user data', variant: 'destructive' });
@@ -187,11 +187,7 @@ export default function ClientUsersPage() {
         // 2. Update status
         const userData = { ...dataGet.data, status: newStatus };
         // 3. Send full object in PUT request
-        const res = await api.updateClientUser(userId, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(userData),
-        });
+        const res = await api.updateClientUser(String(userId), userData);
         const data = await res.json();
         if (data.success) {
           setUsers(prevUsers => prevUsers.map(user =>
@@ -280,11 +276,7 @@ export default function ClientUsersPage() {
     }
     if (editingUser) {
       // Edit
-      api.updateClientUser(editingUser.id, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      })
+      api.updateClientUser(String(editingUser.id), form)
         .then(res => res.json())
         .then(data => {
           setUsers(users => users.map(u => u.id === editingUser.id ? data.data : u));
@@ -294,11 +286,7 @@ export default function ClientUsersPage() {
     } else {
       // Add
       const clientData = { ...form };
-      api.createClientUser({
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(clientData),
-      })
+      api.createClientUser(clientData)
         .then(res => res.json())
         .then(data => {
           setUsers(users => [data.data, ...users]);
@@ -310,7 +298,7 @@ export default function ClientUsersPage() {
 
   const handleDeleteUser = async (id: number) => {
     if (!confirm("Are you sure you want to delete this user?")) return;
-    const res = await api.deleteClientUser(id);
+    const res = await api.deleteClientUser(String(id));
     if (res.ok) setUsers(users => users.filter(u => u.id !== id));
   };
 
@@ -342,11 +330,7 @@ export default function ClientUsersPage() {
     }
     setResetSubmitting(true);
     try {
-      const res = await api.resetClientUserPassword(resetUserId)
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: resetPassword }),
-      });
+      const res = await apiUtils.post(`/api/client-users/${resetUserId}/reset-password`, { password: resetPassword });
       const data = await res.json();
       if (data.success) {
         toast({ title: "Password reset successfully!" });
@@ -358,6 +342,22 @@ export default function ClientUsersPage() {
       toast({ title: "Error", description: "Error resetting password.", variant: "destructive" });
     }
     setResetSubmitting(false);
+  };
+
+  const handleRoleStatusToggle = async (role: typeof userRoles[0]) => {
+    const newStatus = role.status === "Active" ? "Archived" : "Active";
+    try {
+      const res = await api.updateUserRole(String(role.id), { ...role, status: newStatus });
+      const data = await res.json();
+      if (data.success) {
+        setUserRoles(prevRoles => prevRoles.map(r => r.id === role.id ? { ...r, status: newStatus } : r));
+        toast({ title: `Role status updated`, description: `${role.role_name} is now ${newStatus}.` });
+      } else {
+        toast({ title: "Error", description: data.message || `Failed to update role status.`, variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: `Error updating role status.`, variant: "destructive" });
+    }
   };
 
   return (
@@ -395,7 +395,7 @@ export default function ClientUsersPage() {
                         <SelectValue placeholder="Assign to Client" />
                       </SelectTrigger>
                       <SelectContent>
-                        {clients.map(client => (
+                        {clients.filter(client => client.id && client.id !== "").map(client => (
                           <SelectItem key={client.id} value={String(client.id)}>
                             {client.companyName}
                           </SelectItem>
@@ -425,7 +425,7 @@ export default function ClientUsersPage() {
                         <SelectValue placeholder="Select a role" />
                       </SelectTrigger>
                       <SelectContent>
-                        {userRoles.map((role) => (
+                        {userRoles.filter(role => role.id && role.id !== "").map(role => (
                           <SelectItem key={role.id} value={String(role.id)}>
                             {role.role_name}
                           </SelectItem>
@@ -443,7 +443,7 @@ export default function ClientUsersPage() {
                         <SelectValue placeholder="Select a status" />
                       </SelectTrigger>
                       <SelectContent>
-                        {statusOptions.map((status) => (
+                        {statusOptions.filter(status => status && status !== "").map(status => (
                           <SelectItem key={status} value={status}>{status}</SelectItem>
                         ))}
                       </SelectContent>
@@ -690,7 +690,7 @@ export default function ClientUsersPage() {
                       <Badge className={role.status === "Active" ? "bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100" : "bg-red-100 text-red-700 dark:bg-red-700 dark:text-red-100"}>{role.status}</Badge>
                       <Switch
                         checked={role.status === "Active"}
-                        onCheckedChange={() => handleAdminRoleAction(role.status === "Active" ? "Archive" : "Activate", role.role_name)}
+                        onCheckedChange={() => handleRoleStatusToggle(role)}
                         aria-label="Toggle role status"
                       />
                     </div>

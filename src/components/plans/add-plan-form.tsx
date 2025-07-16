@@ -107,13 +107,7 @@ export function AddPlanForm({ onSuccess, onCancel }: AddPlanFormProps) {
 
       console.log("Submitting plan data:", submittedData);
 
-      const response = await api.createPlan({
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submittedData),
-      });
+      const response = await api.createPlan(submittedData);
 
       const result = await response.json();
       

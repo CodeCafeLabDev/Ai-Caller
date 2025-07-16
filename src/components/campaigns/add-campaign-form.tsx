@@ -192,7 +192,7 @@ export function AddCampaignForm({ clients, onSuccess, onCancel }: AddCampaignFor
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {campaignTypes.map(type => (
+                      {campaignTypes.filter(type => type && type !== "").map(type => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
                     </SelectContent>

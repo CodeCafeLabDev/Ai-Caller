@@ -65,15 +65,7 @@ export default function AccountStatusManagementPage() {
     const newStatus = actionName === "Suspend Account" ? "Suspended" : "Active";
     setLoading(true);
     try {
-      const res = await api.updateClient(selectedClientId, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: newStatus,
-          suspensionReason: actionName === "Suspend Account" ? suspensionReason : null,
-          internalNotes: logNotes,
-        }),
-      });
+      const res = await api.updateClient(selectedClientId, { status: newStatus, suspensionReason: actionName === "Suspend Account" ? suspensionReason : null, internalNotes: logNotes });
       const data = await res.json();
       if (data.success) {
         setClients(prev => prev.map(client =>

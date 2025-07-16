@@ -23,7 +23,7 @@ export default function EditUserRolePage() {
 
   useEffect(() => {
     if (!id) return;
-    api.getUserRole(id)
+    api.getUserRole(String(id))
       .then(res => res.json())
       .then(data => {
         if (data && data.data) setForm(data.data);
@@ -43,11 +43,7 @@ export default function EditUserRolePage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.updateUserRole(id, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await api.updateUserRole(String(id), form);
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update role");
       router.push("/clients/users");

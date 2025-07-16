@@ -134,7 +134,7 @@ export function AddClientUserForm({ onSuccess, onCancel }: AddClientUserFormProp
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {clientUserRoles.map(role => (
+                      {clientUserRoles.filter(role => role && role !== "").map(role => (
                         <SelectItem key={role} value={role}>{role}</SelectItem>
                       ))}
                     </SelectContent>
@@ -156,7 +156,7 @@ export function AddClientUserForm({ onSuccess, onCancel }: AddClientUserFormProp
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {clientUserStatuses.map(status => (
+                      {clientUserStatuses.filter(status => status && status !== "").map(status => (
                         <SelectItem key={status} value={status}>{status}</SelectItem>
                       ))}
                     </SelectContent>

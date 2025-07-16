@@ -326,14 +326,14 @@ app.patch('/api/elevenlabs/agent/:id/settings', async (req, res) => {
       'xi-api-key': apiKey,
       'Content-Type': 'application/json',
     };
-    const response = await fetch(`https://api.elevenlabs.io/v1/agents/${req.params.id}/settings`, {
+    const response = await fetch(`https://api.elevenlabs.io/v1/agents/${req.params.id}/widget-config`, {
       method: 'PATCH',
       headers,
       body: JSON.stringify(req.body),
     });
     const data = await response.json();
     if (!response.ok) {
-      return res.status(response.status).json({ error: 'Failed to update agent settings', details: data });
+      return res.status(response.status).json({ error: 'Failed to update widget config', details: data });
     }
     res.status(200).json(data);
   } catch (err) {
@@ -826,15 +826,26 @@ app.post("/api/client-users/:id/reset-password", (req, res) => {
   const userId = req.params.id;
   const { oldPassword, password } = req.body;
 
+  if (!password) {
+    return res.status(400).json({ success: false, message: 'New password is required' });
+  }
+
   db.query('SELECT password FROM client_users WHERE id = ?', [userId], async (err, results) => {
     if (err || results.length === 0) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
     const hashedPassword = results[0].password;
-    const match = await bcrypt.compare(oldPassword, hashedPassword);
-    if (!match) {
-      return res.status(400).json({ success: false, message: 'Old password is incorrect' });
+
+    // Only check oldPassword if both oldPassword and hashedPassword are present and non-empty
+    if (oldPassword && hashedPassword) {
+      const match = await bcrypt.compare(oldPassword, hashedPassword);
+      if (!match) {
+        return res.status(400).json({ success: false, message: 'Old password is incorrect' });
+      }
+    } else if (oldPassword && !hashedPassword) {
+      return res.status(400).json({ success: false, message: 'No password set for user' });
     }
+
     const newHashedPassword = await bcrypt.hash(password, 10);
     db.query('UPDATE client_users SET password = ? WHERE id = ?', [newHashedPassword, userId], (err2) => {
       if (err2) {
@@ -891,13 +902,21 @@ app.post('/api/admin_roles', (req, res) => {
 app.put('/api/admin_roles/:id', (req, res) => {
   const { id } = req.params;
   const { name, description, permission_summary, status } = req.body;
+  console.log('[PUT /api/admin_roles/:id] Incoming body:', req.body);
   db.query(
     'UPDATE admin_roles SET name = ?, description = ?, permission_summary = ?, status = ? WHERE id = ?',
     [name, description, permission_summary, status, id],
     (err, result) => {
-      if (err) return res.status(500).json({ success: false, message: err.message });
+      if (err) {
+        console.error('[PUT /api/admin_roles/:id] MySQL error:', err);
+        return res.status(500).json({ success: false, message: err.message });
+      }
       db.query('SELECT * FROM admin_roles WHERE id = ?', [id], (err2, rows) => {
-        if (err2) return res.status(500).json({ success: false, message: err2.message });
+        if (err2) {
+          console.error('[PUT /api/admin_roles/:id] MySQL error (fetch after update):', err2);
+          return res.status(500).json({ success: false, message: err2.message });
+        }
+        console.log('[PUT /api/admin_roles/:id] Updated role:', rows[0]);
         res.json({ success: true, data: rows[0] });
       });
     }
@@ -1029,6 +1048,7 @@ app.post('/api/admin_users', async (req, res) => {
 app.put('/api/admin_users/:id', async (req, res) => {
   try {
     const { name, email, roleName, password, lastLogin, status } = req.body;
+    console.log('[PUT /api/admin_users/:id] Incoming body:', req.body);
     let updateFields = [name, email, roleName, lastLogin, status, req.params.id];
     let query = 'UPDATE admin_users SET name = ?, email = ?, roleName = ?, lastLogin = ?, status = ? WHERE id = ?';
     if (password) {
@@ -1040,6 +1060,7 @@ app.put('/api/admin_users/:id', async (req, res) => {
       if (err) return res.status(500).json({ success: false, message: err.message });
       db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [req.params.id], (err2, rows) => {
         if (err2) return res.status(500).json({ success: false, message: err2.message });
+        console.log('[PUT /api/admin_users/:id] Updated user:', rows[0]);
         res.json({ success: true, data: rows[0] });
       });
     });
@@ -1068,15 +1089,27 @@ app.post('/api/admin_users/:id/reset-password', (req, res) => {
   const userId = req.params.id;
   const { oldPassword, password } = req.body;
 
+  if (!password) {
+    return res.status(400).json({ success: false, message: 'New password is required' });
+  }
+
   db.query('SELECT password FROM admin_users WHERE id = ?', [userId], async (err, results) => {
     if (err || results.length === 0) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
     const hashedPassword = results[0].password;
-    const match = await bcrypt.compare(oldPassword, hashedPassword);
-    if (!match) {
-      return res.status(400).json({ success: false, message: 'Old password is incorrect' });
+
+    // Only check oldPassword if provided
+    if (oldPassword) {
+      if (!hashedPassword) {
+        return res.status(400).json({ success: false, message: 'No password set for user' });
+      }
+      const match = await bcrypt.compare(oldPassword, hashedPassword);
+      if (!match) {
+        return res.status(400).json({ success: false, message: 'Old password is incorrect' });
+      }
     }
+
     const newHashedPassword = await bcrypt.hash(password, 10);
     db.query('UPDATE admin_users SET password = ? WHERE id = ?', [newHashedPassword, userId], (err2) => {
       if (err2) {

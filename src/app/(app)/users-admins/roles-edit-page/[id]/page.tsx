@@ -44,7 +44,10 @@ export default function RolesEditPage() {
 
   React.useEffect(() => {
     async function fetchRole() {
-      const res = await api.getAdminRole(roleId);
+      // Ensure roleId is always a string
+      const id = roleId ? String(roleId) : '';
+      if (!id) return;
+      const res = await api.getAdminRole(id);
       const data = await res.json();
       if (data.success && data.data) {
         setInitialData({
@@ -77,11 +80,9 @@ export default function RolesEditPage() {
 
   async function onSubmit(data: AdminRoleFormValues) {
     setLoading(true);
-    const res = await api.updateAdminRole(roleId, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const id = roleId ? String(roleId) : '';
+    if (!id) return;
+    const res = await api.updateAdminRole(id, data);
     setLoading(false);
     if (res.ok) {
       toast({ title: "Role Updated", description: "The admin role was updated successfully." });

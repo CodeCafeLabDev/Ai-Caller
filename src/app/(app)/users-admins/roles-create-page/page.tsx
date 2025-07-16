@@ -72,11 +72,7 @@ export default function RolesCreatePage() {
 
   async function onSubmit(data: AdminRoleFormValues) {
     setLoading(true);
-    const res = await api.createAdminRole({
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    const res = await api.createAdminRole(data);
     setLoading(false);
     if (res.ok) {
       form.reset();

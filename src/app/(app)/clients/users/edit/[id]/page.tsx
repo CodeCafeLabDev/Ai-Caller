@@ -64,11 +64,7 @@ export default function EditClientUserPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await api.updateClientUser(userId, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await api.updateClientUser(userId || '', form);
       const data = await res.json();
       if (data.success) {
         toast({ title: "User updated successfully!" });
@@ -134,7 +130,7 @@ export default function EditClientUserPage() {
               <SelectValue placeholder="Select a role" />
             </SelectTrigger>
             <SelectContent>
-              {userRoles.map(role => (
+              {userRoles.filter(role => role.id && role.id !== "").map(role => (
                 <SelectItem key={role.id} value={String(role.id)}>
                   {role.role_name}
                 </SelectItem>
@@ -153,7 +149,7 @@ export default function EditClientUserPage() {
               <SelectValue placeholder="Select a status" />
             </SelectTrigger>
             <SelectContent>
-              {statusOptions.map(status => (
+              {statusOptions.filter(status => status && status !== "").map(status => (
                 <SelectItem key={status} value={status}>{status}</SelectItem>
               ))}
             </SelectContent>

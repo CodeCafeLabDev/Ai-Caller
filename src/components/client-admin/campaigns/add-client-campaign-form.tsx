@@ -131,7 +131,7 @@ export function AddClientCampaignForm({ onSuccess, onCancel }: AddClientCampaign
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {mockClientAiAgents.map(agent => (
+                      {mockClientAiAgents.filter(agent => agent.id && agent.id !== "").map(agent => (
                         <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
                       ))}
                     </SelectContent>

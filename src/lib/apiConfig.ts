@@ -202,6 +202,17 @@ export const apiUtils = {
     });
     return response;
   },
+
+  patch: async (endpoint: string, data?: any, options: RequestInit = {}) => {
+    const url = buildApiUrl(endpoint);
+    const response = await fetch(url, {
+      ...defaultFetchOptions,
+      ...options,
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    return response;
+  },
 };
 
 // Export commonly used API functions
@@ -213,9 +224,10 @@ export const api = {
   getCurrentUser: () => apiUtils.get(API_ENDPOINTS.ADMIN_USERS.ME),
   getAdminUsers: () => apiUtils.get(API_ENDPOINTS.ADMIN_USERS.BASE),
   getAdminUser: (userId: string) => apiUtils.get(API_ENDPOINTS.ADMIN_USERS.BY_ID(userId)),
+  createAdminUser: (data: any) => apiUtils.post(API_ENDPOINTS.ADMIN_USERS.BASE, data),
   updateAdminUser: (userId: string, data: any) => apiUtils.put(API_ENDPOINTS.ADMIN_USERS.BY_ID(userId), data),
   deleteAdminUser: (userId: string) => apiUtils.delete(API_ENDPOINTS.ADMIN_USERS.BY_ID(userId)),
-  resetAdminUserPassword: (userId: string) => apiUtils.post(API_ENDPOINTS.ADMIN_USERS.RESET_PASSWORD(userId)),
+  resetAdminUserPassword: (userId: string, data: any) => apiUtils.post(API_ENDPOINTS.ADMIN_USERS.RESET_PASSWORD(userId), data),
   forceLogoutUser: (userId: string) => apiUtils.post(API_ENDPOINTS.ADMIN_USERS.FORCE_LOGOUT(userId)),
   getUserActivity: (userId: string) => apiUtils.get(API_ENDPOINTS.ADMIN_USERS.ACTIVITY(userId)),
   
@@ -268,7 +280,7 @@ export const api = {
   // Languages
   getLanguages: () => apiUtils.get(API_ENDPOINTS.LANGUAGES.BASE),
   createLanguage: (data: any) => apiUtils.post(API_ENDPOINTS.LANGUAGES.BASE, data),
-  updateLanguage: (id: string, data: any) => apiUtils.put(API_ENDPOINTS.LANGUAGES.BY_ID(id), data),
+  updateLanguage: (id: string, data: any) => apiUtils.patch(API_ENDPOINTS.LANGUAGES.BY_ID(id), data),
   deleteLanguage: (id: string) => apiUtils.delete(API_ENDPOINTS.LANGUAGES.BY_ID(id)),
   
   // Voices
