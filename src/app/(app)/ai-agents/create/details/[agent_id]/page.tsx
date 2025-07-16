@@ -40,23 +40,8 @@ const TEXT_CONTENTS = [
 export default function AgentDetailsPage() {
   const params = useParams();
   const agentId = params.agent_id;
-  const [agentName, setAgentName] = useState("New agent");
-  const [activeTab, setActiveTab] = useState("Agent");
-  const [agentLanguage, setAgentLanguage] = useState("en");
-  const [additionalLanguages, setAdditionalLanguages] = useState<string[]>([]);
-  const [firstMessage, setFirstMessage] = useState("Hello! How can I help you today?");
-  const [firstMsgVars, setFirstMsgVars] = useState<string[]>([]);
-  const [firstMsgVarInput, setFirstMsgVarInput] = useState("");
-  const [systemPrompt, setSystemPrompt] = useState("You are a helpful assistant.");
-  const [sysPromptVars, setSysPromptVars] = useState<string[]>([]);
-  const [sysPromptVarInput, setSysPromptVarInput] = useState("");
-  const [dynamicVars, setDynamicVars] = useState<string[]>([]);
-  const [dynamicVarInput, setDynamicVarInput] = useState("");
-  const [llm, setLlm] = useState("gemini-flash");
-  const [temperature, setTemperature] = useState(0.5);
-  const [tokenLimit, setTokenLimit] = useState(-1);
-  const [useRag, setUseRag] = useState(false);
-  const [tools, setTools] = useState<string[]>([]);
+  const [localAgent, setLocalAgent] = useState<any>({});
+  const [elevenLabsAgent, setElevenLabsAgent] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -134,65 +119,15 @@ export default function AgentDetailsPage() {
     Analysis: false,
   });
 
-  // 2. On mount and tab switch, fetch the relevant agent data from /api/elevenlabs/agent/${agentId} or related endpoints
+  const [activeTab, setActiveTab] = useState("Agent");
+
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/elevenlabs/agent/${agentId}/settings`)
+    fetch(`/api/agents/${agentId}/details`)
       .then(res => res.json())
       .then(data => {
-        setAgentSettings(data);
-        setAgentName(data.name || "New agent");
-        setAgentLanguage(data.language || "en");
-        setAdditionalLanguages(data.additional_languages || []);
-        setFirstMessage(data.first_message || "");
-        setFirstMsgVars(data.first_message_vars || []);
-        setSysPromptVars(data.system_prompt_vars || []);
-        setDynamicVars(data.dynamic_vars || []);
-        setLlm(data.llm || "gemini-flash");
-        setTemperature(data.temperature || 0.5);
-        setTokenLimit(data.token_limit || -1);
-        setUseRag(data.use_rag || false);
-        setTools(data.tools || []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-
-    fetch(`/api/elevenlabs/agent/${agentId}/widget-config`)
-      .then(res => res.json())
-      .then(data => {
-        setWidgetConfig(data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-
-    fetch(`/api/elevenlabs/agent/${agentId}/voice-config`)
-      .then(res => res.json())
-      .then(data => {
-        setVoiceConfig(data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-
-    fetch(`/api/elevenlabs/agent/${agentId}/security-config`)
-      .then(res => res.json())
-      .then(data => {
-        setSecurityConfig(data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-
-    fetch(`/api/elevenlabs/agent/${agentId}/advanced-config`)
-      .then(res => res.json())
-      .then(data => {
-        setAdvancedConfig(data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-
-    fetch(`/api/elevenlabs/agent/${agentId}/analysis-config`)
-      .then(res => res.json())
-      .then(data => {
-        setAnalysisConfig(data);
+        setLocalAgent(data.local || {});
+        setElevenLabsAgent(data.elevenlabs || {});
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -205,7 +140,7 @@ export default function AgentDetailsPage() {
       setInput("");
     }
   };
-  const removeVar = (v: string, vars: string[], setVars: any) => setVars(vars.filter(x => x !== v));
+  const removeVar = (v: string, vars: string[], setVars: any) => setVars(vars.filter((x: string) => x !== v));
 
   // Presets for temperature
   const tempPresets = [
@@ -251,29 +186,25 @@ export default function AgentDetailsPage() {
     </div>
   );
 
-  // Save handler for Agent tab
-  const handleSaveAgent = async () => {
+  // Save handler
+  const handleSave = async () => {
     setSaveLoading(true);
     setSaveSuccess(false);
     setSaveError("");
     try {
       const payload = {
-        name: agentName,
-        agent: {
-          language: agentLanguage,
-          additional_languages: additionalLanguages,
-          first_message: firstMessage,
-        },
+        local: localAgent,
+        elevenlabs: elevenLabsAgent
       };
-      const res = await fetch(`/api/elevenlabs/agent/${agentId}`, {
+      const res = await fetch(`/api/agents/${agentId}/details`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      const data = await res.json();
       if (res.ok) {
         setSaveSuccess(true);
       } else {
-        const data = await res.json().catch(() => ({}));
         setSaveError(data?.error || "Failed to save agent.");
       }
     } catch {
@@ -282,6 +213,41 @@ export default function AgentDetailsPage() {
       setSaveLoading(false);
     }
   };
+
+  const agentName = localAgent.name || elevenLabsAgent.name || "New agent";
+  const agentLanguage = localAgent.language || elevenLabsAgent.language || "en";
+  const additionalLanguages = localAgent.additional_languages || elevenLabsAgent.additional_languages || [];
+  const firstMessage = localAgent.first_message || elevenLabsAgent.first_message || "";
+  const firstMsgVars = localAgent.first_message_vars || elevenLabsAgent.first_message_vars || [];
+  const setFirstMsgVars = (vars: string[]) => setLocalAgent((prev: any) => ({ ...prev, first_message_vars: vars }));
+  const firstMsgVarInput = "";
+  const setFirstMsgVarInput = (input: string) => {};
+
+  const systemPrompt = localAgent.system_prompt || elevenLabsAgent.system_prompt || "";
+  const sysPromptVars = localAgent.system_prompt_vars || elevenLabsAgent.system_prompt_vars || [];
+  const setSysPromptVars = (vars: string[]) => setLocalAgent((prev: any) => ({ ...prev, system_prompt_vars: vars }));
+  const sysPromptVarInput = "";
+  const setSysPromptVarInput = (input: string) => {};
+
+  const dynamicVars = localAgent.dynamic_vars || elevenLabsAgent.dynamic_vars || [];
+  const setDynamicVars = (vars: string[]) => setLocalAgent((prev: any) => ({ ...prev, dynamic_vars: vars }));
+  const dynamicVarInput = "";
+  const setDynamicVarInput = (input: string) => {};
+
+  const llm = localAgent.llm || elevenLabsAgent.llm || "gemini-flash";
+  const setLlm = (value: string) => setLocalAgent((prev: any) => ({ ...prev, llm: value }));
+
+  const temperature = localAgent.temperature || elevenLabsAgent.temperature || 0.5;
+  const setTemperature = (value: number) => setLocalAgent((prev: any) => ({ ...prev, temperature: value }));
+
+  const tokenLimit = localAgent.token_limit || elevenLabsAgent.token_limit || 0;
+  const setTokenLimit = (value: number) => setLocalAgent((prev: any) => ({ ...prev, token_limit: value }));
+
+  const useRag = localAgent.use_rag || elevenLabsAgent.use_rag || false;
+  const setUseRag = (checked: boolean) => setLocalAgent((prev: any) => ({ ...prev, use_rag: checked }));
+
+  const tools = localAgent.tools || elevenLabsAgent.tools || [];
+  const setTools = (values: string[]) => setLocalAgent((prev: any) => ({ ...prev, tools: values }));
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -334,7 +300,7 @@ export default function AgentDetailsPage() {
                   <div className="text-gray-500 text-sm mb-2">Choose the default language the agent will communicate in.</div>
                   <select
                     value={agentLanguage}
-                    onChange={e => setAgentLanguage(e.target.value)}
+                    onChange={e => setAgentSettings((prev: typeof agentSettings) => ({ ...prev, language: e.target.value }))}
                     className="border rounded px-3 py-2 w-48"
                   >
                     {LANGUAGES.map(l => (
@@ -349,7 +315,7 @@ export default function AgentDetailsPage() {
                   <select
                     multiple
                     value={additionalLanguages}
-                    onChange={e => setAdditionalLanguages(Array.from(e.target.selectedOptions, o => o.value))}
+                    onChange={e => setAgentSettings((prev: typeof agentSettings) => ({ ...prev, additional_languages: Array.from(e.target.selectedOptions, o => o.value) }))}
                     className="border rounded px-3 py-2 w-64 h-20"
                   >
                     {LANGUAGES.map(l => (
@@ -363,12 +329,12 @@ export default function AgentDetailsPage() {
                   <div className="text-gray-500 text-sm mb-2">The first message the agent will say. If empty, the agent will wait for the user to start the conversation.</div>
                   <textarea
                     value={firstMessage}
-                    onChange={e => setFirstMessage(e.target.value)}
+                    onChange={e => setAgentSettings((prev: typeof agentSettings) => ({ ...prev, first_message: e.target.value }))}
                     className="border rounded px-3 py-2 w-full"
                     placeholder="e.g. Hello! How can I help you today?"
                   />
                   <div className="flex gap-2 mt-2 flex-wrap">
-                    {firstMsgVars.map(v => (
+                    {firstMsgVars.map((v: string) => (
                       <span key={v} className="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-1">
                         {v} <button type="button" onClick={() => removeVar(v, firstMsgVars, setFirstMsgVars)} className="text-red-500">×</button>
                       </span>
@@ -390,12 +356,12 @@ export default function AgentDetailsPage() {
                   <div className="text-gray-500 text-sm mb-2">The system prompt is used to determine the persona of the agent and the context of the conversation. <span className="underline cursor-pointer">Learn more</span></div>
                   <textarea
                     value={systemPrompt}
-                    onChange={e => setSystemPrompt(e.target.value)}
+                    onChange={e => setAgentSettings((prev: typeof agentSettings) => ({ ...prev, system_prompt: e.target.value }))}
                     className="border rounded px-3 py-2 w-full"
                     placeholder="Describe the desired agent (e.g., a customer support agent for ElevenLabs)"
                   />
                   <div className="flex gap-2 mt-2 flex-wrap">
-                    {sysPromptVars.map(v => (
+                    {sysPromptVars.map((v: string) => (
                       <span key={v} className="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-1">
                         {v} <button type="button" onClick={() => removeVar(v, sysPromptVars, setSysPromptVars)} className="text-red-500">×</button>
                       </span>
@@ -416,7 +382,7 @@ export default function AgentDetailsPage() {
                   <div className="font-semibold">Dynamic Variables</div>
                   <div className="text-gray-500 text-sm mb-2">Variables like <span className="bg-gray-100 px-1 rounded">&#123;&#123;user_name&#125;&#125;</span> in your prompts and first message will be replaced with actual values when the conversation starts. <span className="underline cursor-pointer">Learn more</span></div>
                   <div className="flex gap-2 mt-2 flex-wrap">
-                    {dynamicVars.map(v => (
+                    {dynamicVars.map((v: string) => (
                       <span key={v} className="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-1">
                         {v} <button type="button" onClick={() => removeVar(v, dynamicVars, setDynamicVars)} className="text-red-500">×</button>
                       </span>
@@ -485,7 +451,7 @@ export default function AgentDetailsPage() {
                   <div className="flex flex-wrap gap-4">
                     {TOOL_OPTIONS.map(tool => (
                       <label key={tool.value} className="flex items-center gap-2">
-                        <input type="checkbox" checked={tools.includes(tool.value)} onChange={e => setTools(e.target.checked ? [...tools, tool.value] : tools.filter(t => t !== tool.value))} />
+                        <input type="checkbox" checked={tools.includes(tool.value)} onChange={e => setTools(e.target.checked ? [...tools, tool.value] : tools.filter((t: string) => t !== tool.value))} />
                         {tool.label}
                       </label>
                     ))}
@@ -518,7 +484,7 @@ export default function AgentDetailsPage() {
                 </div>
                 {/* Save button and status */}
                 <div className="flex items-center gap-4">
-                  <button type="button" onClick={handleSaveAgent} disabled={saveLoading} className="bg-black text-white px-6 py-2 rounded-lg font-medium">
+                  <button type="button" onClick={handleSave} disabled={saveLoading} className="bg-black text-white px-6 py-2 rounded-lg font-medium">
                     {saveLoading ? "Saving..." : "Save"}
                   </button>
                   {saveSuccess && <span className="text-green-600 text-sm">Saved!</span>}

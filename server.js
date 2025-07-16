@@ -227,7 +227,7 @@ app.get('/api/voices', async (req, res) => {
   }
 });
 
-// ElevenLabs Create Agent Proxy Endpoint
+// POST /api/elevenlabs/create-agent
 app.post('/api/elevenlabs/create-agent', async (req, res) => {
   try {
     const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -236,6 +236,8 @@ app.post('/api/elevenlabs/create-agent', async (req, res) => {
       'Content-Type': 'application/json',
     };
     const payload = req.body;
+
+    // 1. Create agent in ElevenLabs
     const response = await fetch('https://api.elevenlabs.io/v1/convai/agents/create', {
       method: 'POST',
       headers,
@@ -245,9 +247,171 @@ app.post('/api/elevenlabs/create-agent', async (req, res) => {
     if (!response.ok) {
       return res.status(response.status).json({ error: 'Failed to create agent', details: data });
     }
-    res.status(200).json(data);
+
+    // 2. Fetch full agent details from ElevenLabs
+    const agentId = data.agent_id;
+    const agentDetailsRes = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+      method: 'GET',
+      headers,
+    });
+    const agent = await agentDetailsRes.json();
+    if (!agentDetailsRes.ok) {
+      return res.status(agentDetailsRes.status).json({ error: 'Failed to fetch agent details', details: agent });
+    }
+
+    // 2.1 Map language code to local language_id
+    let languageId = null;
+    const languageCode = agent.language || 'en';
+    db.query('SELECT id FROM languages WHERE code = ? LIMIT 1', [languageCode], (err, rows) => {
+      if (err) {
+        console.error('Failed to lookup language_id:', err);
+        languageId = null;
+      } else if (rows.length > 0) {
+        languageId = rows[0].id;
+      } else {
+        // fallback: use first language in table
+        db.query('SELECT id FROM languages LIMIT 1', [], (err2, rows2) => {
+          if (err2 || rows2.length === 0) {
+            languageId = null;
+          } else {
+            languageId = rows2[0].id;
+          }
+          insertAgent();
+        });
+        return;
+      }
+      insertAgent();
+    });
+
+    function insertAgent() {
+      const insertSql = `
+        INSERT INTO agents (
+          agent_id, client_id, name, description, intro_message, instructions, language_id, voice_id, model, tags, platform_settings, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+          name=VALUES(name), description=VALUES(description), intro_message=VALUES(intro_message),
+          instructions=VALUES(instructions), language_id=VALUES(language_id), voice_id=VALUES(voice_id),
+          model=VALUES(model), tags=VALUES(tags), platform_settings=VALUES(platform_settings), updated_at=NOW()
+      `;
+      db.query(
+        insertSql,
+        [
+          agent.agent_id,
+          agent.client_id || null,
+          agent.name || '',
+          agent.description || '',
+          agent.intro_message || '',
+          agent.instructions || '',
+          languageId,
+          agent.voice_id || null,
+          agent.model || '',
+          JSON.stringify(agent.tags || []),
+          JSON.stringify(agent.platform_settings || {}),
+        ],
+        (err) => {
+          if (err) {
+            console.error('Failed to insert agent into local DB:', err);
+            // Still return success for ElevenLabs, but log error
+          }
+          res.status(200).json({ agent_id: agentId });
+        }
+      );
+    }
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', details: err.message });
+  }
+});
+
+// GET /api/agents - return all agents from local DB with language name/code
+app.get('/api/agents', (req, res) => {
+  const sql = `
+    SELECT a.*, l.name AS language_name, l.code AS language_code
+    FROM agents a
+    LEFT JOIN languages l ON a.language_id = l.id
+  `;
+  console.log('[API] /api/agents SQL:', sql);
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('[API] /api/agents ERROR:', err);
+      return res.status(500).json({ success: false, message: 'Failed to fetch agents', error: err });
+    }
+    console.log(`[API] /api/agents returned ${results.length} agents`);
+    if (results.length > 0) {
+      console.log('[API] /api/agents first agent:', results[0]);
+    }
+    res.json({ success: true, data: results });
+  });
+});
+
+// GET /api/agents/:id/details - Get agent details from both local DB and ElevenLabs
+app.get('/api/agents/:id/details', async (req, res) => {
+  const agentId = req.params.id;
+  db.query('SELECT * FROM agents WHERE agent_id = ?', [agentId], async (err, results) => {
+    if (err) return res.status(500).json({ error: 'DB error', details: err });
+    const localAgent = results[0] || {};
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' };
+    let elevenLabsAgent = {};
+    try {
+      const elevenLabsRes = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, { headers });
+      elevenLabsAgent = await elevenLabsRes.json();
+    } catch (e) {
+      elevenLabsAgent = {};
+    }
+    res.json({ local: localAgent, elevenlabs: elevenLabsAgent });
+  });
+});
+
+// PATCH /api/agents/:id/details - Update agent details in both local DB and ElevenLabs
+app.patch('/api/agents/:id/details', async (req, res) => {
+  const agentId = req.params.id;
+  const { local, elevenlabs } = req.body;
+  console.log('[PATCH /api/agents/:id/details] Incoming payload:', JSON.stringify(req.body, null, 2));
+  try {
+    // 1. Update local DB
+    if (local) {
+      const updateFields = Object.keys(local).filter(k => k !== 'agent_id');
+      const updateValues = updateFields.map(k => {
+        const value = local[k];
+        if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+          return JSON.stringify(value);
+        }
+        return value;
+      });
+      const sql = `UPDATE agents SET ${updateFields.map(f => `${f} = ?`).join(', ')} WHERE agent_id = ?`;
+      console.log('[PATCH /api/agents/:id/details] SQL:', sql);
+      console.log('[PATCH /api/agents/:id/details] SQL values:', [...updateValues, agentId]);
+      await new Promise((resolve, reject) => {
+        db.query(sql, [...updateValues, agentId], (err, result) => {
+          if (err) {
+            console.error('[PATCH /api/agents/:id/details] DB error:', err);
+            return reject(err);
+          }
+          resolve(result);
+        });
+      });
+    }
+    // 2. Update ElevenLabs
+    if (elevenlabs) {
+      const apiKey = process.env.ELEVENLABS_API_KEY;
+      const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' };
+      const url = `https://api.elevenlabs.io/v1/convai/agents/${agentId}`;
+      console.log('[PATCH /api/agents/:id/details] PATCH to ElevenLabs:', url);
+      const resp = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(elevenlabs),
+      });
+      const respData = await resp.json();
+      console.log('[PATCH /api/agents/:id/details] ElevenLabs response:', resp.status, respData);
+      if (!resp.ok) {
+        throw new Error(`Failed to update ElevenLabs: ${JSON.stringify(respData)}`);
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[PATCH /api/agents/:id/details] ERROR:', err);
+    res.status(500).json({ error: err.message || 'Failed to update agent details.' });
   }
 });
 
@@ -414,6 +578,30 @@ app.get('/api/elevenlabs/agent/:id/analysis', (req, res) => {
 });
 app.patch('/api/elevenlabs/agent/:id/analysis', (req, res) => {
   res.status(501).json({ error: 'Analysis config update not implemented in ElevenLabs API yet.' });
+});
+
+// ElevenLabs Get All Agents Endpoint
+app.get('/api/elevenlabs/agents', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+    };
+    // You can pass query params for pagination/filtering if needed
+    const query = req.query ? '?' + new URLSearchParams(req.query).toString() : '';
+    const response = await fetch(`https://api.elevenlabs.io/v1/agents${query}`, {
+      method: 'GET',
+      headers,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch agents', details: data });
+    }
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // CRUD API for Plans

@@ -6,6 +6,10 @@ const nextConfig = {
         source: '/api/voices',
         destination: 'http://localhost:5000/api/voices',
       },
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:5000/api/:path*',
+      },
     ];
   },
   images: {

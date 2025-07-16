@@ -123,6 +123,7 @@ const statusFilterOptions: {value: AIAgentStatus | "all"; label: string}[] = [
 export default function AiAgentsPage() {
   const { toast } = useToast();
   const [agents, setAgents] = React.useState<AIAgent[]>(mockAgents);
+  const [loading, setLoading] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [useCaseFilter, setUseCaseFilter] = React.useState<AIAgentUseCase | "all">("all");
   const [languageFilter, setLanguageFilter] = React.useState<AIAgentLanguage | "all">("all");
@@ -134,6 +135,31 @@ export default function AiAgentsPage() {
 
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 10;
+
+  React.useEffect(() => {
+    setLoading(true);
+    fetch('/api/agents')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.data)) {
+          setAgents(data.data.map((agent: any) => ({
+            id: agent.agent_id,
+            name: agent.name,
+            useCase: agent.description || 'Other',
+            tags: agent.tags ? JSON.parse(agent.tags) : [],
+            createdBy: agent.client_id || 'Unknown',
+            language: agent.language_name || agent.language_code || 'Other',
+            lastModified: agent.updated_at,
+            status: 'Published', // or map from your DB if you add a status column
+            version: agent.model || '1.0',
+          })));
+        } else {
+          setAgents([]);
+        }
+      })
+      .catch(() => setAgents([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleAgentAction = (actionName: string, agentName: string) => {
     toast({
@@ -245,69 +271,75 @@ export default function AiAgentsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Agent Name</TableHead>
-                <TableHead>Use Case</TableHead>
-                <TableHead>Created By</TableHead>
-                <TableHead>Language</TableHead>
-                <TableHead>Last Modified</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Version</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedAgents.length > 0 ? paginatedAgents.map((agent) => (
-                <TableRow key={agent.id}>
-                  <TableCell className="font-medium">
-                    {agent.name}
-                    <div className="flex flex-wrap gap-1 mt-1">
-                        {agent.tags.map(tag => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)}
-                    </div>
-                  </TableCell>
-                  <TableCell>{agent.useCase}</TableCell>
-                  <TableCell>{agent.createdBy}</TableCell>
-                  <TableCell>{agent.language}</TableCell>
-                  <TableCell>{new Date(agent.lastModified).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    <Badge className={`text-xs ${statusVariants[agent.status]}`}>{agent.status}</Badge>
-                  </TableCell>
-                  <TableCell>{agent.version}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleAgentAction("View", agent.name)}>
-                          <Eye className="mr-2 h-4 w-4" /> View
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleAgentAction("Edit", agent.name)}>
-                          <Edit2 className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleAgentAction("Duplicate", agent.name)}>
-                          <Copy className="mr-2 h-4 w-4" /> Duplicate
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-yellow-600 focus:text-yellow-700" onClick={() => handleAgentAction("Archive", agent.name)}>
-                          <Archive className="mr-2 h-4 w-4" /> Archive
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )) : (
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Loading agents...</div>
+          ) : (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    No agents found matching your criteria.
-                  </TableCell>
+                  <TableHead>Agent Name</TableHead>
+                  <TableHead>Use Case</TableHead>
+                  <TableHead>Created By</TableHead>
+                  <TableHead>Language</TableHead>
+                  <TableHead>Last Modified</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Version</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {paginatedAgents.length > 0 ? paginatedAgents.map((agent) => (
+                  <TableRow key={agent.id}>
+                    <TableCell className="font-medium">
+                      <Link href={`/ai-agents/create/details/${agent.id}`} className="text-blue-600 hover:underline">
+                        {agent.name}
+                      </Link>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                          {agent.tags.map(tag => <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>)}
+                      </div>
+                    </TableCell>
+                    <TableCell>{agent.useCase}</TableCell>
+                    <TableCell>{agent.createdBy}</TableCell>
+                    <TableCell>{agent.language}</TableCell>
+                    <TableCell>{agent.lastModified ? new Date(agent.lastModified).toLocaleDateString() : ''}</TableCell>
+                    <TableCell>
+                      <Badge className={`text-xs ${statusVariants[agent.status]}`}>{agent.status}</Badge>
+                    </TableCell>
+                    <TableCell>{agent.version}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleAgentAction("View", agent.name)}>
+                            <Eye className="mr-2 h-4 w-4" /> View
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAgentAction("Edit", agent.name)}>
+                            <Edit2 className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAgentAction("Duplicate", agent.name)}>
+                            <Copy className="mr-2 h-4 w-4" /> Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-yellow-600 focus:text-yellow-700" onClick={() => handleAgentAction("Archive", agent.name)}>
+                            <Archive className="mr-2 h-4 w-4" /> Archive
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      No agents found matching your criteria.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
         <CardFooter className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-2">
            <div className="text-xs text-muted-foreground">
