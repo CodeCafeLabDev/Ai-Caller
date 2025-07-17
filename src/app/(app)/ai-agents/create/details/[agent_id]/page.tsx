@@ -42,6 +42,7 @@ export default function AgentDetailsPage() {
   const agentId = params.agent_id;
   const [localAgent, setLocalAgent] = useState<any>({});
   const [elevenLabsAgent, setElevenLabsAgent] = useState<any>({});
+  const [languages, setLanguages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -131,6 +132,10 @@ export default function AgentDetailsPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    // Fetch languages from DB
+    fetch('/api/languages')
+      .then(res => res.json())
+      .then(data => setLanguages(data.data || []));
   }, [agentId]);
 
   // Add variable handlers
@@ -303,8 +308,8 @@ export default function AgentDetailsPage() {
                     onChange={e => setAgentSettings((prev: typeof agentSettings) => ({ ...prev, language: e.target.value }))}
                     className="border rounded px-3 py-2 w-48"
                   >
-                    {LANGUAGES.map(l => (
-                      <option key={l.code} value={l.code}>{l.flag} {l.label}</option>
+                    {languages.map(l => (
+                      <option key={l.id} value={l.code}>{l.name}</option>
                     ))}
                   </select>
                 </div>
@@ -318,8 +323,8 @@ export default function AgentDetailsPage() {
                     onChange={e => setAgentSettings((prev: typeof agentSettings) => ({ ...prev, additional_languages: Array.from(e.target.selectedOptions, o => o.value) }))}
                     className="border rounded px-3 py-2 w-64 h-20"
                   >
-                    {LANGUAGES.map(l => (
-                      <option key={l.code} value={l.code}>{l.flag} {l.label}</option>
+                    {languages.map(l => (
+                      <option key={l.id} value={l.code}>{l.name}</option>
                     ))}
                   </select>
                 </div>
