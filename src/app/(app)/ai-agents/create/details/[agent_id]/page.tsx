@@ -1,6 +1,6 @@
 "use client";
 import { useParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 const LANGUAGES = [
   { code: "en", label: "English", flag: "🇺🇸" },
@@ -36,6 +36,312 @@ const RADIUS_FIELDS = [
 const TEXT_CONTENTS = [
   "main_label", "start_call", "start_chat", "new_call", "end_call", "mute_microphone", "change_language", "collapse", "expand", "copied", "accept_terms", "dismiss_terms", "listening_status", "speaking_status", "connecting_status", "chatting_status", "input_label", "input_placeholder", "input_placeholder_text_only", "input_placeholder_new_conversation", "user_ended_conversation", "agent_ended_conversation", "conversation_id", "error_occurred", "copy_id"
 ];
+
+interface AddVariableDropdownProps {
+  onSelect: (variable: string) => void;
+  onClose: () => void;
+}
+function AddVariableDropdown({ onSelect, onClose }: AddVariableDropdownProps) {
+  // Slightly larger text and dropdown
+  return (
+    <div
+      className="absolute z-20 bg-white border rounded shadow-md mt-1 w-48 text-[12px]"
+      style={{ maxHeight: 140, overflowY: 'auto', minWidth: 160 }}
+    >
+      <div className="px-3 py-2 text-[11px] text-gray-500">System Variables</div>
+      {["system_agent_id", "system_caller_id", "system_called_number", "system_call_duration_secs", "system_time_utc", "system_time", "system_timezone", "system_conversation_id", "system_call_sid"].map(v => (
+        <div
+          key={v}
+          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-[12px]"
+          onClick={() => { onSelect(v); onClose(); }}
+        >
+          {v}
+        </div>
+      ))}
+      <div className="px-3 py-2 text-blue-600 hover:bg-gray-100 cursor-pointer text-[12px] border-t" onClick={() => { onSelect("new_variable"); onClose(); }}>
+        New Variable
+      </div>
+    </div>
+  );
+}
+
+interface VariableTextareaProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  dropdownButtonLabel?: string;
+  showTimezoneButton?: boolean;
+  variables: string[];
+  setVariables: (vars: string[]) => void;
+}
+
+const COMMON_TIMEZONES = [
+  "UTC",
+  "Eastern Time (US)",
+  "Central Time (US)",
+  "Mountain Time (US)",
+  "Pacific Time (US)",
+  "London",
+  "Paris/Berlin",
+  "Amsterdam",
+  "Tokyo",
+  "Shanghai",
+  "India",
+  "Sydney",
+  "Auckland"
+];
+
+interface TimezoneDropdownProps {
+  onSelect: (tz: string) => void;
+  onClose: () => void;
+}
+function TimezoneDropdown({ onSelect, onClose }: TimezoneDropdownProps) {
+  const [search, setSearch] = React.useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const filtered = COMMON_TIMEZONES.filter(tz => tz.toLowerCase().includes(search.toLowerCase()));
+
+  // Close on outside click
+  React.useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  return (
+    <div ref={dropdownRef} className="absolute z-30 bg-white border rounded shadow-md mt-1 w-64 text-[12px]" style={{ maxHeight: 240, overflowY: 'auto', minWidth: 160 }}>
+      <div className="px-3 pt-2 pb-1">
+        <input
+          className="w-full border rounded px-3 py-2 text-[12px]"
+          placeholder="Search timezones..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+      <div className="px-3 pb-1 text-gray-500 text-[11px]">Common Timezones</div>
+      {filtered.length === 0 && <div className="px-3 py-2 text-gray-400 text-[12px]">No results</div>}
+      {filtered.map(tz => (
+        <div
+          key={tz}
+          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-[12px]"
+          onClick={() => { onSelect(tz); onClose(); }}
+        >
+          {tz}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function extractVariablesFromText(text: string) {
+  // Match all {{variable}} in the text
+  const matches = text.match(/\{\{([^}]+)\}\}/g);
+  if (!matches) return [];
+  // Remove the curly braces
+  return Array.from(new Set(matches.map(m => m.slice(2, -2))));
+}
+
+function VariableTextarea({ value, onChange, placeholder, dropdownButtonLabel = "+ Add Variable", showTimezoneButton = false }: Omit<VariableTextareaProps, 'variables' | 'setVariables'>) {
+  const [showDropdown, setShowDropdown] = React.useState(false);
+  const [showTimezoneDropdown, setShowTimezoneDropdown] = React.useState(false);
+  const [showCustomVarInput, setShowCustomVarInput] = React.useState(false);
+  const [customVarName, setCustomVarName] = React.useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const customInputRef = useRef<HTMLInputElement>(null);
+
+  // Dropdown position logic to prevent overflow
+  const [dropdownStyle, setDropdownStyle] = React.useState<any>({});
+  const [timezoneDropdownStyle, setTimezoneDropdownStyle] = React.useState<any>({});
+
+  React.useEffect(() => {
+    if (showDropdown && textareaRef.current) {
+      const rect = textareaRef.current.getBoundingClientRect();
+      const dropdownHeight = 150;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+        setDropdownStyle({ bottom: '100%', top: 'auto', marginBottom: 4 });
+      } else {
+        setDropdownStyle({ top: '100%', bottom: 'auto', marginTop: 4 });
+      }
+    }
+    if (showTimezoneDropdown && textareaRef.current) {
+      const rect = textareaRef.current.getBoundingClientRect();
+      const dropdownHeight = 240;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+        setTimezoneDropdownStyle({ bottom: '100%', top: 'auto', marginBottom: 4, left: 120 });
+      } else {
+        setTimezoneDropdownStyle({ top: '100%', bottom: 'auto', marginTop: 4, left: 120 });
+      }
+    }
+  }, [showDropdown, showTimezoneDropdown]);
+
+  // Focus custom input when shown
+  React.useEffect(() => {
+    if (showCustomVarInput && customInputRef.current) {
+      customInputRef.current.focus();
+    }
+  }, [showCustomVarInput]);
+
+  // Close both dropdowns on outside click
+  React.useEffect(() => {
+    if (!showDropdown && !showTimezoneDropdown && !showCustomVarInput) return;
+    function handleClick(e: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        textareaRef.current &&
+        !textareaRef.current.contains(e.target as Node) &&
+        (!customInputRef.current || !customInputRef.current.contains(e.target as Node))
+      ) {
+        setShowDropdown(false);
+        setShowTimezoneDropdown(false);
+        setShowCustomVarInput(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showDropdown, showTimezoneDropdown, showCustomVarInput]);
+
+  // Chips are always extracted from textarea value
+  const variables = extractVariablesFromText(value);
+
+  const handleVariableSelect = (variable: string) => {
+    if (variable === "new_variable") {
+      setShowDropdown(false);
+      setShowCustomVarInput(true);
+      setCustomVarName("");
+      return;
+    }
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const insertText = `{{${variable}}}`;
+    const newValue = value.slice(0, start) + insertText + value.slice(end);
+    onChange(newValue);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + insertText.length;
+    }, 0);
+  };
+
+  const handleCustomVarSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const varName = customVarName.trim();
+    if (!varName.match(/^[_a-zA-Z][_a-zA-Z0-9]*$/)) return; // Only allow valid variable names
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const insertText = `{{${varName}}}`;
+    const newValue = value.slice(0, start) + insertText + value.slice(end);
+    onChange(newValue);
+    setShowCustomVarInput(false);
+    setCustomVarName("");
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + insertText.length;
+    }, 0);
+  };
+
+  const handleTimezone = () => {
+    setShowTimezoneDropdown(v => !v);
+  };
+
+  const handleTimezoneSelect = (tz: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const insertText = `{{${tz}}}`;
+    const newValue = value.slice(0, start) + insertText + value.slice(end);
+    onChange(newValue);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + insertText.length;
+    }, 0);
+  };
+
+  const handleRemoveVar = (v: string) => {
+    // Remove all occurrences of the variable template from the textarea
+    const regex = new RegExp(`\\{\\{${v}\\}\\}`, 'g');
+    onChange(value.replace(regex, ''));
+  };
+
+  return (
+    <div className="relative w-full">
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="border rounded px-3 py-2 w-full text-[12px]"
+        placeholder={placeholder}
+        style={{ minHeight: 40, maxHeight: 100 }}
+      />
+      <div className="flex gap-2 mt-2">
+        <button
+          type="button"
+          className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 text-[12px] relative"
+          style={{ minWidth: 100, height: 32 }}
+          onClick={() => setShowDropdown(v => !v)}
+        >
+          {dropdownButtonLabel}
+        </button>
+        {showTimezoneButton && (
+          <button
+            type="button"
+            className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 text-[12px]"
+            style={{ minWidth: 100, height: 32 }}
+            onClick={handleTimezone}
+          >
+            Add timezone
+          </button>
+        )}
+      </div>
+      {showCustomVarInput && (
+        <form onSubmit={handleCustomVarSubmit} className="flex gap-2 mt-2 items-center">
+          <input
+            ref={customInputRef}
+            type="text"
+            value={customVarName}
+            onChange={e => setCustomVarName(e.target.value)}
+            className="border rounded px-2 py-1 text-[12px]"
+            placeholder="Enter variable name"
+            maxLength={32}
+            pattern="^[_a-zA-Z][_a-zA-Z0-9]*$"
+            required
+          />
+          <button type="submit" className="px-2 py-1 bg-black text-white rounded text-[12px]">Add</button>
+        </form>
+      )}
+      {/* Variable chips */}
+      <div className="flex gap-2 mt-2 flex-wrap">
+        {variables.map((v) => (
+          <span key={v} className="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-1">
+            {v} <button type="button" onClick={() => handleRemoveVar(v)} className="text-red-500">×</button>
+          </span>
+        ))}
+      </div>
+      {showDropdown && (
+        <div ref={dropdownRef} className="absolute left-0" style={dropdownStyle}>
+          <AddVariableDropdown onSelect={handleVariableSelect} onClose={() => setShowDropdown(false)} />
+        </div>
+      )}
+      {showTimezoneDropdown && (
+        <div className="absolute" style={timezoneDropdownStyle}>
+          <TimezoneDropdown onSelect={handleTimezoneSelect} onClose={() => setShowTimezoneDropdown(false)} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AgentDetailsPage() {
   const params = useParams();
@@ -254,6 +560,18 @@ export default function AgentDetailsPage() {
   const tools = localAgent.tools || elevenLabsAgent.tools || [];
   const setTools = (values: string[]) => setLocalAgent((prev: any) => ({ ...prev, tools: values }));
 
+  // Use local state for firstMessage and systemPrompt for instant editing
+  const [firstMessageLocal, setFirstMessageLocal] = useState("");
+  const [systemPromptLocal, setSystemPromptLocal] = useState("");
+
+  // Sync local state with parent state on mount and when parent state changes
+  useEffect(() => {
+    setFirstMessageLocal(localAgent.first_message || elevenLabsAgent.first_message || "");
+  }, [localAgent.first_message, elevenLabsAgent.first_message]);
+  useEffect(() => {
+    setSystemPromptLocal(localAgent.system_prompt || elevenLabsAgent.system_prompt || "");
+  }, [localAgent.system_prompt, elevenLabsAgent.system_prompt]);
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-3xl mx-auto">
@@ -332,55 +650,23 @@ export default function AgentDetailsPage() {
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">First message</div>
                   <div className="text-gray-500 text-sm mb-2">The first message the agent will say. If empty, the agent will wait for the user to start the conversation.</div>
-                  <textarea
-                    value={firstMessage}
-                    onChange={e => setAgentSettings((prev: typeof agentSettings) => ({ ...prev, first_message: e.target.value }))}
-                    className="border rounded px-3 py-2 w-full"
+                  <VariableTextarea
+                    value={firstMessageLocal}
+                    onChange={setFirstMessageLocal}
                     placeholder="e.g. Hello! How can I help you today?"
                   />
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {firstMsgVars.map((v: string) => (
-                      <span key={v} className="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-1">
-                        {v} <button type="button" onClick={() => removeVar(v, firstMsgVars, setFirstMsgVars)} className="text-red-500">×</button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <input
-                      value={firstMsgVarInput}
-                      onChange={e => setFirstMsgVarInput(e.target.value)}
-                      className="border rounded px-3 py-2 flex-1"
-                      placeholder="Add variable"
-                    />
-                    <button type="button" onClick={() => addVar(firstMsgVarInput, setFirstMsgVarInput, firstMsgVars, setFirstMsgVars)} className="bg-gray-200 px-3 py-2 rounded">+ Add Variable</button>
-                  </div>
                 </div>
                 {/* System Prompt */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">System prompt</div>
                   <div className="text-gray-500 text-sm mb-2">The system prompt is used to determine the persona of the agent and the context of the conversation. <span className="underline cursor-pointer">Learn more</span></div>
-                  <textarea
-                    value={systemPrompt}
-                    onChange={e => setAgentSettings((prev: typeof agentSettings) => ({ ...prev, system_prompt: e.target.value }))}
-                    className="border rounded px-3 py-2 w-full"
+                  <VariableTextarea
+                    value={systemPromptLocal}
+                    onChange={setSystemPromptLocal}
                     placeholder="Describe the desired agent (e.g., a customer support agent for ElevenLabs)"
+                    dropdownButtonLabel={"+ Add Variable"}
+                    showTimezoneButton={true}
                   />
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {sysPromptVars.map((v: string) => (
-                      <span key={v} className="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-1">
-                        {v} <button type="button" onClick={() => removeVar(v, sysPromptVars, setSysPromptVars)} className="text-red-500">×</button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <input
-                      value={sysPromptVarInput}
-                      onChange={e => setSysPromptVarInput(e.target.value)}
-                      className="border rounded px-3 py-2 flex-1"
-                      placeholder="Add variable"
-                    />
-                    <button type="button" onClick={() => addVar(sysPromptVarInput, setSysPromptVarInput, sysPromptVars, setSysPromptVars)} className="bg-gray-200 px-3 py-2 rounded">+ Add Variable</button>
-                  </div>
                 </div>
                 {/* Dynamic Variables */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">

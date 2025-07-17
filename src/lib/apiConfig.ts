@@ -6,9 +6,10 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const isProduction = process.env.NODE_ENV === 'production';
 
 // Base URLs
-export const API_BASE_URL = isDevelopment 
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || (isDevelopment 
   ? 'http://localhost:5000' 
-  : process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.aicaller.com';
+  : 'https://api.aicaller.com');
+// Use NEXT_PUBLIC_API_BASE_URL if set, otherwise fallback to localhost:5000 (dev) or prod URL
 
 export const EXTERNAL_APIS = {
   ELEVENLABS: {

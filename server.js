@@ -16,7 +16,10 @@ console.log("🟡 Starting backend server...");
 
 const app = express();
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',
+    'https://2nq68jpg-3000.inc1.devtunnels.ms' // <-- Add your tunnel URL here
+  ],
   credentials: true
 }));
 app.use(express.json());
