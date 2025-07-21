@@ -178,6 +178,11 @@ db.connect(err => {
             console.log("✅ Knowledge base table ready");
           }
         });
+
+        // --- AGENTS TABLE MIGRATION: Add language_code and additional_languages columns if not exist ---
+        db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS language_code VARCHAR(20)`, () => {});
+        db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS additional_languages TEXT`, () => {});
+        db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'Published' AFTER updated_at`, () => {});
       });
     });
     return;
@@ -262,6 +267,9 @@ app.post('/api/elevenlabs/create-agent', async (req, res) => {
       return res.status(agentDetailsRes.status).json({ error: 'Failed to fetch agent details', details: agent });
     }
 
+    // Ensure client_id from frontend is set on the agent object for local DB
+    agent.client_id = payload.client_id || null;
+
     // 2.1 Map language code to local language_id
     let languageId = null;
     const languageCode = agent.language || 'en';
@@ -279,38 +287,54 @@ app.post('/api/elevenlabs/create-agent', async (req, res) => {
           } else {
             languageId = rows2[0].id;
           }
-          insertAgent();
+          insertAgent(payload.client_id || null);
         });
         return;
       }
-      insertAgent();
+      insertAgent(payload.client_id || null);
     });
 
-    function insertAgent() {
+    function insertAgent(clientId) {
+      console.log('Payload received:', payload);
+      console.log('client_id to insert:', clientId, typeof clientId);
+      const insertValues = [
+        agent.agent_id,
+        clientId,
+        agent.name || '',
+        agent.description || '',
+        agent.first_message || '',
+        agent.system_prompt || '',
+        languageId,
+        agent.voice_id || null,
+        agent.model || '',
+        JSON.stringify(agent.tags || []),
+        JSON.stringify(agent.platform_settings || {}),
+        agent.language_code || '',
+        JSON.stringify(agent.additional_languages || []),
+        agent.custom_llm_url || '',
+        agent.custom_llm_model_id || '',
+        agent.custom_llm_api_key || '',
+        JSON.stringify(agent.custom_llm_headers || []),
+        agent.llm || '',
+        agent.temperature || null
+      ];
+      console.log('Insert values:', insertValues);
       const insertSql = `
         INSERT INTO agents (
-          agent_id, client_id, name, description, intro_message, instructions, language_id, voice_id, model, tags, platform_settings, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+          agent_id, client_id, name, description, first_message, system_prompt, language_id, voice_id, model, tags, platform_settings, created_at, updated_at, language_code, additional_languages, custom_llm_url, custom_llm_model_id, custom_llm_api_key, custom_llm_headers, llm, temperature
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
-          name=VALUES(name), description=VALUES(description), intro_message=VALUES(intro_message),
-          instructions=VALUES(instructions), language_id=VALUES(language_id), voice_id=VALUES(voice_id),
-          model=VALUES(model), tags=VALUES(tags), platform_settings=VALUES(platform_settings), updated_at=NOW()
+          name=VALUES(name), description=VALUES(description), first_message=VALUES(first_message),
+          system_prompt=VALUES(system_prompt), language_id=VALUES(language_id), voice_id=VALUES(voice_id),
+          model=VALUES(model), tags=VALUES(tags), platform_settings=VALUES(platform_settings), updated_at=NOW(),
+          language_code=VALUES(language_code), additional_languages=VALUES(additional_languages),
+          custom_llm_url=VALUES(custom_llm_url), custom_llm_model_id=VALUES(custom_llm_model_id),
+          custom_llm_api_key=VALUES(custom_llm_api_key), custom_llm_headers=VALUES(custom_llm_headers),
+          llm=VALUES(llm), temperature=VALUES(temperature)
       `;
       db.query(
         insertSql,
-        [
-          agent.agent_id,
-          agent.client_id || null,
-          agent.name || '',
-          agent.description || '',
-          agent.intro_message || '',
-          agent.instructions || '',
-          languageId,
-          agent.voice_id || null,
-          agent.model || '',
-          JSON.stringify(agent.tags || []),
-          JSON.stringify(agent.platform_settings || {}),
-        ],
+        insertValues,
         (err) => {
           if (err) {
             console.error('Failed to insert agent into local DB:', err);
@@ -352,6 +376,14 @@ app.get('/api/agents/:id/details', async (req, res) => {
   db.query('SELECT * FROM agents WHERE agent_id = ?', [agentId], async (err, results) => {
     if (err) return res.status(500).json({ error: 'DB error', details: err });
     const localAgent = results[0] || {};
+    // Parse additional_languages if present
+    if (localAgent.additional_languages) {
+      try {
+        localAgent.additional_languages = JSON.parse(localAgent.additional_languages);
+      } catch {
+        localAgent.additional_languages = [];
+      }
+    }
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' };
     let elevenLabsAgent = {};
@@ -372,27 +404,45 @@ app.patch('/api/agents/:id/details', async (req, res) => {
   console.log('[PATCH /api/agents/:id/details] Incoming payload:', JSON.stringify(req.body, null, 2));
   try {
     // 1. Update local DB
-    if (local) {
-      const updateFields = Object.keys(local).filter(k => k !== 'agent_id');
-      const updateValues = updateFields.map(k => {
-        const value = local[k];
-        if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
-          return JSON.stringify(value);
-        }
-        return value;
-      });
-      const sql = `UPDATE agents SET ${updateFields.map(f => `${f} = ?`).join(', ')} WHERE agent_id = ?`;
-      console.log('[PATCH /api/agents/:id/details] SQL:', sql);
-      console.log('[PATCH /api/agents/:id/details] SQL values:', [...updateValues, agentId]);
-      await new Promise((resolve, reject) => {
-        db.query(sql, [...updateValues, agentId], (err, result) => {
-          if (err) {
-            console.error('[PATCH /api/agents/:id/details] DB error:', err);
-            return reject(err);
+    if (local || (elevenlabs && elevenlabs.conversation_config && elevenlabs.conversation_config.agent)) {
+      const updateFields = [];
+      const updateValues = [];
+      if (local) {
+        Object.keys(local).filter(k => k !== 'agent_id').forEach(k => {
+          let value = local[k];
+          if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+            value = JSON.stringify(value);
           }
-          resolve(result);
+          updateFields.push(`${k} = ?`);
+          updateValues.push(value);
         });
-      });
+      }
+      // Persist language_code and additional_languages from ElevenLabs agent config if present
+      if (elevenlabs && elevenlabs.conversation_config && elevenlabs.conversation_config.agent) {
+        const agent = elevenlabs.conversation_config.agent;
+        if (agent.language) {
+          updateFields.push(`language_code = ?`);
+          updateValues.push(agent.language);
+        }
+        if (agent.additional_languages) {
+          updateFields.push(`additional_languages = ?`);
+          updateValues.push(JSON.stringify(agent.additional_languages));
+        }
+      }
+      if (updateFields.length > 0) {
+        const sql = `UPDATE agents SET ${updateFields.join(', ')} WHERE agent_id = ?`;
+        console.log('[PATCH /api/agents/:id/details] SQL:', sql);
+        console.log('[PATCH /api/agents/:id/details] SQL values:', [...updateValues, agentId]);
+        await new Promise((resolve, reject) => {
+          db.query(sql, [...updateValues, agentId], (err, result) => {
+            if (err) {
+              console.error('[PATCH /api/agents/:id/details] DB error:', err);
+              return reject(err);
+            }
+            resolve(result);
+          });
+        });
+      }
     }
     // 2. Update ElevenLabs
     if (elevenlabs) {
@@ -416,6 +466,16 @@ app.patch('/api/agents/:id/details', async (req, res) => {
     console.error('[PATCH /api/agents/:id/details] ERROR:', err);
     res.status(500).json({ error: err.message || 'Failed to update agent details.' });
   }
+});
+
+// PATCH /api/agents/:id/status - Update agent status
+app.patch('/api/agents/:id/status', (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  db.query('UPDATE agents SET status = ? WHERE agent_id = ?', [status, id], (err, result) => {
+    if (err) return res.status(500).json({ success: false, error: err });
+    res.json({ success: true });
+  });
 });
 
 // ElevenLabs Get Agent Details Endpoint

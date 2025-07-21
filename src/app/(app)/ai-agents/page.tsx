@@ -52,6 +52,9 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/cn";
 import type { Metadata } from 'next';
+import { useUser } from '@/lib/utils';
+import { api } from '@/lib/apiConfig';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 // export const metadata: Metadata = {
 //   title: 'AI Script Agents - AI Caller',
@@ -74,14 +77,16 @@ export type AIAgent = {
   lastModified: string; 
   status: AIAgentStatus;
   version: string;
+  source: 'local' | 'elevenlabs';
+  clientName?: string;
 };
 
 const mockAgents: AIAgent[] = [
-  { id: "tpl_1", name: "Lead Qualification Pro", useCase: "Lead Generation", tags: ["sales", "b2b", "qualification"], createdBy: "Admin User", language: "English (US)", lastModified: "2024-07-15", status: "Published", version: "1.2" },
-  { id: "tpl_2", name: "Appointment Reminder Basic", useCase: "Reminder", tags: ["appointment", "customer service"], createdBy: "System", language: "Spanish (ES)", lastModified: "2024-06-20", status: "Published", version: "1.0" },
-  { id: "tpl_3", name: "Feedback Collector v2", useCase: "Feedback", tags: ["survey", "customer experience"], createdBy: "Admin User", language: "English (US)", lastModified: "2024-07-01", status: "Draft", version: "0.8" },
-  { id: "tpl_4", name: "Sales Pitch - Enterprise", useCase: "Sales", tags: ["enterprise", "pitch"], createdBy: "Sales Team Lead", language: "English (US)", lastModified: "2024-05-10", status: "Archived", version: "2.1" },
-  { id: "tpl_5", name: "Payment Due Notification", useCase: "Payment Collection", tags: ["billing", "finance"], createdBy: "System", language: "Hindi (IN)", lastModified: "2024-07-18", status: "Published", version: "1.0" },
+  { id: "tpl_1", name: "Lead Qualification Pro", useCase: "Lead Generation", tags: ["sales", "b2b", "qualification"], createdBy: "Admin User", language: "English (US)", lastModified: "2024-07-15", status: "Published", version: "1.2", source: 'local' },
+  { id: "tpl_2", name: "Appointment Reminder Basic", useCase: "Reminder", tags: ["appointment", "customer service"], createdBy: "System", language: "Spanish (ES)", lastModified: "2024-06-20", status: "Published", version: "1.0", source: 'local' },
+  { id: "tpl_3", name: "Feedback Collector v2", useCase: "Feedback", tags: ["survey", "customer experience"], createdBy: "Admin User", language: "English (US)", lastModified: "2024-07-01", status: "Draft", version: "0.8", source: 'local' },
+  { id: "tpl_4", name: "Sales Pitch - Enterprise", useCase: "Sales", tags: ["enterprise", "pitch"], createdBy: "Sales Team Lead", language: "English (US)", lastModified: "2024-05-10", status: "Archived", version: "2.1", source: 'local' },
+  { id: "tpl_5", name: "Payment Due Notification", useCase: "Payment Collection", tags: ["billing", "finance"], createdBy: "System", language: "Hindi (IN)", lastModified: "2024-07-18", status: "Published", version: "1.0", source: 'local' },
 ];
 
 const statusVariants: Record<AIAgentStatus, string> = {
@@ -122,7 +127,9 @@ const statusFilterOptions: {value: AIAgentStatus | "all"; label: string}[] = [
 
 export default function AiAgentsPage() {
   const { toast } = useToast();
+  const { user } = useUser();
   const [agents, setAgents] = React.useState<AIAgent[]>(mockAgents);
+  const [clients, setClients] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [useCaseFilter, setUseCaseFilter] = React.useState<AIAgentUseCase | "all">("all");
@@ -138,28 +145,63 @@ export default function AiAgentsPage() {
 
   React.useEffect(() => {
     setLoading(true);
-    fetch('/api/agents')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data.data)) {
-          setAgents(data.data.map((agent: any) => ({
-            id: agent.agent_id,
-            name: agent.name,
-            useCase: agent.description || 'Other',
-            tags: agent.tags ? JSON.parse(agent.tags) : [],
-            createdBy: agent.client_id || 'Unknown',
-            language: agent.language_name || agent.language_code || 'Other',
-            lastModified: agent.updated_at,
-            status: 'Published', // or map from your DB if you add a status column
-            version: agent.model || '1.0',
-          })));
-        } else {
-          setAgents([]);
+    Promise.all([
+      fetch('/api/agents').then(res => res.json()),
+      fetch('https://api.elevenlabs.io/v1/convai/agents', {
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
         }
+      }).then(res => res.json()),
+      api.getClients().then(res => res.json())
+    ])
+      .then(([localData, elevenData, clientsData]) => {
+        let localAgents: AIAgent[] = [];
+        let allClients: any[] = Array.isArray(clientsData.data) ? clientsData.data : [];
+        setClients(allClients);
+        if (Array.isArray(localData.data)) {
+          localAgents = localData.data.map((agent: any) => {
+            const client = allClients.find((c: any) => String(c.id) === String(agent.client_id));
+            return {
+              id: agent.agent_id,
+              name: agent.name,
+              useCase: agent.description || 'Other',
+              tags: agent.tags ? JSON.parse(agent.tags) : [],
+              createdBy: user?.name || user?.fullName || user?.email || 'You',
+              clientName: client ? client.companyName : '-',
+              language: '', // not used
+              lastModified: agent.updated_at,
+              status: 'Published',
+              version: agent.model || '1.0',
+              source: 'local',
+            };
+          });
+        }
+        let elevenLabsAgents: AIAgent[] = [];
+        let agentsArr = [];
+        if (Array.isArray(elevenData.agents)) agentsArr = elevenData.agents;
+        else if (Array.isArray(elevenData.items)) agentsArr = elevenData.items;
+        else if (Array.isArray(elevenData.data)) agentsArr = elevenData.data;
+        else if (Array.isArray(elevenData)) agentsArr = elevenData;
+        elevenLabsAgents = agentsArr.map((agent: any) => ({
+          id: agent.agent_id || agent.id,
+          name: agent.name,
+          useCase: agent.description || 'Other',
+          tags: agent.tags || [],
+          createdBy: 'ElevenLabs',
+          clientName: '-',
+          language: '',
+          lastModified: agent.updated_at || agent.last_modified,
+          status: 'Published',
+          version: agent.model || '1.0',
+          source: 'elevenlabs',
+        }));
+        const merged = [...localAgents, ...elevenLabsAgents.filter(ea => !localAgents.some(la => la.id === ea.id))];
+        setAgents(merged);
       })
       .catch(() => setAgents([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   const handleAgentAction = (actionName: string, agentName: string) => {
     toast({
@@ -279,8 +321,8 @@ export default function AiAgentsPage() {
                 <TableRow>
                   <TableHead>Agent Name</TableHead>
                   <TableHead>Use Case</TableHead>
+                  <TableHead>Client</TableHead>
                   <TableHead>Created By</TableHead>
-                  <TableHead>Language</TableHead>
                   <TableHead>Last Modified</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Version</TableHead>
@@ -299,11 +341,51 @@ export default function AiAgentsPage() {
                       </div>
                     </TableCell>
                     <TableCell>{agent.useCase}</TableCell>
+                    <TableCell>{agent.clientName || '-'}</TableCell>
                     <TableCell>{agent.createdBy}</TableCell>
-                    <TableCell>{agent.language}</TableCell>
                     <TableCell>{agent.lastModified ? new Date(agent.lastModified).toLocaleDateString() : ''}</TableCell>
                     <TableCell>
-                      <Badge className={`text-xs ${statusVariants[agent.status]}`}>{agent.status}</Badge>
+                      {agent.source === 'local' ? (
+                        <Select
+                          value={agent.status}
+                          onValueChange={async (newStatus) => {
+                            await fetch(`/api/agents/${agent.id}/status`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ status: newStatus }),
+                            });
+                            setAgents(prev =>
+                              prev.map(a => a.id === agent.id ? { ...a, status: newStatus as AIAgentStatus } : a)
+                            );
+                            toast({ title: "Status updated", description: `Agent status set to ${newStatus}` });
+                          }}
+                        >
+                          <SelectTrigger
+                            className={cn(
+                              "rounded-full px-2 py-0 text-xs font-semibold border-none shadow-none h-5 min-h-0 focus:ring-2 focus:ring-offset-2 focus:ring-green-200 text-center whitespace-nowrap overflow-visible",
+                              statusVariants[agent.status]
+                            )}
+                            style={{ minWidth: 70, maxWidth: 110, justifyContent: "center", height: 20, lineHeight: '16px' }}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="p-0 min-w-[70px] max-w-[110px]">
+                            <SelectItem value="Published">
+                              <span className={cn("rounded-full px-2 py-0 text-xs font-semibold h-5 min-h-0 text-center whitespace-nowrap overflow-visible", statusVariants.Published)} style={{lineHeight: '16px'}}>Published</span>
+                            </SelectItem>
+                            <SelectItem value="Draft">
+                              <span className={cn("rounded-full px-2 py-0 text-xs font-semibold h-5 min-h-0 text-center whitespace-nowrap overflow-visible", statusVariants.Draft)} style={{lineHeight: '16px'}}>Draft</span>
+                            </SelectItem>
+                            <SelectItem value="Archived">
+                              <span className={cn("rounded-full px-2 py-0 text-xs font-semibold h-5 min-h-0 text-center whitespace-nowrap overflow-visible", statusVariants.Archived)} style={{lineHeight: '16px'}}>Archived</span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className={cn("rounded-full px-2 py-0 text-xs font-semibold h-5 min-h-0 text-center whitespace-nowrap overflow-visible", statusVariants[agent.status])}>
+                          {agent.status}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>{agent.version}</TableCell>
                     <TableCell className="text-right">
@@ -323,7 +405,22 @@ export default function AiAgentsPage() {
                             <Copy className="mr-2 h-4 w-4" /> Duplicate
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-yellow-600 focus:text-yellow-700" onClick={() => handleAgentAction("Archive", agent.name)}>
+                          <DropdownMenuItem
+                            className="text-yellow-600 focus:text-yellow-700"
+                            onClick={async () => {
+                              if (agent.source === 'local') {
+                                await fetch(`/api/agents/${agent.id}/status`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ status: 'Archived' }),
+                                });
+                                setAgents(prev =>
+                                  prev.map(a => a.id === agent.id ? { ...a, status: 'Archived' as AIAgentStatus } : a)
+                                );
+                                toast({ title: "Agent Archived", description: `Agent \"${agent.name}\" archived.` });
+                              }
+                            }}
+                          >
                             <Archive className="mr-2 h-4 w-4" /> Archive
                           </DropdownMenuItem>
                         </DropdownMenuContent>

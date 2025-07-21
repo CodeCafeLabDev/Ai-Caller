@@ -1,6 +1,12 @@
 "use client";
 import { useParams } from "next/navigation";
 import React, { useState, useEffect, useRef } from "react";
+import Select, { components } from 'react-select';
+import type { MultiValue, ActionMeta, OptionProps } from 'react-select';
+import NewCustomMcpServerDrawer from '../../../../../../components/ai-agents/NewCustomMcpServerDrawer';
+import useElevenLabsTools from './useElevenLabsTools';
+import { api } from "@/lib/apiConfig";
+import languages from '@/data/languages.json';
 
 const LANGUAGES = [
   { code: "en", label: "English", flag: "🇺🇸" },
@@ -8,9 +14,23 @@ const LANGUAGES = [
   { code: "fr", label: "French", flag: "🇫🇷" },
 ];
 const LLM_MODELS = [
-  { value: "gemini-flash", label: "Gemini 2.0 Flash (001)" },
-  { value: "gpt-4", label: "GPT-4" },
-  { value: "gpt-3.5", label: "GPT-3.5" },
+  { value: "gpt-4.1", label: "GPT-4.1" },
+  { value: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
+  { value: "gpt-4.1-nano", label: "GPT-4.1 Nano" },
+  { value: "2025-04-14", label: "2025-04-14" },
+  { value: "gpt-4o", label: "GPT-4o" },
+  { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+  { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
+  { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+  { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
+  { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
+  { value: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" },
+  { value: "claude-sonnet-4", label: "Claude Sonnet 4" },
+  { value: "claude-3.7-sonnet", label: "Claude 3.7 Sonnet" },
+  { value: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet" },
+  { value: "claude-3-haiku", label: "Claude 3 Haiku" },
+  { value: "custom-llm", label: "Custom LLM" },
 ];
 const TOOL_OPTIONS = [
   { value: "end_call", label: "End call" },
@@ -343,6 +363,342 @@ function VariableTextarea({ value, onChange, placeholder, dropdownButtonLabel = 
   );
 }
 
+// Utility to recursively remove null/undefined from objects/arrays
+function cleanPayload(obj: any): any {
+  if (Array.isArray(obj)) {
+    return obj.map(cleanPayload);
+  } else if (obj && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj)
+        .filter(([_, v]) => v !== null && v !== undefined)
+        .map(([k, v]) => [k, cleanPayload(v)])
+    );
+  }
+  return obj;
+}
+
+// Helper to check if a string is a valid IANA timezone (basic check: contains '/')
+function isValidIanaTimezone(tz: string | undefined): boolean {
+  return typeof tz === 'string' && tz.includes('/') && tz.length > 3;
+}
+
+// Built-in/system tools (always available)
+const BUILT_IN_TOOLS = [
+  {
+    name: "end_call",
+    label: "End call",
+    description: "Gives agent the ability to end the call with the user.",
+    params: { system_tool_type: "end_call" },
+    type: "system"
+  },
+  {
+    name: "language_detection",
+    label: "Detect language",
+    description: "Gives agent the ability to change the language during conversation.",
+    params: { system_tool_type: "language_detection" },
+    type: "system"
+  },
+  {
+    name: "skip_turn",
+    label: "Skip turn",
+    description: "Agent will skip its turn if user explicitly indicates they need a moment.",
+    params: { system_tool_type: "skip_turn" },
+    type: "system"
+  },
+  {
+    name: "transfer_to_agent",
+    label: "Transfer to agent",
+    description: "Gives agent the ability to transfer the call to another AI agent.",
+    params: { system_tool_type: "transfer_to_agent" },
+    type: "system"
+  },
+  {
+    name: "transfer_to_number",
+    label: "Transfer to number",
+    description: "Gives agent the ability to transfer the call to a human.",
+    params: { system_tool_type: "transfer_to_number" },
+    type: "system"
+  },
+  {
+    name: "play_keypad_touch_tone",
+    label: "Play keypad touch tone",
+    description: "Gives agent the ability to play keypad touch tones during a phone call.",
+    params: { system_tool_type: "play_keypad_touch_tone" },
+    type: "system"
+  },
+];
+
+function buildElevenLabsPayload({
+  agentSettings,
+  widgetConfig,
+  voiceConfig,
+  advancedConfig,
+  securityConfig,
+  analysisConfig,
+  firstMessage,
+  systemPrompt,
+  elevenLabsAgent,
+  allTools // <-- pass allTools here
+}: any) {
+  // Determine TTS model_id for English and non-English agents
+  let ttsModelId = voiceConfig.model_id;
+  let lang = agentSettings.language || '';
+  if (lang && lang.includes('-')) {
+    lang = lang.split('-')[0];
+  }
+  if (lang.startsWith('en')) {
+    ttsModelId = 'eleven_turbo_v2';
+  } else {
+    ttsModelId = 'eleven_turbo_v2_5';
+  }
+  // Only include enabled tools in built_in_tools, with full API structure and valid name
+  const builtInTools: any = {};
+  if (agentSettings.tools.includes('end_call')) builtInTools.end_call = {
+    name: "end_call", // must match ^[a-zA-Z0-9_-]{1,64}$
+    description: "Gives agent the ability to end the call with the user.",
+    params: { system_tool_type: "end_call" },
+    response_timeout_secs: 20,
+    type: "system"
+  };
+  if (agentSettings.tools.includes('language_detection')) builtInTools.language_detection = {
+    name: "language_detection",
+    description: "Gives agent the ability to change the language during conversation.",
+    params: { system_tool_type: "language_detection" },
+    response_timeout_secs: 20,
+    type: "system"
+  };
+  if (agentSettings.tools.includes('transfer_to_agent')) builtInTools.transfer_to_agent = {
+    name: "transfer_to_agent",
+    description: "Gives agent the ability to transfer the call to another AI agent.",
+    params: { system_tool_type: "transfer_to_agent" },
+    response_timeout_secs: 20,
+    type: "system"
+  };
+  if (agentSettings.tools.includes('transfer_to_number')) builtInTools.transfer_to_number = {
+    name: "transfer_to_number",
+    description: "Gives agent the ability to transfer the call to a human.",
+    params: { system_tool_type: "transfer_to_number" },
+    response_timeout_secs: 20,
+    type: "system"
+  };
+  if (agentSettings.tools.includes('skip_turn')) builtInTools.skip_turn = {
+    name: "skip_turn",
+    description: "Agent will skip its turn if user explicitly indicates they need a moment.",
+    params: { system_tool_type: "skip_turn" },
+    response_timeout_secs: 20,
+    type: "system"
+  };
+  if (agentSettings.tools.includes('play_keypad_touch_tone')) builtInTools.play_keypad_touch_tone = {
+    name: "play_keypad_touch_tone",
+    description: "Gives agent the ability to play keypad touch tones during a phone call.",
+    params: { system_tool_type: "play_keypad_touch_tone" },
+    response_timeout_secs: 20,
+    type: "system"
+  };
+  // ... rest of buildElevenLabsPayload as before ...
+
+  // Build prompt object with conditional fields
+  const enabledBuiltInTools = BUILT_IN_TOOLS.filter(tool => agentSettings.tools.includes(tool.name));
+  const enabledCustomTools = (agentSettings.tools || []).map((t: string) => allTools.find((tool: any) => tool.name === t)).filter((tool: any) => tool && !BUILT_IN_TOOLS.some(b => b.name === tool.name));
+  const enabledTools = [...enabledBuiltInTools, ...enabledCustomTools];
+  const prompt: any = {
+    prompt: systemPrompt,
+    llm: agentSettings.llm,
+    temperature: agentSettings.temperature,
+    max_tokens: agentSettings.token_limit,
+    tool_ids: agentSettings.tool_ids,
+    mcp_server_ids: agentSettings.mcp_server_ids,
+    native_mcp_server_ids: agentSettings.native_mcp_server_ids,
+    knowledge_base: agentSettings.knowledge_base,
+    ignore_default_personality: agentSettings.ignore_default_personality,
+    rag: agentSettings.rag,
+    tools: enabledTools, // use full tool objects
+  };
+  // Only add built_in_tools if at least one tool is enabled
+  if (Object.keys(builtInTools).length > 0) {
+    prompt.built_in_tools = builtInTools;
+  }
+  // Only add custom_llm if using custom-llm and url is present
+  if (agentSettings.llm === 'custom-llm' && agentSettings.custom_llm_url) {
+    prompt.custom_llm = {
+      url: agentSettings.custom_llm_url,
+      model_id: agentSettings.custom_llm_model_id,
+      api_key: agentSettings.custom_llm_api_key,
+      headers: agentSettings.custom_llm_headers,
+    };
+  }
+  // Only add timezone if it's a valid IANA string
+  if (isValidIanaTimezone(agentSettings.timezone)) {
+    prompt.timezone = agentSettings.timezone;
+  }
+
+  return {
+    agent_id: elevenLabsAgent.agent_id,
+    name: agentSettings.name || elevenLabsAgent.name,
+    conversation_config: {
+      agent: {
+        first_message: firstMessage,
+        language: lang,
+        additional_languages: (agentSettings.additional_languages || []).map((l: string) => l.split('-')[0]),
+        dynamic_variables: advancedConfig.dynamic_variables,
+        prompt,
+      },
+      tts: {
+        model_id: ttsModelId,
+        voice_id: voiceConfig.voice,
+        stability: voiceConfig.stability,
+        speed: voiceConfig.speed,
+        similarity_boost: voiceConfig.similarity,
+        agent_output_audio_format: voiceConfig.tts_output_format,
+        optimize_streaming_latency: voiceConfig.latency,
+        pronunciation_dictionary_locators: voiceConfig.pronunciation_dictionaries,
+      },
+      asr: {
+        user_input_audio_format: advancedConfig.user_input_audio_format,
+        keywords: advancedConfig.keywords,
+        quality: advancedConfig.asr_quality,
+        provider: advancedConfig.asr_provider,
+      },
+      turn: {
+        turn_timeout: advancedConfig.turn_timeout,
+        silence_end_call_timeout: advancedConfig.silence_end_call_timeout,
+        mode: advancedConfig.turn_mode,
+      },
+      conversation: {
+        text_only: advancedConfig.text_only,
+        max_duration_seconds: advancedConfig.max_conversation_duration,
+        client_events: advancedConfig.client_events,
+      },
+      language_presets: advancedConfig.language_presets,
+    },
+    platform_settings: {
+      widget: {
+        placement: widgetConfig.placement,
+        feedback_mode: widgetConfig.feedback_collection,
+        text_input_enabled: widgetConfig.text_input,
+        transcript_enabled: widgetConfig.conversation_transcript,
+        mic_muting_enabled: widgetConfig.enable_muting,
+        language_selector: widgetConfig.language_dropdown,
+        supports_text_only: widgetConfig.switch_to_text_only,
+        // ...add more widget fields as needed
+      },
+      auth: {
+        enable_auth: securityConfig.enable_authentication,
+        allowlist: securityConfig.allowlist,
+      },
+      evaluation: {
+        criteria: analysisConfig.evaluation_criteria,
+      },
+      privacy: {
+        record_voice: advancedConfig.privacy_settings?.store_call_audio,
+        zero_retention_mode: advancedConfig.privacy_settings?.zero_ppi_retention_mode,
+        retention_days: advancedConfig.conversations_retention_period,
+        delete_transcript_and_pii: advancedConfig.delete_transcript_and_derived_fields,
+        delete_audio: advancedConfig.delete_audio,
+      },
+      call_limits: {
+        agent_concurrency_limit: securityConfig.concurrent_calls_limit,
+        daily_limit: securityConfig.daily_calls_limit,
+        bursting_enabled: securityConfig.enable_bursting,
+      },
+      // ...add more platform_settings as needed
+    },
+    // ...add more top-level fields as needed
+  };
+}
+
+// Helper to get country code from language code (e.g., 'en' -> 'us', 'hi' -> 'in')
+function getCountryCode(langCode: string) {
+  // Map language codes to country codes for FlagCDN
+  const map: Record<string, string> = {
+    en: 'us',
+    hi: 'in',
+    es: 'es',
+    fr: 'fr',
+    ar: 'ae',
+    zh: 'cn',
+    de: 'de',
+    ru: 'ru',
+    pt: 'pt',
+    ja: 'jp',
+    ko: 'kr',
+    it: 'it',
+    nl: 'nl',
+    tr: 'tr',
+    pl: 'pl',
+    sv: 'se',
+    ms: 'my',
+    ro: 'ro',
+    uk: 'ua',
+    el: 'gr',
+    cs: 'cz',
+    da: 'dk',
+    fi: 'fi',
+    bg: 'bg',
+    hr: 'hr',
+    sk: 'sk',
+    ta: 'in',
+    vi: 'vn',
+    no: 'no',
+    hu: 'hu',
+    'pt-br': 'br',
+    // Add more as needed
+  };
+  return map[langCode.toLowerCase()] || langCode.toLowerCase();
+}
+
+// Helper to add a knowledge base item to ElevenLabs and local DB
+async function addKnowledgeBaseItem(type: 'url' | 'text' | 'file', payload: any, apiKey: string, localDbPayload: any) {
+  let endpoint = '';
+  if (type === 'url') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/url';
+  if (type === 'text') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/text';
+  if (type === 'file') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/file';
+
+  // 1. Post to ElevenLabs
+  const elevenRes = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'xi-api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const elevenData = await elevenRes.json();
+
+  // 2. Save to your local DB (use your actual API call)
+  if (typeof api !== 'undefined' && api.createKnowledgeBaseItem) {
+    await api.createKnowledgeBaseItem(localDbPayload);
+  }
+
+  return elevenData;
+}
+
+function getFlagUrl(code: string) {
+  if (!code) return '';
+  const lang = languages.find(l =>
+    l.code.toLowerCase() === code.toLowerCase() ||
+    l.code.toLowerCase().startsWith(code.toLowerCase() + '-') ||
+    l.countryCode?.toLowerCase() === code.toLowerCase()
+  );
+  const country = lang?.countryCode?.toLowerCase() || code.toLowerCase();
+  return `https://flagcdn.com/24x18/${country}.png`;
+}
+
+function getLanguageName(code: string) {
+  if (!code) return code;
+  const lower = code.toLowerCase();
+  const lang = languages.find(l => l.code.toLowerCase() === lower);
+  if (lang) return lang.name;
+  // Try to match by country code
+  const foundByCountry = languages.find(l => l.countryCode?.toLowerCase() === lower);
+  if (foundByCountry) return foundByCountry.name;
+  // Try to match by prefix
+  const prefix = lower.split('-')[0];
+  const foundByPrefix = languages.find(l => l.code.toLowerCase().startsWith(prefix));
+  if (foundByPrefix) return foundByPrefix.name;
+  return code;
+}
+
 export default function AgentDetailsPage() {
   const params = useParams();
   const agentId = params.agent_id;
@@ -354,11 +710,32 @@ export default function AgentDetailsPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState("");
 
+  // Add these state hooks at the top of the component
+  const [firstMessage, setFirstMessage] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState("");
+
   // 1. Add state for all fields in every tab (Voice, Widget, Advanced, Security, Analysis)
   const [agentSettings, setAgentSettings] = useState({
     language: "en",
     additional_languages: [] as string[],
     first_message: "",
+    llm: "",
+    temperature: 0.5,
+    token_limit: 0,
+    tool_ids: [] as any[],
+    built_in_tools: {} as any,
+    mcp_server_ids: [] as any[],
+    native_mcp_server_ids: [] as any[],
+    knowledge_base: [] as any[],
+    custom_llm: null as any,
+    ignore_default_personality: false,
+    rag: {} as any,
+    timezone: null as any,
+    tools: [] as any[],
+    custom_llm_url: "",
+    custom_llm_model_id: "",
+    custom_llm_api_key: "",
+    custom_llm_headers: [] as { type: string; name: string; secret: string }[],
   });
   const [widgetConfig, setWidgetConfig] = useState({
     voice: "Eric",
@@ -370,6 +747,15 @@ export default function AgentDetailsPage() {
     stability: 0.5,
     speed: 0.5,
     similarity: 0.5,
+    feedback_collection: "During conversation",
+    text_input: false,
+    switch_to_text_only: false,
+    conversation_transcript: false,
+    language_dropdown: false,
+    enable_muting: false,
+    placement: "Bottom-right",
+    require_terms: false,
+    require_visitor_terms: false,
   });
   const [voiceConfig, setVoiceConfig] = useState({
     voice: "Eric",
@@ -381,6 +767,7 @@ export default function AgentDetailsPage() {
     stability: 0.5,
     speed: 0.5,
     similarity: 0.5,
+    multi_voice_ids: [] as string[],
   });
   const [securityConfig, setSecurityConfig] = useState({
     enable_authentication: false,
@@ -428,6 +815,30 @@ export default function AgentDetailsPage() {
 
   const [activeTab, setActiveTab] = useState("Agent");
 
+  // Add at the top of the component
+  const [showMcpDialog, setShowMcpDialog] = useState(false);
+  const [showNewMcpForm, setShowNewMcpForm] = useState(false);
+  const [showMcpDrawer, setShowMcpDrawer] = useState(false);
+  const [mcpServers, setMcpServers] = useState(agentSettings.mcp_server_ids || []);
+
+  // Use the ElevenLabs tools hook
+  const apiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '';
+  const {
+    tools: allTools,
+    loading: toolsLoading,
+    error: toolsError,
+    fetchTools,
+    createTool,
+    updateTool,
+    deleteTool,
+  } = useElevenLabsTools(apiKey);
+
+  // Fetch tools on mount
+  useEffect(() => {
+    fetchTools();
+  }, [fetchTools]);
+
+  // Fetch agent details from backend (which fetches from ElevenLabs and local DB)
   useEffect(() => {
     setLoading(true);
     fetch(`/api/agents/${agentId}/details`)
@@ -435,10 +846,115 @@ export default function AgentDetailsPage() {
       .then(data => {
         setLocalAgent(data.local || {});
         setElevenLabsAgent(data.elevenlabs || {});
+        // Ensure additional_languages is always an array
+        if (data.local && typeof data.local.additional_languages === 'string') {
+          try {
+            data.local.additional_languages = JSON.parse(data.local.additional_languages);
+          } catch {
+            data.local.additional_languages = [];
+          }
+        }
+        // Prefill all config states from ElevenLabs API data
+        const el = data.elevenlabs || {};
+        const cc = el.conversation_config || {};
+        const agent = cc.agent || {};
+        const tts = cc.tts || {};
+        const widget = (el.platform_settings && el.platform_settings.widget) || {};
+        const privacy = (el.platform_settings && el.platform_settings.privacy) || {};
+        const call_limits = (el.platform_settings && el.platform_settings.call_limits) || {};
+        const auth = (el.platform_settings && el.platform_settings.auth) || {};
+        const evaluation = (el.platform_settings && el.platform_settings.evaluation) || {};
+        setAgentSettings(prev => ({
+          ...prev,
+          language: data.local.language_code ?? agent.language ?? prev.language ?? 'en',
+          additional_languages: data.local.additional_languages ?? agent.additional_languages ?? prev.additional_languages ?? [],
+          llm: data.local.llm ?? agent.prompt?.llm ?? prev.llm ?? '',
+          temperature: typeof data.local.temperature === 'number' ? data.local.temperature : (typeof agent.prompt?.temperature === 'number' ? agent.prompt?.temperature : (typeof prev.temperature === 'number' ? prev.temperature : 0.5)),
+          token_limit: typeof data.local.token_limit === 'number' ? data.local.token_limit : (typeof agent.prompt?.max_tokens === 'number' ? agent.prompt?.max_tokens : (typeof prev.token_limit === 'number' ? prev.token_limit : -1)),
+          tool_ids: data.local.tool_ids ?? agent.prompt?.tool_ids ?? prev.tool_ids ?? [],
+          built_in_tools: data.local.built_in_tools ?? agent.prompt?.built_in_tools ?? prev.built_in_tools ?? {},
+          mcp_server_ids: data.local.mcp_server_ids ?? agent.prompt?.mcp_server_ids ?? prev.mcp_server_ids ?? [],
+          native_mcp_server_ids: data.local.native_mcp_server_ids ?? agent.prompt?.native_mcp_server_ids ?? prev.native_mcp_server_ids ?? [],
+          knowledge_base: data.local.knowledge_base ?? agent.prompt?.knowledge_base ?? prev.knowledge_base ?? [],
+          custom_llm: data.local.custom_llm ?? agent.prompt?.custom_llm ?? prev.custom_llm ?? null,
+          ignore_default_personality: data.local.ignore_default_personality ?? agent.prompt?.ignore_default_personality ?? prev.ignore_default_personality ?? false,
+          rag: data.local.rag ?? agent.prompt?.rag ?? prev.rag ?? {},
+          timezone: data.local.timezone ?? agent.prompt?.timezone ?? prev.timezone ?? null,
+          tools: data.local.tools ?? agent.prompt?.tools ?? prev.tools ?? [],
+          first_message: data.local.first_message ?? agent.first_message ?? prev.first_message ?? '',
+          custom_llm_url: data.local.custom_llm_url ?? agent.custom_llm_url ?? prev.custom_llm_url ?? '',
+          custom_llm_model_id: data.local.custom_llm_model_id ?? agent.custom_llm_model_id ?? prev.custom_llm_model_id ?? '',
+          custom_llm_api_key: data.local.custom_llm_api_key ?? agent.custom_llm_api_key ?? prev.custom_llm_api_key ?? '',
+          custom_llm_headers: data.local.custom_llm_headers ?? agent.custom_llm_headers ?? prev.custom_llm_headers ?? [],
+        }));
+        setFirstMessage(agent.first_message || '');
+        setSystemPrompt(agent.prompt?.prompt || '');
+        setWidgetConfig({
+          voice: widget.voice || '',
+          multi_voice: widget.multi_voice || false,
+          use_flash: widget.use_flash || false,
+          tts_output_format: widget.tts_output_format || 'PCM 16000 Hz',
+          pronunciation_dictionaries: widget.pronunciation_dictionaries || [],
+          latency: widget.latency || 0.5,
+          stability: widget.stability || 0.5,
+          speed: widget.speed || 0.5,
+          similarity: widget.similarity || 0.5,
+          feedback_collection: widget.feedback_mode || 'during',
+          text_input: widget.text_input_enabled || false,
+          conversation_transcript: widget.transcript_enabled || false,
+          enable_muting: widget.mic_muting_enabled || false,
+          language_dropdown: widget.language_selector || false,
+          switch_to_text_only: widget.supports_text_only || false,
+          placement: widget.placement || 'bottom-right',
+          require_terms: widget.require_terms || false,
+          require_visitor_terms: widget.require_visitor_terms || false,
+        });
+        setVoiceConfig({
+          voice: tts.voice_id || '',
+          multi_voice: tts.multi_voice || false,
+          use_flash: tts.use_flash || false,
+          tts_output_format: tts.agent_output_audio_format || 'PCM 16000 Hz',
+          pronunciation_dictionaries: tts.pronunciation_dictionary_locators || [],
+          latency: tts.optimize_streaming_latency || 0.5,
+          stability: tts.stability || 0.5,
+          speed: tts.speed || 1,
+          similarity: tts.similarity_boost || 0.5,
+          multi_voice_ids: tts.multi_voice_ids || [],
+        });
+        setAdvancedConfig({
+          turn_timeout: cc.turn?.turn_timeout || 7,
+          silence_end_call_timeout: cc.turn?.silence_end_call_timeout || 20,
+          max_conversation_duration: cc.conversation?.max_duration_seconds || 300,
+          keywords: cc.asr?.keywords || '',
+          text_only: cc.conversation?.text_only || false,
+          user_input_audio_format: cc.asr?.user_input_audio_format || 'PCM 16000 Hz',
+          client_events: cc.conversation?.client_events || [],
+          privacy_settings: {
+            store_call_audio: privacy.record_voice || false,
+            zero_ppi_retention_mode: privacy.zero_retention_mode || false,
+          },
+          conversations_retention_period: privacy.retention_days || 730,
+          delete_transcript_and_derived_fields: privacy.delete_transcript_and_pii || false,
+          delete_audio: privacy.delete_audio || false,
+        });
+        setSecurityConfig({
+          enable_authentication: auth.enable_auth || false,
+          allowlist: auth.allowlist || [],
+          enable_overrides: false, // map as needed
+          fetch_initiation_client_data: false, // map as needed
+          post_call_webhook: '', // map as needed
+          enable_bursting: call_limits.bursting_enabled || false,
+          concurrent_calls_limit: call_limits.agent_concurrency_limit || -1,
+          daily_calls_limit: call_limits.daily_limit || 100000,
+        });
+        setAnalysisConfig({
+          evaluation_criteria: evaluation.criteria || [],
+          data_collection: [], // map as needed
+        });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-    // Fetch languages from DB
+    // Fetch languages from backend
     fetch('/api/languages')
       .then(res => res.json())
       .then(data => setLanguages(data.data || []));
@@ -497,23 +1013,63 @@ export default function AgentDetailsPage() {
     </div>
   );
 
-  // Save handler
+  // Save handler: PATCH to backend, which updates both local DB and ElevenLabs
   const handleSave = async () => {
     setSaveLoading(true);
     setSaveSuccess(false);
     setSaveError("");
     try {
-      const payload = {
-        local: localAgent,
-        elevenlabs: elevenLabsAgent
+      // Map UI state to correct ElevenLabs structure
+      const localPayload = {
+        language_code: agentSettings.language,
+        additional_languages: agentSettings.additional_languages,
+        llm: agentSettings.llm,
+        custom_llm_url: agentSettings.custom_llm_url,
+        custom_llm_model_id: agentSettings.custom_llm_model_id,
+        custom_llm_api_key: agentSettings.custom_llm_api_key,
+        custom_llm_headers: agentSettings.custom_llm_headers,
+        temperature: agentSettings.temperature,
+        token_limit: agentSettings.token_limit,
+        first_message: firstMessage,
+        system_prompt: systemPrompt,
+        language_id: languages.find(l => l.code === agentSettings.language)?.id || null,
       };
+      // Build ElevenLabs payload, including custom LLM fields if selected
+      const elevenLabsPayload = buildElevenLabsPayload({
+        agentSettings,
+        widgetConfig,
+        voiceConfig,
+        advancedConfig,
+        securityConfig,
+        analysisConfig,
+        firstMessage,
+        systemPrompt,
+        elevenLabsAgent,
+        allTools
+      });
+      if (agentSettings.llm === 'custom-llm') {
+        if (!elevenLabsPayload.conversation_config.agent.prompt.custom_llm) {
+          elevenLabsPayload.conversation_config.agent.prompt.custom_llm = {};
+        }
+        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.url = agentSettings.custom_llm_url;
+        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.model_id = agentSettings.custom_llm_model_id;
+        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.api_key = agentSettings.custom_llm_api_key;
+        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.headers = agentSettings.custom_llm_headers;
+      }
+      // Clean the payload to remove null/undefined
+      const cleanedPayload = cleanPayload(elevenLabsPayload);
+      const payload = {
+        local: localPayload,
+        elevenlabs: cleanedPayload
+      };
+      console.log('PATCH payload to backend:', payload); // Debug log
       const res = await fetch(`/api/agents/${agentId}/details`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.success) {
         setSaveSuccess(true);
       } else {
         setSaveError(data?.error || "Failed to save agent.");
@@ -528,13 +1084,11 @@ export default function AgentDetailsPage() {
   const agentName = localAgent.name || elevenLabsAgent.name || "New agent";
   const agentLanguage = localAgent.language || elevenLabsAgent.language || "en";
   const additionalLanguages = localAgent.additional_languages || elevenLabsAgent.additional_languages || [];
-  const firstMessage = localAgent.first_message || elevenLabsAgent.first_message || "";
   const firstMsgVars = localAgent.first_message_vars || elevenLabsAgent.first_message_vars || [];
   const setFirstMsgVars = (vars: string[]) => setLocalAgent((prev: any) => ({ ...prev, first_message_vars: vars }));
   const firstMsgVarInput = "";
   const setFirstMsgVarInput = (input: string) => {};
 
-  const systemPrompt = localAgent.system_prompt || elevenLabsAgent.system_prompt || "";
   const sysPromptVars = localAgent.system_prompt_vars || elevenLabsAgent.system_prompt_vars || [];
   const setSysPromptVars = (vars: string[]) => setLocalAgent((prev: any) => ({ ...prev, system_prompt_vars: vars }));
   const sysPromptVarInput = "";
@@ -560,17 +1114,170 @@ export default function AgentDetailsPage() {
   const tools = localAgent.tools || elevenLabsAgent.tools || [];
   const setTools = (values: string[]) => setLocalAgent((prev: any) => ({ ...prev, tools: values }));
 
-  // Use local state for firstMessage and systemPrompt for instant editing
-  const [firstMessageLocal, setFirstMessageLocal] = useState("");
-  const [systemPromptLocal, setSystemPromptLocal] = useState("");
+  // Filter enabled languages only
+  const enabledLanguages = languages.filter((l: any) => l.enabled);
 
-  // Sync local state with parent state on mount and when parent state changes
+  // Prepare options with just the language name for react-select, but use country_code for internal flag logic if needed
+  const languageOptions = enabledLanguages.map(l => ({
+    value: l.code,
+    label: (
+      <span style={{ display: 'flex', alignItems: 'center' }}>
+        {l.country_code && (
+          <img
+            src={`https://flagcdn.com/24x18/${l.country_code.toLowerCase()}.png`}
+            alt="flag"
+            style={{ width: 24, height: 18, marginRight: 8, borderRadius: 2, objectFit: 'cover', background: '#eee' }}
+          />
+        )}
+        {l.name}
+      </span>
+    ),
+    flag: l.country_code ? l.country_code.toLowerCase() : '',
+    name: l.name,
+  }));
+
+  // Agent Language: default to 'en' if not set, persist selection
+  const agentLanguageValue = agentSettings.language || 'en';
+
+  // Additional Languages: persist selection, allow multiple
+  const additionalLanguagesValue = agentSettings.additional_languages || [];
+
+  // For each tab, bind all fields to the correct state and update state on change
+  // Example for Agent tab:
+  // <select value={agentSettings.language} onChange={e => setAgentSettings(prev => ({ ...prev, language: e.target.value }))} ... />
+
+  // State for document picker
+  const [showDocPicker, setShowDocPicker] = useState(false);
+  const [availableDocs, setAvailableDocs] = useState<any[]>([]);
+  const [selectedDocs, setSelectedDocs] = useState<any[]>([]);
+  const [docTypeFilter, setDocTypeFilter] = useState<{ file: boolean; url: boolean; text: boolean }>({ file: false, url: false, text: false });
+  const [openDialog, setOpenDialog] = useState<null | 'url' | 'files' | 'text'>(null);
+  const docPickerRef = useRef<HTMLDivElement>(null);
+
+  // Close document picker on outside click
   useEffect(() => {
-    setFirstMessageLocal(localAgent.first_message || elevenLabsAgent.first_message || "");
-  }, [localAgent.first_message, elevenLabsAgent.first_message]);
+    function handleClick(e: MouseEvent) {
+      if (docPickerRef.current && !docPickerRef.current.contains(e.target as Node)) {
+        setShowDocPicker(false);
+      }
+    }
+    if (showDocPicker) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showDocPicker]);
+
+  // Fetch documents from ElevenLabs Knowledge Base API on mount
   useEffect(() => {
-    setSystemPromptLocal(localAgent.system_prompt || elevenLabsAgent.system_prompt || "");
-  }, [localAgent.system_prompt, elevenLabsAgent.system_prompt]);
+    const fetchDocs = async () => {
+      try {
+        const res = await fetch('https://api.elevenlabs.io/v1/convai/knowledge-base', {
+          headers: {
+            'xi-api-key': apiKey,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (!res.ok) throw new Error('Failed to fetch documents');
+        const data = await res.json();
+        // Ensure availableDocs is always an array
+        let docs = data.knowledge_bases || data.items || data;
+        if (!Array.isArray(docs)) docs = [];
+        setAvailableDocs(docs);
+      } catch (e) {
+        setAvailableDocs([]);
+      }
+    };
+    fetchDocs();
+  }, [apiKey]);
+
+  const [docTypeDropdownOpen, setDocTypeDropdownOpen] = useState(false);
+
+  // Add document dialog handlers
+  const [addDocLoading, setAddDocLoading] = useState(false);
+  const [addUrlInput, setAddUrlInput] = useState("");
+  const [addTextName, setAddTextName] = useState("");
+  const [addTextContent, setAddTextContent] = useState("");
+  const [addFile, setAddFile] = useState<File | null>(null);
+
+  async function handleAddUrl() {
+    setAddDocLoading(true);
+    try {
+      const localDbPayload = {
+        client_id: null, // client_id can be nullable
+        type: "url",
+        name: addUrlInput,
+        url: addUrlInput,
+        file_path: null,
+        text_content: null,
+        size: null,
+        created_by: "user@example.com", // replace with actual user email
+      };
+      await addKnowledgeBaseItem('url', { url: addUrlInput, name: addUrlInput }, apiKey, localDbPayload);
+      setAddUrlInput("");
+      setOpenDialog(null);
+      // Optionally refresh availableDocs here
+    } finally {
+      setAddDocLoading(false);
+    }
+  }
+  async function handleAddText() {
+    setAddDocLoading(true);
+    try {
+      const localDbPayload = {
+        client_id: null, // client_id can be nullable
+        type: "text",
+        name: addTextName,
+        url: null,
+        file_path: null,
+        text_content: addTextContent,
+        size: `${addTextContent.length} chars`,
+        created_by: "user@example.com", // replace with actual user email
+      };
+      await addKnowledgeBaseItem('text', { name: addTextName, text: addTextContent }, apiKey, localDbPayload);
+      setAddTextName("");
+      setAddTextContent("");
+      setOpenDialog(null);
+      // Optionally refresh availableDocs here
+    } finally {
+      setAddDocLoading(false);
+    }
+  }
+  async function handleAddFile() {
+    if (!addFile) return;
+    setAddDocLoading(true);
+    try {
+      const localDbPayload = {
+        client_id: null, // client_id can be nullable
+        type: "file",
+        name: addFile.name,
+        url: null,
+        file_path: "/uploads/" + addFile.name, // replace with actual upload logic
+        text_content: null,
+        size: `${(addFile.size / 1024).toFixed(1)} kB`,
+        created_by: "user@example.com", // replace with actual user email
+      };
+      await addKnowledgeBaseItem('file', { name: addFile.name }, apiKey, localDbPayload);
+      setAddFile(null);
+      setOpenDialog(null);
+      // Optionally refresh availableDocs here
+    } finally {
+      setAddDocLoading(false);
+    }
+  }
+
+  // Add at the top of AgentDetailsPage
+  const [elevenVoices, setElevenVoices] = useState<any[]>([]);
+  const [multiVoices, setMultiVoices] = useState<string[]>(voiceConfig.multi_voice_ids || []);
+  const [voicesLoading, setVoicesLoading] = useState(false);
+
+  useEffect(() => {
+    setVoicesLoading(true);
+    api.elevenLabs.getVoices(process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY)
+      .then(async (res: Response) => {
+        const data = await res.json();
+        setElevenVoices(data.voices || []);
+      })
+      .catch(() => setElevenVoices([]))
+      .finally(() => setVoicesLoading(false));
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -617,42 +1324,40 @@ export default function AgentDetailsPage() {
               <div className="text-center text-gray-500">Loading agent data...</div>
             ) : (
               <>
-                {/* Agent Language */}
+                {/* Agent Language (single select with flag) */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">Agent Language</div>
                   <div className="text-gray-500 text-sm mb-2">Choose the default language the agent will communicate in.</div>
-                  <select
-                    value={agentLanguage}
-                    onChange={e => setAgentSettings((prev: typeof agentSettings) => ({ ...prev, language: e.target.value }))}
-                    className="border rounded px-3 py-2 w-48"
-                  >
-                    {languages.map(l => (
-                      <option key={l.id} value={l.code}>{l.name}</option>
-                    ))}
-                  </select>
+                  <Select
+                    value={languageOptions.find(opt => opt.value === agentSettings.language)}
+                    onChange={opt => setAgentSettings(prev => ({ ...prev, language: opt?.value || 'en' }))}
+                    options={languageOptions}
+                    isSearchable
+                    placeholder="Select language"
+                    classNamePrefix="react-select"
+                  />
                 </div>
-                {/* Additional Languages */}
+                {/* Additional Languages (multi select with flags) */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">Additional Languages</div>
                   <div className="text-gray-500 text-sm mb-2">Specify additional languages which callers can choose from.</div>
-                  <select
-                    multiple
-                    value={additionalLanguages}
-                    onChange={e => setAgentSettings((prev: typeof agentSettings) => ({ ...prev, additional_languages: Array.from(e.target.selectedOptions, o => o.value) }))}
-                    className="border rounded px-3 py-2 w-64 h-20"
-                  >
-                    {languages.map(l => (
-                      <option key={l.id} value={l.code}>{l.name}</option>
-                    ))}
-                  </select>
+                  <Select
+                    value={languageOptions.filter(opt => agentSettings.additional_languages.includes(opt.value))}
+                    onChange={opts => setAgentSettings(prev => ({ ...prev, additional_languages: (opts || []).map((o: any) => o.value) }))}
+                    options={languageOptions}
+                    isMulti
+                    isSearchable
+                    placeholder="Add additional languages"
+                    classNamePrefix="react-select"
+                  />
                 </div>
                 {/* First Message */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">First message</div>
                   <div className="text-gray-500 text-sm mb-2">The first message the agent will say. If empty, the agent will wait for the user to start the conversation.</div>
                   <VariableTextarea
-                    value={firstMessageLocal}
-                    onChange={setFirstMessageLocal}
+                    value={firstMessage}
+                    onChange={setFirstMessage}
                     placeholder="e.g. Hello! How can I help you today?"
                   />
                 </div>
@@ -661,8 +1366,8 @@ export default function AgentDetailsPage() {
                   <div className="font-semibold">System prompt</div>
                   <div className="text-gray-500 text-sm mb-2">The system prompt is used to determine the persona of the agent and the context of the conversation. <span className="underline cursor-pointer">Learn more</span></div>
                   <VariableTextarea
-                    value={systemPromptLocal}
-                    onChange={setSystemPromptLocal}
+                    value={systemPrompt}
+                    onChange={setSystemPrompt}
                     placeholder="Describe the desired agent (e.g., a customer support agent for ElevenLabs)"
                     dropdownButtonLabel={"+ Add Variable"}
                     showTimezoneButton={true}
@@ -672,36 +1377,135 @@ export default function AgentDetailsPage() {
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">Dynamic Variables</div>
                   <div className="text-gray-500 text-sm mb-2">Variables like <span className="bg-gray-100 px-1 rounded">&#123;&#123;user_name&#125;&#125;</span> in your prompts and first message will be replaced with actual values when the conversation starts. <span className="underline cursor-pointer">Learn more</span></div>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {dynamicVars.map((v: string) => (
-                      <span key={v} className="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-1">
-                        {v} <button type="button" onClick={() => removeVar(v, dynamicVars, setDynamicVars)} className="text-red-500">×</button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <input
-                      value={dynamicVarInput}
-                      onChange={e => setDynamicVarInput(e.target.value)}
-                      className="border rounded px-3 py-2 flex-1"
-                      placeholder="Add dynamic variable"
-                    />
-                    <button type="button" onClick={() => addVar(dynamicVarInput, setDynamicVarInput, dynamicVars, setDynamicVars)} className="bg-gray-200 px-3 py-2 rounded">+ Add Variable</button>
-                  </div>
+                  {/* Removed input and button for adding variables */}
                 </div>
                 {/* LLM */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">LLM</div>
                   <div className="text-gray-500 text-sm mb-2">Select which provider and model to use for the LLM.</div>
                   <select
-                    value={llm}
-                    onChange={e => setLlm(e.target.value)}
+                    value={agentSettings.llm}
+                    onChange={e => setAgentSettings(prev => ({ ...prev, llm: e.target.value }))}
                     className="border rounded px-3 py-2 w-64"
                   >
                     {LLM_MODELS.map(m => (
                       <option key={m.value} value={m.value}>{m.label}</option>
                     ))}
                   </select>
+                  {agentSettings.llm === "custom-llm" && (
+                    <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-4 mt-4">
+                      <div>
+                        <label className="font-semibold">Server URL</label>
+                        <input
+                          type="text"
+                          className="border rounded px-3 py-2 w-full mt-1"
+                          placeholder="https://api.openai.com/v1"
+                          value={agentSettings.custom_llm_url || ""}
+                          onChange={e => setAgentSettings(prev => ({ ...prev, custom_llm_url: e.target.value }))}
+                        />
+                        <div className="text-xs text-gray-500 mt-1">
+                          The server is expected to match the OpenAI <a href="https://platform.openai.com/docs/api-reference/chat/create" target="_blank" rel="noopener noreferrer" className="underline">create chat completions API</a>.<br />
+                          We will send the requests to <b>&lt;Server URL&gt;/chat/completions</b> endpoint on the server.
+                        </div>
+                      </div>
+                      <div>
+                        <label className="font-semibold">Model ID</label>
+                        <input
+                          type="text"
+                          className="border rounded px-3 py-2 w-full mt-1"
+                          value={agentSettings.custom_llm_model_id || ""}
+                          onChange={e => setAgentSettings(prev => ({ ...prev, custom_llm_model_id: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold">API Key</label>
+                        <input
+                          type="text"
+                          className="border rounded px-3 py-2 w-full mt-1"
+                          value={agentSettings.custom_llm_api_key || ""}
+                          onChange={e => setAgentSettings(prev => ({ ...prev, custom_llm_api_key: e.target.value }))}
+                          placeholder="None"
+                        />
+                        <div className="text-xs text-gray-500 mt-1">
+                          We strongly suggest using an API key to authenticate with your LLM server.
+                        </div>
+                      </div>
+                      <div>
+                        <label className="font-semibold">Request Headers</label>
+                        <button
+                          className="bg-gray-200 px-3 py-2 rounded mt-2"
+                          onClick={() =>
+                            setAgentSettings(prev => ({
+                              ...prev,
+                              custom_llm_headers: [
+                                ...(prev.custom_llm_headers || []),
+                                { type: "Secret", name: "", secret: "" }
+                              ]
+                            }))
+                          }
+                        >
+                          Add header
+                        </button>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Define headers that will be sent with requests to your LLM.
+                        </div>
+                        {(agentSettings.custom_llm_headers || []).map((header, idx) => (
+                          <div key={idx} className="border rounded p-3 mt-3 flex flex-col gap-2">
+                            <div className="flex gap-2">
+                              <select
+                                value={header.type}
+                                onChange={e => {
+                                  const newHeaders = [...agentSettings.custom_llm_headers];
+                                  newHeaders[idx].type = e.target.value;
+                                  setAgentSettings(prev => ({ ...prev, custom_llm_headers: newHeaders }));
+                                }}
+                                className="border rounded px-2 py-1"
+                              >
+                                <option value="Text">Value</option>
+                                <option value="Secret">Secret</option>
+                                <option value="Dynamic Variable">Dynamic Variable</option>
+                              </select>
+                              <input
+                                type="text"
+                                placeholder="Name"
+                                value={header.name}
+                                onChange={e => {
+                                  const newHeaders = [...agentSettings.custom_llm_headers];
+                                  newHeaders[idx].name = e.target.value;
+                                  setAgentSettings(prev => ({ ...prev, custom_llm_headers: newHeaders }));
+                                }}
+                                className="border rounded px-2 py-1 flex-1"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs">
+                                {header.type === 'Text' ? 'Value' : header.type === 'Secret' ? 'Secret' : header.type === 'Dynamic Variable' ? 'Dynamic Variable' : 'Value'}
+                              </label>
+                              <input
+                                type="text"
+                                value={header.secret}
+                                onChange={e => {
+                                  const newHeaders = [...agentSettings.custom_llm_headers];
+                                  newHeaders[idx].secret = e.target.value;
+                                  setAgentSettings(prev => ({ ...prev, custom_llm_headers: newHeaders }));
+                                }}
+                                className="border rounded px-2 py-1 w-full"
+                              />
+                            </div>
+                            <button
+                              className="bg-gray-200 px-3 py-1 rounded text-red-600 w-fit"
+                              onClick={() => {
+                                const newHeaders = agentSettings.custom_llm_headers.filter((_, i) => i !== idx);
+                                setAgentSettings(prev => ({ ...prev, custom_llm_headers: newHeaders }));
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {/* Temperature */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
@@ -709,23 +1513,158 @@ export default function AgentDetailsPage() {
                   <div className="text-gray-500 text-sm mb-2">Temperature is a parameter that controls the creativity or randomness of the responses generated by the LLM.</div>
                   <div className="flex gap-2 mb-2">
                     {tempPresets.map(p => (
-                      <button key={p.label} type="button" onClick={() => setTemperature(p.value)} className={`px-3 py-1 rounded ${temperature === p.value ? 'bg-black text-white' : 'bg-gray-200'}`}>{p.label}</button>
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => setAgentSettings(prev => ({ ...prev, temperature: Number(p.value) }))}
+                        className={`px-3 py-1 rounded ${Number(agentSettings.temperature) === Number(p.value) ? 'bg-black text-white' : 'bg-gray-200'}`}
+                      >
+                        {p.label}
+                      </button>
                     ))}
                   </div>
-                  <input type="range" min={0} max={1} step={0.01} value={temperature} onChange={e => setTemperature(Number(e.target.value))} className="w-full" />
-                  <div className="text-xs text-gray-500">Current: {temperature}</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={Number(agentSettings.temperature)}
+                    onChange={e => setAgentSettings(prev => ({ ...prev, temperature: Number(e.target.value) }))}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-gray-500">Current: {agentSettings.temperature}</div>
                 </div>
                 {/* Token Limit */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">Limit token usage</div>
                   <div className="text-gray-500 text-sm mb-2">Configure the maximum number of tokens that the LLM can predict. A limit will be applied if the value is greater than 0.</div>
-                  <input type="number" value={tokenLimit} onChange={e => setTokenLimit(Number(e.target.value))} className="border rounded px-3 py-2 w-32" />
+                  <input type="number" min={-1} value={tokenLimit} onChange={e => setTokenLimit(Number(e.target.value))} className="border rounded px-3 py-2 w-32" />
                 </div>
                 {/* Agent Knowledge Base */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">Agent knowledge base</div>
                   <div className="text-gray-500 text-sm mb-2">Provide the LLM with domain-specific information to help it answer questions more accurately.</div>
-                  <button type="button" className="bg-gray-200 px-3 py-2 rounded w-fit">Add document</button>
+                  <button
+                    type="button"
+                    className="bg-gray-200 px-3 py-2 rounded w-fit"
+                    onClick={() => setShowDocPicker(true)}
+                  >
+                    Add document
+                  </button>
+                  {/* Show selected docs */}
+                  {selectedDocs.length > 0 && (
+                    <div className="mt-2">
+                      {selectedDocs.map(doc => (
+                        <div key={doc.id} className="flex items-center gap-2 border-b py-2">
+                          <span>{doc.icon || (doc.type === 'web' ? '🌐' : doc.type === 'text' ? '📝' : '📄')}</span>
+                          <span className="font-medium">{doc.name || doc.title || doc.id}</span>
+                          <span className="text-xs text-gray-500">{doc.id}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Document picker modal/dropdown */}
+                  {showDocPicker && (
+                    <div ref={docPickerRef} className="absolute z-50 bg-white border rounded-xl shadow-lg p-3 mt-2 w-80" style={{ minWidth: 320 }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          className="border rounded px-3 py-2 w-full text-sm"
+                          placeholder="Search documents..."
+                          // Add search logic if needed
+                        />
+                        {/* +Type dropdown */}
+                        <div className="relative">
+                          <button
+                            className="border rounded px-2 py-1 text-xs font-medium"
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDocTypeDropdownOpen(v => !v);
+                            }}
+                          >
+                            + Type
+                          </button>
+                          {docTypeDropdownOpen && (
+                            <div className="absolute right-0 mt-2 w-32 bg-white border rounded shadow-lg z-10">
+                              {['file', 'url', 'text'].map(type => (
+                                <label key={type} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={docTypeFilter[type as keyof typeof docTypeFilter]}
+                                    onChange={e => setDocTypeFilter(f => ({ ...f, [type]: e.target.checked }))}
+                                  />
+                                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {Array.isArray(availableDocs) && availableDocs
+                          .filter(doc => {
+                            const types = Object.entries(docTypeFilter).filter(([k, v]) => v).map(([k]) => k);
+                            return types.length === 0 || types.includes(doc.type);
+                          })
+                          .map(doc => (
+                            <div
+                              key={doc.id}
+                              className="flex items-center gap-2 px-2 py-2 hover:bg-gray-100 cursor-pointer rounded"
+                              onClick={() => {
+                                setSelectedDocs(prev => [...prev, doc]);
+                                setShowDocPicker(false);
+                              }}
+                            >
+                              <span className="text-lg">{doc.icon || (doc.type === 'web' ? '🌐' : doc.type === 'text' ? '📝' : '📄')}</span>
+                              <span className="font-medium">{doc.name || doc.title || doc.id}</span>
+                              <span className="text-xs text-gray-500 ml-auto">{doc.id}</span>
+                            </div>
+                          ))}
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <button className="border rounded px-2 py-1 flex-1 text-xs" onClick={() => { setOpenDialog('url'); setShowDocPicker(false); }}>Add URL</button>
+                        <button className="border rounded px-2 py-1 flex-1 text-xs" onClick={() => { setOpenDialog('files'); setShowDocPicker(false); }}>Add Files</button>
+                        <button className="border rounded px-2 py-1 flex-1 text-xs" onClick={() => { setOpenDialog('text'); setShowDocPicker(false); }}>Create Text</button>
+                      </div>
+                    </div>
+                  )}
+                  {/* Add document dialogs (reuse or stub) */}
+                  {openDialog === 'url' && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+                      <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md">
+                        <div className="font-semibold text-lg mb-2">Add URL</div>
+                        <input className="border rounded px-3 py-2 w-full mb-3" placeholder="https://example.com" value={addUrlInput} onChange={e => setAddUrlInput(e.target.value)} />
+                        <div className="flex justify-end gap-2">
+                          <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setOpenDialog(null)} disabled={addDocLoading}>Cancel</button>
+                          <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddUrl} disabled={addDocLoading || !addUrlInput}>{addDocLoading ? 'Adding...' : 'Add'}</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {openDialog === 'files' && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+                      <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md">
+                        <div className="font-semibold text-lg mb-2">Add Files</div>
+                        <input type="file" className="mb-3" onChange={e => setAddFile(e.target.files?.[0] || null)} />
+                        <div className="flex justify-end gap-2">
+                          <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setOpenDialog(null)} disabled={addDocLoading}>Cancel</button>
+                          <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddFile} disabled={addDocLoading || !addFile}>{addDocLoading ? 'Adding...' : 'Add'}</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {openDialog === 'text' && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+                      <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md">
+                        <div className="font-semibold text-lg mb-2">Create Text</div>
+                        <input className="border rounded px-3 py-2 w-full mb-3" placeholder="Text Name" value={addTextName} onChange={e => setAddTextName(e.target.value)} />
+                        <textarea className="border rounded px-3 py-2 w-full mb-3 min-h-[100px]" placeholder="Enter your text content here" value={addTextContent} onChange={e => setAddTextContent(e.target.value)} />
+                        <div className="flex justify-end gap-2">
+                          <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setOpenDialog(null)} disabled={addDocLoading}>Cancel</button>
+                          <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddText} disabled={addDocLoading || !addTextName || !addTextContent}>{addDocLoading ? 'Creating...' : 'Create'}</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {/* Use RAG */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
@@ -735,37 +1674,128 @@ export default function AgentDetailsPage() {
                     <input type="checkbox" checked={useRag} onChange={e => setUseRag(e.target.checked)} /> Enable RAG
                   </label>
                 </div>
-                {/* Tools */}
+                {/* Tools (dynamic from API) */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">Tools</div>
                   <div className="text-gray-500 text-sm mb-2">Let the agent perform specific actions.</div>
-                  <div className="flex flex-wrap gap-4">
-                    {TOOL_OPTIONS.map(tool => (
-                      <label key={tool.value} className="flex items-center gap-2">
-                        <input type="checkbox" checked={tools.includes(tool.value)} onChange={e => setTools(e.target.checked ? [...tools, tool.value] : tools.filter((t: string) => t !== tool.value))} />
-                        {tool.label}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                {/* Custom Tools */}
-                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-                  <div className="font-semibold">Custom tools</div>
-                  <div className="text-gray-500 text-sm mb-2">Provide the agent with custom tools it can use to help users.</div>
-                  <button type="button" className="bg-gray-200 px-3 py-2 rounded w-fit">Add tool</button>
+                  {toolsLoading ? (
+                    <div className="text-gray-500">Loading tools...</div>
+                  ) : toolsError ? (
+                    <div className="text-red-500">{toolsError}</div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {/* Built-in tools */}
+                      {BUILT_IN_TOOLS.map(tool => (
+                        <div key={tool.name} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                          <div>
+                            <div className="font-medium">{tool.label}</div>
+                            <div className="text-xs text-gray-500">{tool.description}</div>
+                          </div>
+                          <label className="inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={agentSettings.tools.includes(tool.name)}
+                              onChange={e => {
+                                setAgentSettings(prev => ({
+                                  ...prev,
+                                  tools: e.target.checked
+                                    ? [...prev.tools, tool.name]
+                                    : prev.tools.filter((t: string) => t !== tool.name)
+                                }));
+                              }}
+                              className="sr-only peer"
+                            />
+                            <div className={`w-11 h-6 rounded-full transition-colors duration-200 ${agentSettings.tools.includes(tool.name) ? 'bg-blue-600' : 'bg-gray-200'}`}
+                              style={{ position: 'relative' }}>
+                              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${agentSettings.tools.includes(tool.name) ? 'translate-x-5' : ''}`}></div>
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                      {/* Custom tools from API (exclude built-in tool names) */}
+                      {allTools.filter(tool => !BUILT_IN_TOOLS.some(b => b.name === tool.name)).map(tool => (
+                        <div key={tool.id || tool.name} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                          <div>
+                            <div className="font-medium">{tool.name}</div>
+                            <div className="text-xs text-gray-500">{tool.description}</div>
+                          </div>
+                          <label className="inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={agentSettings.tools.includes(tool.name)}
+                              onChange={e => {
+                                setAgentSettings(prev => ({
+                                  ...prev,
+                                  tools: e.target.checked
+                                    ? [...prev.tools, tool.name]
+                                    : prev.tools.filter((t: string) => t !== tool.name)
+                                }));
+                              }}
+                              className="sr-only peer"
+                            />
+                            <div className={`w-11 h-6 rounded-full transition-colors duration-200 ${agentSettings.tools.includes(tool.name) ? 'bg-blue-600' : 'bg-gray-200'}`}
+                              style={{ position: 'relative' }}>
+                              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${agentSettings.tools.includes(tool.name) ? 'translate-x-5' : ''}`}></div>
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {/* Custom MCP Servers */}
-                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2 relative">
                   <div className="font-semibold">Custom MCP Servers</div>
                   <div className="text-gray-500 text-sm mb-2">Provide the agent with Model Context Protocol servers to extend its capabilities.</div>
-                  <button type="button" className="bg-gray-200 px-3 py-2 rounded w-fit">Add Server</button>
+                  <div className="relative">
+                    <button
+                      className="bg-gray-200 px-3 py-2 rounded w-fit"
+                      onClick={() => setShowMcpDialog(v => !v)}
+                    >
+                      Add Server
+                    </button>
+                    {showMcpDialog && (
+                      <div className="absolute z-50 bg-white border rounded shadow-lg mt-2 right-0 min-w-[320px]" style={{ minWidth: 320 }}>
+                        {(!mcpServers || mcpServers.length === 0) ? (
+                          <>
+                            <div className="text-center text-gray-500 py-4">No MCP Servers found</div>
+                            <button
+                              className="w-full border rounded px-3 py-2 mb-2 font-medium flex items-center justify-center gap-2 hover:bg-gray-50"
+                              onClick={() => { setShowMcpDrawer(true); setShowMcpDialog(false); }}
+                            >
+                              <span className="text-xl font-bold">+</span> New Custom MCP Server
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="max-h-60 overflow-y-auto divide-y">
+                              {mcpServers.map((server: any, idx: number) => (
+                                <div key={server.id || idx} className="px-4 py-3 hover:bg-gray-50 cursor-pointer">
+                                  <div className="font-medium">{server.name || 'MCP Server'}</div>
+                                  <div className="text-xs text-gray-500">{server.description || server.url || ''}</div>
+                                </div>
+                              ))}
+                            </div>
+                            <button
+                              className="w-full border rounded px-3 py-2 mb-2 font-medium flex items-center justify-center gap-2 hover:bg-gray-50"
+                              onClick={() => { setShowMcpDrawer(true); setShowMcpDialog(false); }}
+                            >
+                              <span className="text-xl font-bold">+</span> New Custom MCP Server
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {showMcpDrawer && (
+                      <NewCustomMcpServerDrawer open={showMcpDrawer} onClose={() => setShowMcpDrawer(false)} />
+                    )}
+                  </div>
                 </div>
                 {/* Workspace Secrets */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
                   <div className="font-semibold">Workspace Secrets</div>
                   <div className="text-gray-500 text-sm mb-2">Create and manage secure secrets that can be accessed across your workspace.</div>
                   <button type="button" className="bg-gray-200 px-3 py-2 rounded w-fit">Add secret</button>
-                  <div className="text-xs text-gray-500 mt-1">Used by 1 phone number: Test call</div>
                 </div>
                 {/* Workspace Auth Connections */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
@@ -790,31 +1820,175 @@ export default function AgentDetailsPage() {
             {/* Voice tab fields: voice select, multi-voice, use flash, TTS output, pronunciation dictionaries, latency, stability, speed, similarity */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Voice</div>
-              <select className="border rounded px-3 py-2 w-64"><option>Eric</option></select>
+              <div className="text-gray-500 text-sm mb-2">Select the ElevenLabs voice you want to use for the agent.</div>
+              <Select
+                isSearchable
+                isClearable={false}
+                value={elevenVoices.find(v => v.voice_id === voiceConfig.voice) ? {
+                  value: voiceConfig.voice,
+                  label: elevenVoices.find(v => v.voice_id === voiceConfig.voice)?.name,
+                  raw: elevenVoices.find(v => v.voice_id === voiceConfig.voice)
+                } : null}
+                onChange={(opt: any) => {
+                  if (opt && typeof opt === 'object' && !Array.isArray(opt) && 'value' in opt && typeof opt.value === 'string') {
+                    setVoiceConfig(prev => ({ ...prev, voice: opt.value }));
+                  } else {
+                    setVoiceConfig(prev => ({ ...prev, voice: '' }));
+                  }
+                }}
+                options={elevenVoices.map(v => ({
+                  value: v.voice_id,
+                  label: v.name,
+                  raw: v
+                }))}
+                formatOptionLabel={(option: any) => {
+                  const v = option.raw;
+                  return (
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `hsl(${v.voice_id.charCodeAt(0) * 13 % 360},70%,85%)` }}>
+                        <span className="text-base font-bold">{v.name?.[0] || '?'}</span>
+                      </div>
+                      <span>{v.name}</span>
+                      {v.labels?.use_case && (
+                        <span className="ml-2 text-xs text-gray-500 truncate max-w-[120px]">{v.labels.use_case}</span>
+                      )}
+                    </div>
+                  );
+                }}
+                styles={{
+                  option: (base, state) => ({ ...base, color: '#222', background: state.isSelected ? '#e0e7ff' : state.isFocused ? '#f3f4f6' : '#fff', fontWeight: state.isSelected ? 600 : 400 }),
+                  singleValue: base => ({ ...base, color: '#222' }),
+                  menu: base => ({ ...base, zIndex: 9999 }),
+                }}
+                classNamePrefix="voice-select"
+              />
             </div>
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Multi-voice support <span className="text-xs bg-gray-100 px-2 py-1 rounded ml-2">New</span></div>
-              <button className="bg-gray-200 px-3 py-2 rounded w-fit">Add voice</button>
+              <div className="text-gray-500 text-sm mb-2">Specify additional ElevenLabs voices that the agent can switch to on demand. Useful for multi-character/emotional agents or language tutoring.</div>
+              <Select
+                isMulti
+                isSearchable
+                value={multiVoices.map(id => {
+                  const v = elevenVoices.find(vv => vv.voice_id === id);
+                  return v ? {
+                    value: v.voice_id,
+                    label: v.name,
+                    raw: v
+                  } : null;
+                }).filter(Boolean)}
+                onChange={(opts: MultiValue<any>, _action: ActionMeta<any>) => {
+                  const selected = (opts || []).map((opt: any) => opt.value as string);
+                  setMultiVoices(selected);
+                  setVoiceConfig(prev => ({ ...prev, multi_voice_ids: selected }));
+                }}
+                options={elevenVoices.map(v => ({
+                  value: v.voice_id,
+                  label: v.name,
+                  raw: v
+                }))}
+                formatOptionLabel={(option: any) => {
+                  const v = option.raw;
+                  return (
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `hsl(${v.voice_id.charCodeAt(0) * 13 % 360},70%,85%)` }}>
+                        <span className="text-base font-bold">{v.name?.[0] || '?'}</span>
+                      </div>
+                      <span>{v.name}</span>
+                      {v.labels?.use_case && (
+                        <span className="ml-2 text-xs text-gray-500 truncate max-w-[120px]">{v.labels.use_case}</span>
+                      )}
+                    </div>
+                  );
+                }}
+                styles={{
+                  option: (base, state) => ({ ...base, color: '#222', background: state.isSelected ? '#e0e7ff' : state.isFocused ? '#f3f4f6' : '#fff', fontWeight: state.isSelected ? 600 : 400 }),
+                  multiValue: base => ({ ...base, background: '#e0e7ff', color: '#222', borderRadius: 6, padding: '0 4px' }),
+                  multiValueLabel: base => ({ ...base, color: '#222', fontWeight: 500 }),
+                  menu: base => ({ ...base, zIndex: 9999 }),
+                }}
+                classNamePrefix="voice-select"
+              />
             </div>
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <label className="flex items-center gap-2"><input type="checkbox" /> Use Flash</label>
-              <div className="text-xs text-gray-500">Your agent will use Flash v2.</div>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={voiceConfig.use_flash} onChange={e => setVoiceConfig(prev => ({ ...prev, use_flash: e.target.checked }))} /> Use Flash</label>
+              <div className="text-xs text-gray-500 mb-2">Flash is our new recommended model for low latency use cases. For more comparison between Turbo and Flash, <a href="https://help.elevenlabs.io/hc/en-us/articles/19156300388881-Turbo-vs-Flash" target="_blank" rel="noopener noreferrer" className="underline">refer here</a>. Consider using Turbo for better quality at higher latency. We also recommend using Turbo for non-latin languages.<br/>Your agent will use <b>Turbo v2</b>.</div>
             </div>
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">TTS output format</div>
-              <select className="border rounded px-3 py-2 w-64"><option>PCM 16000 Hz</option></select>
+              <div className="text-gray-500 text-sm mb-2">Select the output format you want to use for ElevenLabs text to speech.</div>
+              <select
+                value={voiceConfig.tts_output_format}
+                onChange={e => setVoiceConfig(prev => ({ ...prev, tts_output_format: e.target.value }))}
+                className="border rounded px-3 py-2 w-64"
+              >
+                <option>PCM 16000 Hz</option>
+                <option>PCM 8000 Hz</option>
+                <option>WAV</option>
+              </select>
             </div>
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Pronunciation Dictionaries</div>
+              <div className="text-gray-500 text-sm mb-2">Lexicon dictionary files will apply pronunciation replacements to agent responses. Currently, the phoneme function of the pronunciation dictionaries only works with the Turbo v2 model, while the alias function works with all models.</div>
               <button className="bg-gray-200 px-3 py-2 rounded w-fit">Add dictionary</button>
             </div>
             {/* Sliders for latency, stability, speed, similarity */}
-            {["Optimize streaming latency", "Stability", "Speed", "Similarity"].map(label => (
-              <div key={label} className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-                <div className="font-semibold">{label}</div>
-                <input type="range" min={0} max={1} step={0.01} className="w-full" />
+            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+              <div className="font-semibold">Optimize streaming latency <span className="ml-1">🕒</span></div>
+              <div className="text-gray-500 text-sm mb-2">Configure latency optimizations for the speech generation. Latency can be optimized at the cost of quality.</div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                value={String(typeof voiceConfig["latency"] === 'number' ? voiceConfig["latency"] : 0)}
+                onChange={e => setVoiceConfig(prev => ({ ...prev, ["latency"]: Number(e.target.value) }))}
+                  className="w-full"
+                />
+              <div className="text-xs text-gray-500">Current: {voiceConfig["latency"]}</div>
               </div>
-            ))}
+            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+              <div className="font-semibold">Stability</div>
+              <div className="text-gray-500 text-sm mb-2">Higher values will make speech more consistent, but it can also make it sound monotone. Lower values will make speech sound more expressive, but may lead to instabilities.</div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={String(typeof voiceConfig["stability"] === 'number' ? voiceConfig["stability"] : 0)}
+                onChange={e => setVoiceConfig(prev => ({ ...prev, ["stability"]: Number(e.target.value) }))}
+                className="w-full"
+              />
+              <div className="text-xs text-gray-500">Current: {voiceConfig["stability"]}</div>
+            </div>
+            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+              <div className="font-semibold">Speed</div>
+              <div className="text-gray-500 text-sm mb-2">Controls the speed of the generated speech. Values below 1.0 will slow down the speech, while values above 1.0 will speed it up. Extreme values may affect the quality of the generated speech.</div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={String(typeof voiceConfig["speed"] === 'number' ? voiceConfig["speed"] : 0)}
+                onChange={e => setVoiceConfig(prev => ({ ...prev, ["speed"]: Number(e.target.value) }))}
+                className="w-full"
+              />
+              <div className="text-xs text-gray-500">Current: {voiceConfig["speed"]}</div>
+            </div>
+            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+              <div className="font-semibold">Similarity</div>
+              <div className="text-gray-500 text-sm mb-2">Higher values will boost the overall clarity and consistency of the voice. Very high values may lead to artifacts. Adjusting this value to find the right balance is recommended.</div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={String(typeof voiceConfig["similarity"] === 'number' ? voiceConfig["similarity"] : 0)}
+                onChange={e => setVoiceConfig(prev => ({ ...prev, ["similarity"]: Number(e.target.value) }))}
+                className="w-full"
+              />
+              <div className="text-xs text-gray-500">Current: {voiceConfig["similarity"]}</div>
+            </div>
           </div>
         )}
         {activeTab === "Widget" && (
@@ -831,7 +2005,11 @@ export default function AgentDetailsPage() {
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Feedback collection</div>
               <div className="text-gray-500 text-sm mb-2">Callers will be able to provide feedback continuously during the conversation and after it ends. Information about which agent response caused the feedback will be collected.</div>
-              <select className="border rounded px-3 py-2 w-64">
+              <select
+                value={widgetConfig.feedback_collection}
+                onChange={e => setWidgetConfig(prev => ({ ...prev, feedback_collection: e.target.value }))}
+                className="border rounded px-3 py-2 w-64"
+              >
                 <option>During conversation</option>
                 <option>After conversation</option>
                 <option>Never</option>
@@ -841,11 +2019,11 @@ export default function AgentDetailsPage() {
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Interface</div>
               <div className="text-gray-500 text-sm mb-2">Configure parts of the widget interface.</div>
-              <label className="flex items-center gap-2"><input type="checkbox" /> Text input <span className="bg-gray-100 text-xs px-2 py-1 rounded ml-2">New</span></label>
-              <label className="flex items-center gap-2"><input type="checkbox" /> Allow switching to text-only mode <span className="bg-gray-100 text-xs px-2 py-1 rounded ml-2">New</span></label>
-              <label className="flex items-center gap-2"><input type="checkbox" /> Conversation transcript <span className="bg-gray-100 text-xs px-2 py-1 rounded ml-2">New</span></label>
-              <label className="flex items-center gap-2"><input type="checkbox" /> Language dropdown</label>
-              <label className="flex items-center gap-2"><input type="checkbox" /> Enable muting during a call</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={widgetConfig.text_input} onChange={e => setWidgetConfig(prev => ({ ...prev, text_input: e.target.checked }))} /> Text input <span className="bg-gray-100 text-xs px-2 py-1 rounded ml-2">New</span></label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={widgetConfig.switch_to_text_only} onChange={e => setWidgetConfig(prev => ({ ...prev, switch_to_text_only: e.target.checked }))} /> Allow switching to text-only mode <span className="bg-gray-100 text-xs px-2 py-1 rounded ml-2">New</span></label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={widgetConfig.conversation_transcript} onChange={e => setWidgetConfig(prev => ({ ...prev, conversation_transcript: e.target.checked }))} /> Conversation transcript <span className="bg-gray-100 text-xs px-2 py-1 rounded ml-2">New</span></label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={widgetConfig.language_dropdown} onChange={e => setWidgetConfig(prev => ({ ...prev, language_dropdown: e.target.checked }))} /> Language dropdown</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={widgetConfig.enable_muting} onChange={e => setWidgetConfig(prev => ({ ...prev, enable_muting: e.target.checked }))} /> Enable muting during a call</label>
             </div>
             {/* Appearance */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
@@ -858,7 +2036,11 @@ export default function AgentDetailsPage() {
               </div>
               <div className="flex flex-col gap-2">
                 <label className="font-medium">Placement</label>
-                <select className="border rounded px-3 py-2 w-64">
+                <select
+                  value={widgetConfig.placement}
+                  onChange={e => setWidgetConfig(prev => ({ ...prev, placement: e.target.value }))}
+                  className="border rounded px-3 py-2 w-64"
+                >
                   <option>Bottom-right</option>
                   <option>Bottom-left</option>
                   <option>Top-right</option>
@@ -901,7 +2083,7 @@ export default function AgentDetailsPage() {
             {/* Terms and conditions */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <label className="flex items-center gap-2 mb-2">
-                <input type="checkbox" /> Terms and conditions
+                <input type="checkbox" checked={widgetConfig.require_terms} onChange={e => setWidgetConfig(prev => ({ ...prev, require_terms: e.target.checked }))} /> Terms and conditions
                 <span className="text-gray-500 text-sm">Require the caller to accept your terms and conditions before initiating a call.</span>
               </label>
               <div className="flex flex-col gap-2">
@@ -918,7 +2100,7 @@ export default function AgentDetailsPage() {
               <label className="font-medium">Description</label>
               <input type="text" className="border rounded px-2 py-1 w-full" placeholder="Chat with AI" />
               <label className="flex items-center gap-2 mt-2">
-                <input type="checkbox" /> Require visitors to accept our terms
+                <input type="checkbox" checked={widgetConfig.require_visitor_terms} onChange={e => setWidgetConfig(prev => ({ ...prev, require_visitor_terms: e.target.checked }))} /> Require visitors to accept our terms
               </label>
             </div>
           </div>
@@ -952,7 +2134,7 @@ export default function AgentDetailsPage() {
             {/* Text only toggle */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <label className="flex items-center gap-2">
-                <input type="checkbox" /> Text only
+                <input type="checkbox" checked={advancedConfig.text_only} onChange={e => setAdvancedConfig(prev => ({ ...prev, text_only: e.target.checked }))} /> Text only
                 <span className="text-gray-500 text-sm">If enabled audio will not be processed and only text will be used.</span>
               </label>
             </div>
@@ -960,7 +2142,11 @@ export default function AgentDetailsPage() {
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">User input audio format</div>
               <div className="text-gray-500 text-sm mb-2">Select the input format you want to use for automatic speech recognition.</div>
-              <select className="border rounded px-3 py-2 w-64">
+              <select
+                value={advancedConfig.user_input_audio_format}
+                onChange={e => setAdvancedConfig(prev => ({ ...prev, user_input_audio_format: e.target.value }))}
+                className="border rounded px-3 py-2 w-64"
+              >
                 <option>PCM 16000 Hz</option>
                 <option>PCM 8000 Hz</option>
                 <option>WAV</option>
@@ -980,8 +2166,8 @@ export default function AgentDetailsPage() {
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Privacy Settings</div>
               <div className="text-gray-500 text-sm mb-2">This section allows you to configure the privacy settings for the agent.</div>
-              <label className="flex items-center gap-2"><input type="checkbox" /> Store Call Audio</label>
-              <label className="flex items-center gap-2"><input type="checkbox" /> Zero-PII Retention Mode <span className="text-xs text-gray-400">&#9432;</span></label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.privacy_settings.store_call_audio} onChange={e => setAdvancedConfig(prev => ({ ...prev, privacy_settings: { ...prev.privacy_settings, store_call_audio: e.target.checked } }))} /> Store Call Audio</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.privacy_settings.zero_ppi_retention_mode} onChange={e => setAdvancedConfig(prev => ({ ...prev, privacy_settings: { ...prev.privacy_settings, zero_ppi_retention_mode: e.target.checked } }))} /> Zero-PII Retention Mode <span className="text-xs text-gray-400">&#9432;</span></label>
             </div>
             {/* Conversations Retention Period */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
@@ -991,8 +2177,8 @@ export default function AgentDetailsPage() {
             </div>
             {/* Delete Transcript and Derived Fields, Delete Audio */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <label className="flex items-center gap-2"><input type="checkbox" /> Delete Transcript and Derived Fields (PII)</label>
-              <label className="flex items-center gap-2"><input type="checkbox" /> Delete Audio</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.delete_transcript_and_derived_fields} onChange={e => setAdvancedConfig(prev => ({ ...prev, delete_transcript_and_derived_fields: e.target.checked }))} /> Delete Transcript and Derived Fields (PII)</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.delete_audio} onChange={e => setAdvancedConfig(prev => ({ ...prev, delete_audio: e.target.checked }))} /> Delete Audio</label>
             </div>
           </div>
         )}
@@ -1001,7 +2187,7 @@ export default function AgentDetailsPage() {
             {/* Enable authentication */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <label className="flex items-center gap-2">
-                <input type="checkbox" /> Enable authentication
+                <input type="checkbox" checked={securityConfig.enable_authentication} onChange={e => setSecurityConfig(prev => ({ ...prev, enable_authentication: e.target.checked }))} /> Enable authentication
                 <span className="text-gray-500 text-sm">Require users to authenticate before connecting to the agent.</span>
               </label>
             </div>
@@ -1020,13 +2206,13 @@ export default function AgentDetailsPage() {
               <div className="font-semibold">Enable overrides</div>
               <div className="text-gray-500 text-sm mb-2">Choose which parts of the config can be overridden by the client at the start of the conversation.</div>
               {['Agent language', 'First message', 'System prompt', 'Voice', 'Text only'].map(f => (
-                <label key={f} className="flex items-center gap-2"><input type="checkbox" /> {f}</label>
+                <label key={f} className="flex items-center gap-2"><input type="checkbox" checked={securityConfig.enable_overrides} onChange={e => setSecurityConfig(prev => ({ ...prev, enable_overrides: e.target.checked }))} /> {f}</label>
               ))}
             </div>
             {/* Fetch initiation client data from webhook */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <label className="flex items-center gap-2">
-                <input type="checkbox" /> Fetch initiation client data from webhook
+                <input type="checkbox" checked={securityConfig.fetch_initiation_client_data} onChange={e => setSecurityConfig(prev => ({ ...prev, fetch_initiation_client_data: e.target.checked }))} /> Fetch initiation client data from webhook
                 <span className="text-gray-500 text-sm">If enabled, the conversation initiation client data will be fetched from the webhook defined in the settings when receiving Twilio or SIP trunk calls.</span>
               </label>
             </div>
@@ -1041,7 +2227,7 @@ export default function AgentDetailsPage() {
             {/* Enable bursting */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <label className="flex items-center gap-2">
-                <input type="checkbox" /> Enable bursting
+                <input type="checkbox" checked={securityConfig.enable_bursting} onChange={e => setSecurityConfig(prev => ({ ...prev, enable_bursting: e.target.checked }))} /> Enable bursting
                 <span className="text-gray-500 text-sm">If enabled, the agent can exceed the workspace subscription concurrency limit by up to 3 times, with excess calls charged at double the normal rate.</span>
               </label>
             </div>
@@ -1077,3 +2263,16 @@ export default function AgentDetailsPage() {
     </div>
   );
 } 
+
+// Helper function for tool descriptions
+function getToolDescription(value: string) {
+  switch (value) {
+    case 'end_call': return 'Gives agent the ability to end the call with the user.';
+    case 'language_detection': return 'Gives agent the ability to change the language during conversation.';
+    case 'skip_turn': return 'Agent will skip its turn if user explicitly indicates they need a moment.';
+    case 'transfer_to_agent': return 'Gives agent the ability to transfer the call to another AI agent.';
+    case 'transfer_to_number': return 'Gives agent the ability to transfer the call to a human.';
+    case 'play_keypad_tone': return 'Gives agent the ability to play keypad touch tones during a phone call.';
+    default: return '';
+  }
+}

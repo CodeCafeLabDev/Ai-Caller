@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Search, PlusCircle, Edit2, Eye, Archive, BookOpen, Check, ChevronsUpDown, ListFilter } from "lucide-react";
+import { Search, PlusCircle, Edit2, Eye, Archive, BookOpen, Check, ChevronsUpDown, ListFilter, ClipboardCopy } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/cn";
 import { Globe, FileText, Upload, MoreHorizontal, Download } from "lucide-react";
@@ -67,12 +67,98 @@ export default function KnowledgeBasePage() {
   const [uploadProgress, setUploadProgress] = useState(0); // 0 to 100
   const [isDetailsSheetOpen, setIsDetailsSheetOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<KnowledgeBaseArticle | null>(null);
+  const [localMeta, setLocalMeta] = useState<{ [id: string]: any }>({});
+  const [detailsSize, setDetailsSize] = useState<string | null>(null);
+
+  // ElevenLabs API helpers
+  const ELEVENLABS_API = 'https://api.elevenlabs.io/v1/convai/knowledge-base';
+  const ELEVENLABS_API_KEY = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '';
+  console.log('ELEVENLABS_API_KEY (should not be empty):', ELEVENLABS_API_KEY);
+
+  async function fetchElevenLabsKnowledgeBase() {
+    const res = await fetch(ELEVENLABS_API, {
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json',
+      } as HeadersInit,
+    });
+    const data = await res.json();
+    console.log('ElevenLabs KB API response:', data); // Debug log
+    // Try all possible array properties, fallback to []
+    if (Array.isArray(data.knowledge_bases)) return data.knowledge_bases;
+    if (Array.isArray(data.items)) return data.items;
+    if (Array.isArray(data.documents)) return data.documents;
+    if (Array.isArray(data.data)) return data.data;
+    if (Array.isArray(data)) return data;
+    return [];
+  }
+
+  async function fetchElevenLabsDocument(id: string) {
+    const res = await fetch(`${ELEVENLABS_API}/${id}`, {
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json',
+      } as HeadersInit,
+    });
+    return await res.json();
+  }
+
+  async function updateElevenLabsDocument(id: string, updatePayload: any) {
+    const res = await fetch(`${ELEVENLABS_API}/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json',
+      } as HeadersInit,
+      body: JSON.stringify(updatePayload),
+    });
+    return await res.json();
+  }
+
+  async function deleteElevenLabsDocument(id: string) {
+    await fetch(`${ELEVENLABS_API}/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'xi-api-key': ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json',
+      } as HeadersInit,
+    });
+  }
+
+  // Helper to add a knowledge base item to ElevenLabs and local DB
+  async function addKnowledgeBaseItem(type: 'url' | 'text' | 'file', payload: any, apiKey: string, localDbPayload: any) {
+    let endpoint = '';
+    if (type === 'url') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/url';
+    if (type === 'text') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/text';
+    if (type === 'file') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/file';
+
+    // Only send required fields to ElevenLabs
+    let elevenLabsPayload = {};
+    if (type === 'url') elevenLabsPayload = { url: payload.url, name: payload.name };
+    if (type === 'text') elevenLabsPayload = { name: payload.name, text: payload.text_content || payload.text };
+    if (type === 'file') elevenLabsPayload = { name: payload.name };
+
+    // 1. Post to ElevenLabs
+    const elevenRes = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'xi-api-key': apiKey,
+        'Content-Type': 'application/json',
+      } as HeadersInit,
+      body: JSON.stringify(elevenLabsPayload),
+    });
+    const elevenData = await elevenRes.json();
+    console.log('ElevenLabs response:', elevenData);
+
+    // 2. Save to your local DB
+    await api.createKnowledgeBaseItem(localDbPayload);
+
+    return elevenData;
+  }
 
   // Fetch articles on load
   useEffect(() => {
-    api.getKnowledgeBase()
-      .then(res => res.json())
-      .then(data => setArticles(data.data || []));
+    fetchElevenLabsKnowledgeBase().then(setArticles);
   }, []);
 
   // Fetch clients on load
@@ -80,6 +166,22 @@ export default function KnowledgeBasePage() {
     api.getClients()
       .then(res => res.json())
       .then(data => setClients(data.data || []));
+  }, []);
+
+  // Merge localMeta by url (or name if url is missing)
+  async function fetchLocalMeta() {
+    const res = await api.getKnowledgeBase();
+    const data = await res.json();
+    const metaMap: { [key: string]: any } = {};
+    (data.data || []).forEach((item: any) => {
+      if (item.url) metaMap[item.url] = item;
+      else if (item.name) metaMap[item.name] = item;
+    });
+    setLocalMeta(metaMap);
+  }
+
+  useEffect(() => {
+    fetchLocalMeta();
   }, []);
 
   const filteredClients = clients.filter(client =>
@@ -118,123 +220,92 @@ export default function KnowledgeBasePage() {
     });
   };
 
-  // Add URL handler
+  // Add document dialog handlers
+  const [addDocLoading, setAddDocLoading] = useState(false);
+
   async function handleAddUrl() {
-    if (!selectedClientId || !urlInput) return;
-    const res = await api.createKnowledgeBaseItem({
-      client_id: selectedClientId,
-      type: "url",
-      name: urlInput,
-      url: urlInput,
-      file_path: null,
-      text_content: null,
-      size: null,
-    });
-    const data = await res.json();
-    if (data.success) {
-      setArticles(prev => [data.data, ...prev]);
+    setAddDocLoading(true);
+    try {
+      const localDbPayload = {
+        client_id: selectedClientId || null, // <-- use selected client
+        type: "url",
+        name: urlInput,
+        url: urlInput,
+        file_path: null,
+        text_content: null,
+        size: null,
+        created_by: "user@example.com", // replace with actual user email
+      };
+      await addKnowledgeBaseItem('url', { url: urlInput, name: urlInput }, ELEVENLABS_API_KEY, localDbPayload);
       setUrlInput("");
       setOpenDialog(null);
+      const docs = await fetchElevenLabsKnowledgeBase();
+      setArticles(docs);
+      await fetchLocalMeta();
+    } finally {
+      setAddDocLoading(false);
     }
   }
-
-  // Add Text handler
   async function handleAddText() {
-    if (!selectedClientId || !textName || !textContent) return;
-    const res = await api.createKnowledgeBaseItem({
-      client_id: selectedClientId,
-      type: "text",
-      name: textName,
-      url: null,
-      file_path: null,
-      text_content: textContent,
-      size: `${textContent.length} chars`,
-    });
-    const data = await res.json();
-    if (data.success) {
-      setArticles(prev => [data.data, ...prev]);
+    setAddDocLoading(true);
+    try {
+      const localDbPayload = {
+        client_id: selectedClientId || null, // <-- use selected client
+        type: "text",
+        name: textName,
+        url: null,
+        file_path: null,
+        text_content: textContent,
+        size: `${textContent.length} chars`,
+        created_by: "user@example.com", // replace with actual user email
+      };
+      await addKnowledgeBaseItem('text', { name: textName, text: textContent }, ELEVENLABS_API_KEY, localDbPayload);
       setTextName("");
       setTextContent("");
       setOpenDialog(null);
+      const docs = await fetchElevenLabsKnowledgeBase();
+      setArticles(docs);
+      await fetchLocalMeta();
+    } finally {
+      setAddDocLoading(false);
+    }
+  }
+  async function handleAddFile() {
+    if (!file) return;
+    setAddDocLoading(true);
+    try {
+      const localDbPayload = {
+        client_id: selectedClientId || null, // <-- use selected client
+        type: "file",
+        name: file.name,
+        url: null,
+        file_path: "/uploads/" + file.name, // replace with actual upload logic
+        text_content: null,
+        size: `${(file.size / 1024).toFixed(1)} kB`,
+        created_by: "user@example.com", // replace with actual user email
+      };
+      await addKnowledgeBaseItem('file', { name: file.name }, ELEVENLABS_API_KEY, localDbPayload);
+      setFile(null);
+      setOpenDialog(null);
+      const docs = await fetchElevenLabsKnowledgeBase();
+      setArticles(docs);
+      await fetchLocalMeta();
+    } finally {
+      setAddDocLoading(false);
     }
   }
 
-  // Add File handler
-  async function handleAddFile() {
-    if (!selectedClientId || !file) return;
-    setFileUploading(true);
-    setUploadProgress(0);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    // Use XMLHttpRequest for progress
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${API_BASE_URL}/api/upload`, true);
-    xhr.withCredentials = true;
-
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const percent = Math.round((event.loaded / event.total) * 100);
-        setUploadProgress(percent);
-      }
-    };
-
-    xhr.onload = async function () {
-      setFileUploading(false);
-      if (xhr.status === 200) {
-        const uploadData = JSON.parse(xhr.responseText);
-        if (!uploadData.success) {
-          toast({ title: "Upload failed", description: uploadData.message || "Unknown error", variant: "destructive" });
-          setUploadProgress(0);
-          return;
-        }
-        // Save file metadata
-        const res = await api.createKnowledgeBaseItem({
-          client_id: selectedClientId,
-          type: "file",
-          name: file.name,
-          url: null,
-          file_path: uploadData.file_path,
-          text_content: null,
-          size: `${(file.size / 1024).toFixed(1)} kB`,
-        });
-        const data = await res.json();
-        if (data.success) {
-          setArticles(prev => [data.data, ...prev]);
-          setFile(null);
-          setOpenDialog(null);
-          setUploadProgress(0);
-        } else {
-          toast({ title: "Save failed", description: data.message || "Unknown error", variant: "destructive" });
-          setUploadProgress(0);
-        }
-      } else {
-        toast({ title: "Upload failed", description: "Server error", variant: "destructive" });
-        setUploadProgress(0);
-      }
-    };
-
-    xhr.onerror = function () {
-      setFileUploading(false);
-      setUploadProgress(0);
-      toast({ title: "Upload failed", description: "Network error", variant: "destructive" });
-    };
-
-    xhr.send(formData);
-  }
-
-  // Add handlers for delete and copy ID
+  // Update delete handler to use ElevenLabs API and then local DB
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
     try {
-      const res = await api.deleteKnowledgeBaseItem(id);
-      if (res.ok) {
-        setArticles(prev => prev.filter(a => a.id !== id));
-        toast({ title: "Deleted", description: "Knowledge base item deleted." });
-      } else {
-        toast({ title: "Delete failed", description: "Could not delete item.", variant: "destructive" });
-      }
+      await deleteElevenLabsDocument(String(id));
+      // Optionally delete from local DB as well
+      await api.deleteKnowledgeBaseItem(String(id));
+      const docs = await fetchElevenLabsKnowledgeBase();
+      setArticles(docs);
+      await fetchLocalMeta();
+      toast({ title: "Deleted", description: "Knowledge base item deleted." });
     } catch (err) {
       toast({ title: "Delete failed", description: "Network or server error.", variant: "destructive" });
     }
@@ -248,6 +319,92 @@ export default function KnowledgeBasePage() {
       toast({ title: "Copy failed", description: "Could not copy ID.", variant: "destructive" });
     }
   };
+
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [detailsDoc, setDetailsDoc] = useState<any>(null);
+  const [detailsContent, setDetailsContent] = useState<string>('');
+  const [detailsAgents, setDetailsAgents] = useState<any[]>([]);
+  const [detailsDocId, setDetailsDocId] = useState<string | null>(null);
+  const [detailsLastUpdated, setDetailsLastUpdated] = useState<string | null>(null);
+
+  // Add at the top of the file (or inside the component)
+  function extractAllStrings(obj: any): string[] {
+    let result: string[] = [];
+    if (typeof obj === 'string' && obj.trim()) {
+      result.push(obj);
+    } else if (Array.isArray(obj)) {
+      for (const item of obj) {
+        result = result.concat(extractAllStrings(item));
+      }
+    } else if (typeof obj === 'object' && obj !== null) {
+      for (const value of Object.values(obj)) {
+        result = result.concat(extractAllStrings(value));
+      }
+    }
+    return result;
+  }
+
+  // Fetch details when a doc is selected
+  async function openDetailsDrawer(article: any) {
+    setDetailsOpen(true);
+    setDetailsLoading(true);
+    setDetailsError(null);
+    setDetailsDoc(article);
+    setDetailsDocId(article.id || article.document_id || null);
+    setDetailsLastUpdated(article.updated_at || article.last_updated || null);
+    // Always fetch content and size for the selected document
+    try {
+      // Fetch content
+      let content = '';
+      try {
+        const res = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${article.id}/content`, {
+          headers: {
+            'xi-api-key': ELEVENLABS_API_KEY,
+            'Content-Type': 'application/json',
+          } as HeadersInit,
+        });
+        const data = await res.json();
+        const allStrings = extractAllStrings(data);
+        content = allStrings.join('\n\n');
+      } catch (e) { content = ''; }
+      setDetailsContent(content);
+      // Fetch size
+      let size = null;
+      try {
+        const res2 = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${article.id}`, {
+          headers: {
+            'xi-api-key': ELEVENLABS_API_KEY,
+            'Content-Type': 'application/json',
+          } as HeadersInit,
+        });
+        const data2 = await res2.json();
+        size = data2.size || data2.document_size || data2.length || null;
+        if (!size && content) {
+          size = `${content.length} chars`;
+        }
+      } catch {}
+      setDetailsSize(size);
+      // Fetch dependent agents
+      let agents: any[] = [];
+      try {
+        const res = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${article.id}/dependent-agents`, {
+          headers: {
+            'xi-api-key': ELEVENLABS_API_KEY,
+            'Content-Type': 'application/json',
+          } as HeadersInit,
+        });
+        const data = await res.json();
+        agents = data.agents || data || [];
+      } catch (e) { agents = []; }
+      setDetailsAgents(agents);
+      setDetailsLoading(false);
+    } catch (err: any) {
+      setDetailsError('Failed to load details.');
+      setDetailsLoading(false);
+    }
+  }
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -314,7 +471,13 @@ export default function KnowledgeBasePage() {
                 <Input placeholder="https://example.com" className="h-12 text-base" value={urlInput} onChange={e => setUrlInput(e.target.value)} />
               </div>
               <div className="flex justify-end">
-                <Button className="bg-black text-white px-6 py-2 rounded-lg text-base" onClick={handleAddUrl}>Add URL</Button>
+                <Button 
+                  className="bg-black text-white px-6 py-2 rounded-lg text-base" 
+                  onClick={handleAddUrl}
+                  disabled={addDocLoading || !urlInput}
+                >
+                  {addDocLoading ? 'Adding...' : 'Add URL'}
+                </Button>
               </div>
             </div>
           </DialogContent>
@@ -376,9 +539,9 @@ export default function KnowledgeBasePage() {
                   <Button
                     className="bg-black text-white px-6 py-2 rounded-lg text-base"
                     onClick={handleAddFile}
-                    disabled={!file}
+                    disabled={!file || addDocLoading}
                   >
-                    Add File
+                    {addDocLoading ? 'Adding...' : 'Add File'}
                   </Button>
                 )}
               </div>
@@ -408,7 +571,13 @@ export default function KnowledgeBasePage() {
                 <Textarea placeholder="Enter your text content here" className="min-h-[120px] text-base" value={textContent} onChange={e => setTextContent(e.target.value)} />
               </div>
               <div className="flex justify-end">
-                <Button className="bg-black text-white px-6 py-2 rounded-lg text-base" onClick={handleAddText}>Create Text</Button>
+                <Button 
+                  className="bg-black text-white px-6 py-2 rounded-lg text-base" 
+                  onClick={handleAddText}
+                  disabled={addDocLoading || !textName || !textContent}
+                >
+                  {addDocLoading ? 'Creating...' : 'Create Text'}
+                </Button>
               </div>
             </div>
           </DialogContent>
@@ -491,122 +660,139 @@ export default function KnowledgeBasePage() {
             </tr>
           </thead>
           <tbody>
-            {paginatedArticles.map(article => (
-              <tr
-                key={article.id}
-                className="border-b hover:bg-gray-50 cursor-pointer"
-                onClick={() => {
-                  setSelectedDocument(article);
-                  setIsDetailsSheetOpen(true);
-                }}
-              >
-                <td className="flex items-center gap-3 px-6 py-4">
-                  {/* Use the correct icon for each type */}
-                  {(() => {
-                    const Icon = typeIcons[article.type as keyof typeof typeIcons];
-                    return Icon ? <Icon className="w-5 h-5 text-black" /> : null;
-                  })()}
-                  <div>
-                    <div className="font-medium text-base flex items-center gap-2">
-                      {article.name}
-                      {/* Download link for files */}
-                      {article.type === "file" && article.file_path && (
-                        <a
-                          href={`${API_BASE_URL}${article.file_path}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-2 text-gray-500 hover:text-black"
-                          title="Download file"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <Download className="w-4 h-4 inline" />
-                        </a>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground">{article.size}</div>
-                  </div>
-                </td>
-                <td className="px-6 py-4">{clients.find(c => c.id === article.client_id)?.companyName || '-'}</td>
-                <td className="px-6 py-4">{article.created_by || '-'}</td>
-                <td className="px-6 py-4">{article.updated_at ? new Date(article.updated_at).toLocaleString() : '-'}</td>
-                <td className="px-6 py-4 text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className="bg-gray-100 rounded-xl p-2 hover:bg-gray-200 focus:outline-none" onClick={e => e.stopPropagation()}>
-                        <MoreHorizontal className="w-5 h-5" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-48 mt-2 rounded-xl border shadow-lg">
-                      <DropdownMenuItem
-                        className="text-base px-4 py-2 cursor-pointer"
-                        onClick={e => { e.stopPropagation(); handleCopyId(article.id); }}
-                      >
-                        Copy document ID
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-base px-4 py-2 cursor-pointer text-red-600"
-                        onClick={e => { e.stopPropagation(); handleDelete(article.id); }}
-                      >
-                        Delete document
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </td>
+            {paginatedArticles.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="text-center text-gray-500 py-8">No knowledge base documents found.</td>
               </tr>
-            ))}
+            ) : (
+              paginatedArticles.map(article => {
+                const meta =
+                  (article.url ? localMeta[article.url] : undefined) ||
+                  (article.name ? localMeta[article.name] : undefined) ||
+                  {};
+                const clientName = meta.client_id ? (clients.find(c => c.id == meta.client_id)?.companyName || meta.client_id) : '-';
+                return (
+                  <tr
+                    key={article.id}
+                    className="border-b hover:bg-gray-50 cursor-pointer"
+                    onClick={() => openDetailsDrawer(article)}
+                  >
+                    <td className="flex items-center gap-3 px-6 py-4">
+                      {/* Use the correct icon for each type */}
+                      {(() => {
+                        const Icon = typeIcons[article.type as keyof typeof typeIcons];
+                        return Icon ? <Icon className="w-5 h-5 text-black" /> : null;
+                      })()}
+                      <div>
+                        <div className="font-medium text-base flex items-center gap-2">
+                          {article.name}
+                          {/* Download link for files */}
+                          {article.type === "file" && article.file_path && (
+                            <a
+                              href={`${API_BASE_URL}${article.file_path}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-2 text-gray-500 hover:text-black"
+                              title="Download file"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <Download className="w-4 h-4 inline" />
+                            </a>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{article.size}</div>
+                      </div>
+                    </td>
+                    <td>{clientName}</td>
+                    <td>{meta.created_by || '-'}</td>
+                    <td>{meta.updated_at ? new Date(meta.updated_at).toLocaleString() : '-'}</td>
+                    <td className="px-6 py-4 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="bg-gray-100 rounded-xl p-2 hover:bg-gray-200 focus:outline-none" onClick={e => e.stopPropagation()}>
+                            <MoreHorizontal className="w-5 h-5" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-48 mt-2 rounded-xl border shadow-lg">
+                          <DropdownMenuItem
+                            className="text-base px-4 py-2 cursor-pointer"
+                            onClick={e => { e.stopPropagation(); handleCopyId(article.id); }}
+                          >
+                            Copy document ID
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-base px-4 py-2 cursor-pointer text-red-600"
+                            onClick={e => { e.stopPropagation(); handleDelete(article.id); }}
+                          >
+                            Delete document
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
-      {/* Right-side details panel as overlay */}
-      <Sheet open={isDetailsSheetOpen} onOpenChange={setIsDetailsSheetOpen}>
-        <SheetContent side="right" className="sm:max-w-sm w-full flex flex-col">
-          <SheetHeader>
-            <SheetTitle>{selectedDocument?.name}</SheetTitle>
-            <div className="text-gray-500 mb-2 capitalize">{selectedDocument?.type}</div>
-          </SheetHeader>
-          <ScrollArea className="flex-1 px-0 pb-4">
-            {selectedDocument && (
-              <>
-                <div className="mb-2 text-sm">Document ID: <span className="font-mono text-xs">{selectedDocument.id}</span></div>
-                <div className="mb-2 text-sm">Client: {clients.find(c => c.id === selectedDocument.client_id)?.companyName}</div>
-                <div className="mb-2 text-sm">Created by: {selectedDocument.created_by}</div>
-                <div className="mb-2 text-sm">Last updated: {new Date(selectedDocument.updated_at).toLocaleString()}</div>
-                {selectedDocument.type === "url" && (
-                  <div className="mt-4">
-                    <div className="font-semibold mb-1">URL Content</div>
-                    <div className="bg-gray-50 p-3 rounded min-h-[120px] whitespace-pre-wrap text-sm">
-                      {selectedDocument.text_content || "No content extracted."}
+      {detailsOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black bg-opacity-30">
+          <div className="bg-white shadow-lg w-full max-w-2xl h-full overflow-y-auto relative flex flex-col" style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16 }}>
+            <button className="absolute top-4 right-4 text-gray-500 hover:text-black" onClick={() => setDetailsOpen(false)}>&times;</button>
+            <div className="p-8 flex-1 flex flex-col">
+              {detailsLoading ? (
+                <div className="text-center text-gray-500 py-8">Loading...</div>
+              ) : detailsError ? (
+                <div className="text-center text-red-500 py-8">{detailsError}</div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    {detailsDoc?.type === 'url' ? <Globe className="w-7 h-7" /> : <FileText className="w-7 h-7" />}
+                    <span className="text-2xl font-semibold">{detailsDoc?.name || detailsDoc?.title || detailsDoc?.id}</span>
+                    <span className="ml-auto text-xs text-gray-500">{detailsSize || detailsDoc?.size || '-'}</span>
+                  </div>
+                  <div className="mb-4 flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Document ID</span>
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{detailsDocId}</span>
+                    <button onClick={() => {navigator.clipboard.writeText(detailsDocId || '');}} className="ml-1 text-xs text-blue-600 hover:underline flex items-center gap-1"><ClipboardCopy className="w-4 h-4" />Copy</button>
+                  </div>
+                  <div className="mb-4 flex items-center gap-4">
+                    <div className="text-xs text-gray-500">Last updated</div>
+                    <div className="text-xs">{detailsLastUpdated ? new Date(detailsLastUpdated).toLocaleString() : '-'}</div>
+                  </div>
+                  <div className="mb-4">
+                    <div className="text-xs text-gray-500 mb-1">Dependent agents</div>
+                    {detailsAgents.length === 0 ? (
+                      <div className="text-xs">None</div>
+                    ) : (
+                      <ul className="text-xs list-disc ml-4">
+                        {detailsAgents.map((a, i) => <li key={i}>{a.name || a.agent_id || JSON.stringify(a)}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                  <div className="mb-2 flex-1 flex flex-col">
+                    <div className="text-xs text-gray-500 mb-1">Text Content</div>
+                    <div className="flex-1 min-h-0">
+                      <pre className="bg-gray-100 rounded p-3 h-full max-h-[60vh] overflow-auto text-xs whitespace-pre-wrap" style={{ minHeight: 200 }}>
+                        {(() => {
+                          const content = detailsContent || detailsDoc?.text_content || detailsDoc?.content || '';
+                          if (!content) return <span className="text-gray-400">No content available for this document.</span>;
+                          try {
+                            return JSON.stringify(JSON.parse(content), null, 2);
+                          } catch {
+                            return content;
+                          }
+                        })()}
+                      </pre>
                     </div>
                   </div>
-                )}
-                {selectedDocument.type === "text" && (
-                  <div className="mt-4">
-                    <div className="font-semibold mb-1">Text Content</div>
-                    <div className="bg-gray-50 p-3 rounded min-h-[120px] whitespace-pre-wrap text-sm">
-                      {selectedDocument.text_content}
-                    </div>
-                  </div>
-                )}
-                {selectedDocument.type === "file" && selectedDocument.file_path && (
-                  <div className="mt-4">
-                    <div className="font-semibold mb-1">File</div>
-                    <a
-                      href={`${API_BASE_URL}${selectedDocument.file_path}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      Download File
-                    </a>
-                  </div>
-                )}
-              </>
-            )}
-          </ScrollArea>
-          <SheetFooter className="px-0 pb-6 flex flex-row gap-2 justify-end">
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
