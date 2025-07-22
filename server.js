@@ -298,10 +298,13 @@ app.post('/api/elevenlabs/create-agent', async (req, res) => {
 
     function insertAgent(clientId) {
       console.log('Payload received:', payload);
-      console.log('client_id to insert:', clientId, typeof clientId);
+      // Ensure clientId is an integer or null
+      let safeClientId = clientId !== undefined && clientId !== null && clientId !== '' ? parseInt(clientId, 10) : null;
+      if (isNaN(safeClientId)) safeClientId = null;
+      console.log('client_id to insert:', safeClientId, typeof safeClientId);
       const insertValues = [
         agent.agent_id,
-        clientId,
+        safeClientId,
         agent.name || '',
         agent.description || '',
         agent.first_message || '',

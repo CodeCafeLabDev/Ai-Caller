@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Megaphone, Users, CreditCard, UserCircle, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, CreditCard, UserCircle, ChevronDown, ChevronRight, ClipboardList, Bot, History, Languages, Volume2, BookOpen, Import, UserPlus } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -43,6 +43,22 @@ const clientAdminNavItems: ClientAdminNavItem[] = [
       { href: '/client-admin/campaigns/call-history', label: 'Call History', icon: ClipboardList },
     ]
   },
+  // --- AI Agents Section Start ---
+  {
+    label: 'AI Agents',
+    icon: Bot,
+    basePath: '/client-admin/ai-agents',
+    subItems: [
+      { href: '/client-admin/ai-agents', label: 'Manage Agents', icon: Users },
+      { href: '/client-admin/ai-agents/create', label: 'Create Agent', icon: UserPlus },
+      { href: '/client-admin/ai-agents/version-history', label: 'Version History', icon: History },
+      { href: '/client-admin/ai-agents/language-settings', label: 'Language Settings', icon: Languages },
+      { href: '/client-admin/ai-agents/voices', label: 'Voices', icon: Volume2 },
+      { href: '/client-admin/ai-agents/knowledge-base', label: 'Knowledge Base', icon: BookOpen },
+      { href: '/client-admin/ai-agents/import-export', label: 'Import/Export JSON', icon: Import },
+    ]
+  },
+  // --- AI Agents Section End ---
   { href: '/client-admin/users', label: 'Manage Users', icon: Users, basePath: '/client-admin/users' },
   { href: '/client-admin/billing', label: 'Billing & Invoices', icon: CreditCard, basePath: '/client-admin/billing' },
   { href: '/client-admin/profile', label: 'My Profile', icon: UserCircle, basePath: '/client-admin/profile' },
@@ -76,7 +92,9 @@ export function ClientAdminSideNavigation() {
               <SidebarMenuButton
                 asChild={!item.subItems}
                 onClick={item.subItems ? () => toggleSubmenu(item.label) : undefined}
-                isActive={item.subItems ? (item.basePath ? pathname.startsWith(item.basePath) : false) : (item.href ? (pathname === item.href || (item.basePath && pathname.startsWith(item.basePath))) : false)}
+                isActive={item.subItems
+                  ? !!(item.basePath && pathname.startsWith(item.basePath))
+                  : !!(item.href && (pathname === item.href || (item.basePath && pathname.startsWith(item.basePath))))}
                 tooltip={{ children: item.label, className: "bg-popover text-popover-foreground border-border" }}
                 className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground"
               >
