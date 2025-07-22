@@ -45,38 +45,74 @@ export default function SignInPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     startTransition(async () => {
-      // Call backend login endpoint
-      const loginRes = await api.login(values);
-      const loginData = await loginRes.json();
-      if (loginData.success) {
-        // Fetch user profile using cookie
-        const profileRes = await api.getCurrentUser();
-        const profileData = await profileRes.json();
-        if (profileData.success) {
-          setUser({
-            userId: profileData.data.id ? profileData.data.id.toString() : '',
-            email: profileData.data.email,
-            name: profileData.data.name,
-            fullName: profileData.data.name, // for backward compatibility
-            role: loginData.user.role,
-            avatarUrl: profileData.data.avatar_url,
-          });
-          toast({
-            title: "Sign In Successful",
-            description: `Welcome, ${profileData.data.name}!`,
-          });
-          if (loginData.user.role === 'admin_users') {
-            router.push("/admin_users/dashboard");
+      try {
+        console.log('Attempting login with:', values.email);
+        // Call backend login endpoint
+        const loginRes = await api.login(values);
+        const loginData = await loginRes.json();
+        console.log('Login response:', loginData);
+
+        if (loginData.success) {
+          // Fetch user profile using cookie
+          const profileRes = await api.getCurrentUser();
+          const profileData = await profileRes.json();
+          console.log('Profile data:', profileData);
+
+          if (profileData.success) {
+            const userData = {
+              userId: profileData.data.id ? profileData.data.id.toString() : '',
+              email: profileData.data.email,
+              name: profileData.data.name || profileData.data.companyName,
+              fullName: profileData.data.name || profileData.data.companyName,
+              role: loginData.user.role,
+              type: loginData.user.type,
+              avatarUrl: profileData.data.avatar_url,
+              companyName: loginData.user.companyName,
+            };
+            console.log('Setting user data:', userData);
+            setUser(userData);
+
+            toast({
+              title: "Sign In Successful",
+              description: `Welcome, ${profileData.data.name || profileData.data.companyName}!`,
+            });
+
+            // Redirect based on user type
+            if (loginData.user.type === 'admin') {
+              console.log('Admin user, redirecting based on role:', loginData.user.role);
+              if (loginData.user.role === 'admin_users') {
+                router.push("/admin_users/dashboard");
+              } else {
+                router.push("/dashboard");
+              }
+            } else if (loginData.user.type === 'client') {
+              console.log('Client user, redirecting to client dashboard');
+              router.push("/client-admin/dashboard");
+            } else {
+              console.log('Unknown user type:', loginData.user.type);
+              router.push("/dashboard");
+            }
           } else {
-            router.push("/dashboard");
+            console.error('Failed to fetch profile:', profileData);
+            toast({ 
+              title: "Failed to fetch profile", 
+              description: profileData.message || "Could not load user profile",
+              variant: "destructive" 
+            });
           }
         } else {
-          toast({ title: "Failed to fetch profile", variant: "destructive" });
+          console.error('Login failed:', loginData);
+          toast({
+            title: "Sign In Failed",
+            description: loginData.message || "Invalid credentials",
+            variant: "destructive",
+          });
         }
-      } else {
+      } catch (error) {
+        console.error('Error during login:', error);
         toast({
-          title: "Sign In Failed",
-          description: loginData.message || "Invalid input.",
+          title: "Sign In Error",
+          description: "An unexpected error occurred",
           variant: "destructive",
         });
       }

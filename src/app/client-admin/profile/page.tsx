@@ -20,21 +20,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { UserCircle } from "lucide-react";
-
-// Mock user data for client admin profile
-const mockClientAdminProfile = {
-  fullName: "Alice Wonderland",
-  email: "alice@innovatecorp.com",
-  bio: "Primary contact and administrator for Innovate Corp's AI Caller account.",
-  avatarUrl: "https://placehold.co/200x200.png?text=AW",
-  companyName: "Innovate Corp",
-};
-
-const profileFormSchema = z.object({
-  fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
-  email: z.string().email({ message: "Invalid email address." }),
-  bio: z.string().max(160, { message: "Bio must not be longer than 160 characters." }).optional(),
-});
+import React from "react";
+import { useUser } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import { api } from '@/lib/apiConfig';
+import ProfilePictureUploader from "@/components/ui/ProfilePictureUploader";
 
 const passwordFormSchema = z.object({
   currentPassword: z.string().min(6, { message: "Password must be at least 6 characters."}),
@@ -47,41 +37,167 @@ const passwordFormSchema = z.object({
 
 export default function ClientAdminProfilePage() {
   const { toast } = useToast();
+  const { user, setUser } = useUser();
+  const router = useRouter();
+  const [loading, setLoading] = React.useState(true);
+  const [profile, setProfile] = React.useState({
+    id: '',
+    name: '',
+    email: '',
+    avatar_url: '',
+    bio: '',
+    companyName: '',
+  });
+  const [saving, setSaving] = React.useState(false);
 
-  const profileForm = useForm<z.infer<typeof profileFormSchema>>({
-    resolver: zodResolver(profileFormSchema),
+  React.useEffect(() => {
+    api.getCurrentUser()
+      .then((res) => res.json())
+      .then((data: any) => {
+        if (data.success) {
+          // Only allow client admins
+          if (data.data.type !== 'client' || data.data.role !== 'client_admin') {
+            router.push('/signin');
+            return;
+          }
+          setUser({
+            userId: data.data.id ? data.data.id.toString() : '',
+            email: data.data.email,
+            name: data.data.name,
+            avatarUrl: data.data.avatar_url,
+            fullName: data.data.name,
+            role: data.data.role,
+            type: data.data.type,
+            companyName: data.data.companyName,
+            clientId: data.data.id ? data.data.id.toString() : '', // <-- Add this line
+          });
+          setProfile({
+            id: data.data.id ? data.data.id.toString() : '',
+            name: data.data.name || '',
+            email: data.data.email || '',
+            avatar_url: data.data.avatar_url ?? '',
+            bio: data.data.bio ?? '',
+            companyName: data.data.companyName || '',
+          });
+          setLoading(false);
+        } else {
+          router.push('/signin');
+        }
+      })
+      .catch(() => {
+        router.push('/signin');
+      });
+  }, [router, setUser]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setProfile({ ...profile, [e.target.name]: e.target.value });
+  };
+
+  const handlePictureChange = async (fileOrUrl: string | File) => {
+    if (!user) return;
+    if (fileOrUrl instanceof File) {
+      const formData = new FormData();
+      formData.append("profile_picture", fileOrUrl);
+      const res = await fetch(`/api/clients/${user.userId}/avatar`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProfile({ ...profile, avatar_url: data.avatar_url });
+        toast({ title: "Profile picture updated!" });
+      } else {
+        toast({ title: "Failed to update profile picture", variant: "destructive" });
+      }
+    } else {
+      setProfile({ ...profile, avatar_url: fileOrUrl });
+    }
+  };
+
+  const handleDeletePicture = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/clients/${user.userId}/avatar`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setProfile({ ...profile, avatar_url: '' });
+        toast({ title: 'Profile picture deleted' });
+      } else {
+        toast({ title: 'Error deleting profile picture', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Error deleting profile picture', variant: 'destructive' });
+    }
+  };
+
+  const handleSave = async (overrides = {}) => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/clients/${user.userId}/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: profile.name,
+          bio: profile.bio,
+          avatar_url: profile.avatar_url,
+          ...overrides
+        }),
+      });
+      if (res.ok) {
+        toast({ title: 'Profile updated!' });
+        setUser({ ...user, fullName: profile.name });
+      } else {
+        toast({ title: 'Error updating profile', variant: 'destructive' });
+      }
+    } catch (err) {
+      toast({ title: 'Error updating profile', variant: 'destructive' });
+    }
+    setSaving(false);
+  };
+
+  const passwordForm = useForm({
     defaultValues: {
-      fullName: mockClientAdminProfile.fullName,
-      email: mockClientAdminProfile.email,
-      bio: mockClientAdminProfile.bio,
+      currentPassword: '',
+      newPassword: '',
+      confirmNewPassword: '',
     },
   });
 
-  const passwordForm = useForm<z.infer<typeof passwordFormSchema>>({
-    resolver: zodResolver(passwordFormSchema),
-    defaultValues: {
-      currentPassword: "",
-      newPassword: "",
-      confirmNewPassword: "",
-    },
-  });
+  const onPasswordSubmit = async (data: { currentPassword: string; newPassword: string; confirmNewPassword: string }) => {
+    if (!user) return;
+    if (data.newPassword !== data.confirmNewPassword) {
+      toast({ title: 'Password Mismatch', description: 'New passwords do not match.', variant: 'destructive' });
+      return;
+    }
+    try {
+      const res = await fetch(`/api/clients/${user.userId}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          oldPassword: data.currentPassword,
+          newPassword: data.newPassword,
+        }),
+      });
+      if (res.ok) {
+        toast({ title: 'Password Reset', description: 'Password was reset successfully.' });
+        passwordForm.reset();
+      } else {
+        const error = await res.json();
+        toast({ 
+          title: 'Reset Failed', 
+          description: error.message || 'Could not reset password. Please check the old password.',
+          variant: 'destructive' 
+        });
+      }
+    } catch (err) {
+      toast({ title: 'Reset Failed', description: 'Could not reset password.', variant: 'destructive' });
+    }
+  };
 
-  function onProfileSubmit(values: z.infer<typeof profileFormSchema>) {
-    console.log("Client Admin Profile update:", values);
-    toast({
-      title: "Profile Updated",
-      description: "Your profile information has been saved.",
-    });
-  }
-
-  function onPasswordSubmit(values: z.infer<typeof passwordFormSchema>) {
-    console.log("Client Admin Password change:", values);
-    toast({
-      title: "Password Changed",
-      description: "Your password has been successfully updated.",
-    });
-    passwordForm.reset();
-  }
+  if (loading) return <div>Loading...</div>;
+  if (!user) return null;
 
   return (
     <div className="space-y-8 max-w-3xl mx-auto">
@@ -95,62 +211,60 @@ export default function ClientAdminProfilePage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={mockClientAdminProfile.avatarUrl} alt="User Avatar" data-ai-hint="user avatar" />
-              <AvatarFallback>{mockClientAdminProfile.fullName.split(" ").map(n => n[0]).join("").toUpperCase()}</AvatarFallback>
-            </Avatar>
+            <ProfilePictureUploader
+              value={profile.avatar_url}
+              onChange={url => setProfile({ ...profile, avatar_url: url })}
+              onDelete={handleDeletePicture}
+              onUpload={async (file: File) => {
+                if (!user) return;
+                const formData = new FormData();
+                formData.append('profile_picture', file);
+                const res = await fetch(`/api/clients/${user.userId}/avatar`, {
+                  method: 'POST',
+                  body: formData,
+                });
+                const data = await res.json();
+                if (data.success) {
+                  setProfile({ ...profile, avatar_url: data.avatar_url });
+                  toast({ title: 'Profile picture updated!' });
+                  return data.avatar_url; // Let the uploader call onChange
+                } else {
+                  toast({ title: 'Failed to update profile picture', variant: 'destructive' });
+                  return '';
+                }
+              }}
+            />
             <div>
-              <CardTitle className="text-2xl">{profileForm.getValues("fullName")}</CardTitle>
-              <CardDescription>{profileForm.getValues("email")} ({mockClientAdminProfile.companyName})</CardDescription>
+              <CardTitle className="text-2xl">{profile.name}</CardTitle>
+              <CardDescription>{profile.email} ({profile.companyName})</CardDescription>
             </div>
-            <Button variant="outline" className="ml-auto">Change Picture</Button>
           </div>
         </CardHeader>
         <CardContent>
-          <Form {...profileForm}>
-            <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-6">
-              <FormField
-                control={profileForm.control}
-                name="fullName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Your full name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={profileForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="your@email.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={profileForm.control}
-                name="bio"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bio</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Tell us a little bit about yourself" className="resize-none" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit">Save Profile</Button>
-            </form>
-          </Form>
+          <div className="mb-4">
+            <label className="block font-medium mb-1">Full Name</label>
+            <Input name="name" value={profile.name} onChange={handleChange} />
+          </div>
+          <div className="mb-4">
+            <label className="block font-medium mb-1">Email</label>
+            <Input name="email" value={profile.email} readOnly />
+          </div>
+          <div className="mb-4">
+            <label className="block font-medium mb-1">Bio</label>
+            <textarea
+              name="bio"
+              value={profile.bio}
+              onChange={handleChange}
+              className="w-full border rounded p-2"
+            />
+          </div>
+          <button
+            className="bg-black text-white px-6 py-2 rounded"
+            onClick={() => handleSave()}
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Save Profile"}
+          </button>
         </CardContent>
       </Card>
       

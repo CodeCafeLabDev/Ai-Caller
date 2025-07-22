@@ -28,17 +28,15 @@ import { SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 
 // Define roles and statuses specific to client users
-const clientUserRoles = ["Admin", "Agent", "Analyst", "Viewer"] as const;
-export type ClientUserRole = typeof clientUserRoles[number]; // Exporting for use in users/page.tsx type
-
 const clientUserStatuses = ["Active", "Pending"] as const; // Suspended is usually an action, not initial state
 export type ClientUserStatus = typeof clientUserStatuses[number]; // Exporting for use in users/page.tsx type
 
+// In the zod schema, role is now a string (role_id)
 const addClientUserFormSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
   email: z.string().email({ message: "Invalid email address." }),
   phone: z.string().optional(),
-  role: z.enum(clientUserRoles, { required_error: "Please select a role." }),
+  role: z.string().min(1, { message: "Please select a role." }), // role_id as string
   status: z.enum(clientUserStatuses, { required_error: "Please select a status." }),
   password: z.string().min(8, { message: "Password must be at least 8 characters." }),
   confirmPassword: z.string(),
@@ -52,9 +50,10 @@ export type AddClientUserFormValues = z.infer<typeof addClientUserFormSchema>;
 interface AddClientUserFormProps {
   onSuccess: (data: AddClientUserFormValues) => void;
   onCancel: () => void;
+  userRoles: { id: number; role_name: string; description: string; permissions_summary: string; status: string }[];
 }
 
-export function AddClientUserForm({ onSuccess, onCancel }: AddClientUserFormProps) {
+export function AddClientUserForm({ onSuccess, onCancel, userRoles }: AddClientUserFormProps) {
   const { toast } = useToast();
   const form = useForm<AddClientUserFormValues>({
     resolver: zodResolver(addClientUserFormSchema),
@@ -127,15 +126,15 @@ export function AddClientUserForm({ onSuccess, onCancel }: AddClientUserFormProp
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Role*</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="Select user's role" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {clientUserRoles.filter(role => role && role !== "").map(role => (
-                        <SelectItem key={role} value={role}>{role}</SelectItem>
+                      {userRoles.filter(role => role.status === "Active").map(role => (
+                        <SelectItem key={role.id} value={String(role.id)}>{role.role_name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -156,7 +155,7 @@ export function AddClientUserForm({ onSuccess, onCancel }: AddClientUserFormProp
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {clientUserStatuses.filter(status => status && status !== "").map(status => (
+                      {clientUserStatuses.map(status => (
                         <SelectItem key={status} value={status}>{status}</SelectItem>
                       ))}
                     </SelectContent>

@@ -425,7 +425,7 @@ export default function ClientUsersPage() {
                         <SelectValue placeholder="Select a role" />
                       </SelectTrigger>
                       <SelectContent>
-                        {userRoles.filter(role => role.id && role.id !== "").map(role => (
+                        {userRoles.filter(role => role.id).map(role => (
                           <SelectItem key={role.id} value={String(role.id)}>
                             {role.role_name}
                           </SelectItem>

@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/sheet";
 import { AddClientUserForm, type AddClientUserFormValues } from "@/components/client-admin/users/add-client-user-form";
 import { Switch } from "@/components/ui/switch";
+import { api } from "@/lib/apiConfig";
+import { useUser } from '@/lib/utils';
 
 // Mock data for client users
 type ClientUser = {
@@ -43,14 +45,13 @@ type ClientUser = {
   role: "Admin" | "Agent" | "Analyst" | "Viewer";
   status: "Active" | "Suspended" | "Pending";
   lastLogin?: string;
+  full_name?: string; // Added for mock data
+  role_name?: string; // Added for mock data
+  last_login?: string; // Added for mock data
 };
 
-const initialMockClientUsers: ClientUser[] = [
-  { id: "user_c1_01", name: "Alice Wonderland", email: "alice@innovatecorp.com", phone: "555-0100", role: "Admin", status: "Active", lastLogin: "2024-07-28" },
-  { id: "user_c1_02", name: "Bob The Builder", email: "bob@innovatecorp.com", phone: "555-0101", role: "Agent", status: "Active", lastLogin: "2024-07-27" },
-  { id: "user_c1_03", name: "Carol Danvers", email: "carol@innovatecorp.com", role: "Analyst", status: "Suspended", lastLogin: "2024-07-15" },
-  { id: "user_c1_04", name: "David Copperfield", email: "david@innovatecorp.com", phone: "555-0102", role: "Agent", status: "Pending", lastLogin: "2024-07-29" },
-];
+// Remove initialMockClientUsers and update ClientUser type to match API if needed
+// type ClientUser = { ... } // (keep or update as needed)
 
 const statusVariants = {
   Active: "bg-green-100 text-green-700",
@@ -67,9 +68,32 @@ const roleVariants = {
 
 export default function ClientUsersPage() {
   const { toast } = useToast();
+  const { user } = useUser();
   const [searchTerm, setSearchTerm] = React.useState("");
-  const [clientUsers, setClientUsers] = React.useState<ClientUser[]>(initialMockClientUsers);
+  const [clientUsers, setClientUsers] = React.useState<ClientUser[]>([]); // Start with empty array
   const [isAddUserSheetOpen, setIsAddUserSheetOpen] = React.useState(false);
+  const [userRoles, setUserRoles] = React.useState<{ id: number; role_name: string; description: string; permissions_summary: string; status: string }[]>([]);
+
+  React.useEffect(() => {
+    api.getUserRoles()
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setUserRoles(data.data || []);
+      });
+  }, []);
+
+  React.useEffect(() => {
+    if (!user?.userId) return;
+    api.getClientUsers()
+      .then(res => res.json())
+      .then(data => {
+        console.log("Fetched users in client admin panel:", data.data);
+        setClientUsers(data.data || []);
+      })
+      .catch(() => {
+        toast({ title: "Error", description: "Failed to fetch client users", variant: "destructive" });
+      });
+  }, [toast, user?.userId]);
 
   const handleUserAction = (action: string, userId: string, userName: string) => {
      toast({ title: `Action: ${action}`, description: `Performed on user "${userName}" (ID: ${userId}) (Simulated)` });
@@ -81,27 +105,39 @@ export default function ClientUsersPage() {
   };
 
   const handleAddUserSuccess = (data: AddClientUserFormValues) => {
-    const newUser: ClientUser = {
-      id: `user_c1_${Date.now()}`,
-      name: data.fullName,
+    if (!user?.userId) return;
+    api.createClientUser({
+      full_name: data.fullName,
       email: data.email,
       phone: data.phone,
-      role: data.role,
+      role_id: Number(data.role),
       status: data.status,
-      lastLogin: undefined, // New users haven't logged in
-    };
-    setClientUsers(prev => [newUser, ...prev]);
-    setIsAddUserSheetOpen(false);
-    toast({
-      title: "User Added",
-      description: `User "${data.fullName}" has been successfully added. (Simulated)`,
-    });
+      last_login: null,
+      client_id: user.userId,
+    })
+      .then(res => res.json())
+      .then(result => {
+        if (result.success) {
+          setClientUsers(prev => [result.data, ...prev]);
+          setIsAddUserSheetOpen(false);
+          toast({
+            title: "User Added",
+            description: `User \"${result.data.full_name || result.data.name}\" has been successfully added.`,
+          });
+        } else {
+          toast({ title: "Error", description: result.message || "Failed to add user", variant: "destructive" });
+        }
+      });
   };
 
-  const filteredUsers = clientUsers.filter(user => 
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = clientUsers.filter(user => {
+    const name = user.full_name || user.name || "";
+    const email = user.email || "";
+    return (
+      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
 
   return (
     <div className="space-y-6">
@@ -128,6 +164,7 @@ export default function ClientUsersPage() {
             <AddClientUserForm 
               onSuccess={handleAddUserSuccess} 
               onCancel={() => setIsAddUserSheetOpen(false)}
+              userRoles={userRoles}
             />
           </SheetContent>
         </Sheet>
@@ -152,7 +189,6 @@ export default function ClientUsersPage() {
               <TableRow>
                 <TableHead>User Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Last Login</TableHead>
@@ -162,29 +198,38 @@ export default function ClientUsersPage() {
             <TableBody>
               {filteredUsers.length > 0 ? filteredUsers.map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
+                  <TableCell className="font-medium">{user.full_name || user.name}</TableCell>
                   <TableCell>
-                    {user.phone ? (
-                      <div className="flex items-center">
-                        <Phone className="mr-1.5 h-3.5 w-3.5 text-muted-foreground"/>{user.phone}
+                    <div>{user.email}</div>
+                    {user.phone && (
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {user.phone}
                       </div>
-                    ) : "-"}
+                    )}
                   </TableCell>
                   <TableCell>
-                     <Badge className={`text-xs ${roleVariants[user.role]}`}>{user.role}</Badge>
+                    <Badge className="bg-blue-100 text-blue-700">{user.role_name || user.role}</Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Badge className={`text-xs ${statusVariants[user.status]}`}>{user.status}</Badge>
+                      <Badge className={
+                        user.status === "Active"
+                          ? "bg-green-100 text-green-700"
+                          : user.status === "Suspended"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-orange-100 text-orange-700"
+                      }>
+                        {user.status}
+                      </Badge>
                       <Switch
                         checked={user.status === "Active"}
-                        onCheckedChange={() => handleUserAction(user.status === "Active" ? "Suspend" : "Activate", user.id, user.name)}
+                        onCheckedChange={() => handleUserAction(user.status === "Active" ? "Suspend" : "Activate", user.id, user.full_name || user.name)}
                         aria-label="Toggle user status"
                       />
                     </div>
                   </TableCell>
-                  <TableCell>{user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : "Never"}</TableCell>
+                  <TableCell>{user.last_login ? new Date(user.last_login).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -194,18 +239,18 @@ export default function ClientUsersPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleUserAction("Edit", user.id, user.name)}>
+                        <DropdownMenuItem onClick={() => handleUserAction("Edit", user.id, user.full_name || user.name)}>
                           <Edit className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleUserAction("Reset Password", user.id, user.name)}>
+                        <DropdownMenuItem onClick={() => handleUserAction("Reset Password", user.id, user.full_name || user.name)}>
                           <KeyRound className="mr-2 h-4 w-4" /> Reset Password
                         </DropdownMenuItem>
-                         <DropdownMenuItem onClick={() => handleUserAction(user.status === 'Active' ? "Suspend" : "Activate", user.id, user.name)}>
+                         <DropdownMenuItem onClick={() => handleUserAction(user.status === 'Active' ? "Suspend" : "Activate", user.id, user.full_name || user.name)}>
                            {user.status === 'Active' ? <UserX className="mr-2 h-4 w-4 text-red-500" /> : <UserCheck className="mr-2 h-4 w-4 text-green-500" />}
                           {user.status === 'Active' ? "Suspend" : "Activate"}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleUserAction("Delete", user.id, user.name)}>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleUserAction("Delete", user.id, user.full_name || user.name)}>
                           <Trash2 className="mr-2 h-4 w-4" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -214,7 +259,7 @@ export default function ClientUsersPage() {
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                     No users found matching your search.
                   </TableCell>
                 </TableRow>

@@ -122,6 +122,8 @@ db.connect(err => {
             trialCallLimit INT,
             adminPassword VARCHAR(255) NOT NULL,
             autoSendLoginEmail BOOLEAN NOT NULL DEFAULT TRUE,
+            avatar_url VARCHAR(255) NULL,
+            bio TEXT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (plan_id) REFERENCES plans(id)
@@ -848,23 +850,33 @@ app.get("/api/clients/:id", (req, res) => {
 });
 
 // Create a new client
-app.post("/api/clients", (req, res) => {
-  const client = req.body;
-  delete client.id;
-  delete client.confirmAdminPassword;
-  // console.log("Creating client with data:", client);
-  db.query("INSERT INTO clients SET ?", client, (err, result) => {
-    if (err) {
-      console.error("Failed to create client:", err);
-      return res.status(500).json({ success: false, message: "Failed to create client", error: err });
+app.post("/api/clients", async (req, res) => {
+  try {
+    const client = req.body;
+    delete client.id;
+    delete client.confirmAdminPassword;
+
+    // Hash the adminPassword before saving
+    if (client.adminPassword) {
+      client.adminPassword = await bcrypt.hash(client.adminPassword, 10);
     }
-    db.query("SELECT * FROM clients WHERE id = ?", [result.insertId], (err, results) => {
+
+    db.query("INSERT INTO clients SET ?", client, (err, result) => {
       if (err) {
-        return res.status(500).json({ success: false, message: "Client created but failed to fetch", error: err });
+        console.error("Failed to create client:", err);
+        return res.status(500).json({ success: false, message: "Failed to create client", error: err });
       }
-      res.status(201).json({ success: true, message: "Client created", data: results[0] });
+      db.query("SELECT * FROM clients WHERE id = ?", [result.insertId], (err, results) => {
+        if (err) {
+          return res.status(500).json({ success: false, message: "Client created but failed to fetch", error: err });
+        }
+        res.status(201).json({ success: true, message: "Client created", data: results[0] });
+      });
     });
-  });
+  } catch (err) {
+    console.error("Error hashing password or creating client:", err);
+    res.status(500).json({ success: false, message: "Failed to create client", error: err.message });
+  }
 });
 
 // Update a client
@@ -988,16 +1000,30 @@ app.put("/api/user-roles/:id", (req, res) => {
 
 // CRUD for client_users
 // Get all client users with role name
-app.get("/api/client-users", (req, res) => {
-  db.query(
-    `SELECT cu.*, ur.role_name 
-     FROM client_users cu 
-     LEFT JOIN user_roles ur ON cu.role_id = ur.id`,
-    (err, results) => {
-      if (err) return res.status(500).json({ success: false, error: err });
-      res.json({ success: true, data: results });
-    }
-  );
+app.get("/api/client-users", authenticateJWT, (req, res) => {
+  if (req.user.type === 'client') {
+    db.query(
+      `SELECT cu.*, ur.role_name 
+       FROM client_users cu 
+       LEFT JOIN user_roles ur ON cu.role_id = ur.id
+       WHERE cu.client_id = ?`,
+      [req.user.id],
+      (err, results) => {
+        if (err) return res.status(500).json({ success: false, error: err });
+        res.json({ success: true, data: results });
+      }
+    );
+  } else {
+    db.query(
+      `SELECT cu.*, ur.role_name 
+       FROM client_users cu 
+       LEFT JOIN user_roles ur ON cu.role_id = ur.id`,
+      (err, results) => {
+        if (err) return res.status(500).json({ success: false, error: err });
+        res.json({ success: true, data: results });
+      }
+    );
+  }
 });
 
 // Get a single client user
@@ -1257,10 +1283,48 @@ app.get('/api/admin_users', (req, res) => {
 });
 
 // Get current admin user's profile
-app.get('/api/admin_users/me', authenticateJWT, (req, res) => {
+app.get('/api/admin_users/me', authenticateJWT, async (req, res) => {
+  console.log('Getting current user profile for:', req.user);
+
+  // If user is a client admin
+  if (req.user.type === 'client') {
+    db.query('SELECT * FROM clients WHERE id = ?', [req.user.id], (err, results) => {
+      if (err) {
+        console.error('Error fetching client profile:', err);
+        return res.status(500).json({ success: false, message: 'DB error', error: err });
+      }
+      if (!results.length) {
+        console.error('Client not found:', req.user.id);
+        return res.status(404).json({ success: false, message: 'Client not found' });
+      }
+      const client = results[0];
+      return res.json({ 
+        success: true, 
+        data: {
+          id: client.id,
+          email: client.companyEmail,
+          name: client.companyName,
+          role: 'client_admin',
+          type: 'client',
+          companyName: client.companyName,
+          avatar_url: client.avatar_url || '',
+          bio: client.bio || ''
+        }
+      });
+    });
+    return;
+  }
+
+  // If user is an admin
   db.query('SELECT * FROM admin_users WHERE id = ?', [req.user.id], (err, results) => {
-    if (err) return res.status(500).json({ success: false, message: 'DB error', error: err });
-    if (!results.length) return res.status(404).json({ success: false, message: 'Admin user not found' });
+    if (err) {
+      console.error('Error fetching admin profile:', err);
+      return res.status(500).json({ success: false, message: 'DB error', error: err });
+    }
+    if (!results.length) {
+      console.error('Admin not found:', req.user.id);
+      return res.status(404).json({ success: false, message: 'Admin user not found' });
+    }
     res.json({ success: true, data: results[0] });
   });
 });
@@ -1402,32 +1466,173 @@ app.delete('/api/admin_users/me/avatar_url', authenticateJWT, (req, res) => {
   });
 });
 
-// Login endpoint
+// Combined Login endpoint for both admins and clients
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  db.query('SELECT * FROM admin_users WHERE email = ?', [email], async (err, results) => {
-    if (err) return res.status(500).json({ success: false, message: 'DB error', error: err });
-    if (!results.length) return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    const user = results[0];
-    const valid = await bcryptjs.compare(password, user.password);
-    if (!valid) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  console.log('Login attempt for:', email);
 
-    // Update lastLogin to now
-    db.query('UPDATE admin_users SET lastLogin = NOW() WHERE id = ?', [user.id], (err2) => {
-      if (err2) return res.status(500).json({ success: false, message: 'Failed to update lastLogin', error: err2 });
+  // First try admin login
+  db.query('SELECT * FROM admin_users WHERE email = ?', [email], async (err, adminResults) => {
+    if (err) {
+      console.error('Admin lookup error:', err);
+      return res.status(500).json({ success: false, message: 'DB error', error: err });
+    }
 
-      const token = jwt.sign(
-        { id: user.id, name: user.name, email: user.email, role: user.roleName },
-        JWT_SECRET,
-        { expiresIn: '1d' }
-      );
-      res.cookie('token', token, {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 24*60*60*1000
-      });
-      res.json({ success: true, user: { id: user.id, name: user.name, email: user.email, role: user.roleName } });
+    // If found in admin_users table
+    if (adminResults.length > 0) {
+      console.log('Found user in admin_users');
+      const user = adminResults[0];
+      try {
+        const valid = await bcryptjs.compare(password, user.password);
+        if (!valid) {
+          console.log('Admin password invalid');
+          return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+
+        // Update lastLogin to now
+        db.query('UPDATE admin_users SET lastLogin = NOW() WHERE id = ?', [user.id]);
+
+        const token = jwt.sign(
+          { id: user.id, name: user.name, email: user.email, role: user.roleName, type: 'admin' },
+          JWT_SECRET,
+          { expiresIn: '1d' }
+        );
+
+        res.cookie('token', token, {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 24*60*60*1000
+        });
+
+        return res.json({ 
+          success: true, 
+          user: { 
+            id: user.id, 
+            name: user.name, 
+            email: user.email, 
+            role: user.roleName,
+            type: 'admin'
+          } 
+        });
+      } catch (err) {
+        console.error('Error in admin authentication:', err);
+        return res.status(500).json({ success: false, message: 'Authentication error' });
+      }
+    }
+
+    // If not found in admin_users, try client login
+    console.log('Not found in admin_users, trying clients table');
+    db.query('SELECT * FROM clients WHERE companyEmail = ?', [email], async (err, clientResults) => {
+      if (err) {
+        console.error('Client lookup error:', err);
+        return res.status(500).json({ success: false, message: 'DB error', error: err });
+      }
+      if (!clientResults.length) {
+        console.log('Email not found in clients table');
+        return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      }
+
+      const client = clientResults[0];
+      console.log('Found client:', { id: client.id, email: client.companyEmail });
+      
+      try {
+        let isValidPassword = false;
+
+        // First try bcrypt comparison (for hashed passwords)
+        try {
+          console.log('Trying bcrypt comparison');
+          // Check if the stored password looks like a bcrypt hash (starts with $2a$, $2b$, or $2y$)
+          if (client.adminPassword && client.adminPassword.startsWith('$2')) {
+            isValidPassword = await bcryptjs.compare(password, client.adminPassword);
+            console.log('Bcrypt comparison result:', isValidPassword);
+          } else {
+            // If not a bcrypt hash, do plain text comparison
+            console.log('Stored password is not a bcrypt hash, trying plain-text comparison');
+            isValidPassword = (password === client.adminPassword);
+            console.log('Plain-text comparison result:', isValidPassword);
+
+            // If plain-text password is correct, upgrade it to hashed
+            if (isValidPassword) {
+              console.log('Plain-text password matched. Upgrading to hashed password...');
+              const hashedPassword = await bcryptjs.hash(password, 10);
+              db.query(
+                'UPDATE clients SET adminPassword = ? WHERE id = ?',
+                [hashedPassword, client.id],
+                (updateErr) => {
+                  if (updateErr) {
+                    console.error('Failed to upgrade password to hash:', updateErr);
+                  } else {
+                    console.log('Successfully upgraded password to hash');
+                  }
+                }
+              );
+            }
+          }
+        } catch (hashError) {
+          console.error('Error during password comparison:', hashError);
+          // If any error occurs during bcrypt comparison, try plain text
+          console.log('Error in password comparison, falling back to plain-text');
+          isValidPassword = (password === client.adminPassword);
+          console.log('Plain-text comparison result:', isValidPassword);
+
+          // If plain-text password is correct, upgrade it to hashed
+          if (isValidPassword) {
+            console.log('Plain-text password matched. Upgrading to hashed password...');
+            const hashedPassword = await bcryptjs.hash(password, 10);
+            db.query(
+              'UPDATE clients SET adminPassword = ? WHERE id = ?',
+              [hashedPassword, client.id],
+              (updateErr) => {
+                if (updateErr) {
+                  console.error('Failed to upgrade password to hash:', updateErr);
+                } else {
+                  console.log('Successfully upgraded password to hash');
+                }
+              }
+            );
+          }
+        }
+
+        if (!isValidPassword) {
+          console.log('Client password invalid');
+          return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        }
+
+        console.log('Client password valid, creating token');
+        const token = jwt.sign(
+          { 
+            id: client.id, 
+            email: client.companyEmail, 
+            role: 'client_admin',
+            type: 'client',
+            companyName: client.companyName 
+          },
+          JWT_SECRET,
+          { expiresIn: '1d' }
+        );
+
+        res.cookie('token', token, {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 24*60*60*1000
+        });
+
+        return res.json({ 
+          success: true, 
+          user: { 
+            id: client.id, 
+            email: client.companyEmail, 
+            role: 'client_admin',
+            type: 'client',
+            companyName: client.companyName 
+          } 
+        });
+      } catch (err) {
+        console.error('Error in client authentication:', err);
+        return res.status(500).json({ success: false, message: 'Authentication error' });
+      }
     });
   });
 });
@@ -1625,4 +1830,208 @@ app.post('/api/upload', authenticateJWT, upload.single('file'), (req, res) => {
 // Start server
 app.listen(5000, () => {
   console.log("🚀 Server running at http://localhost:5000");
+});
+
+// Client Admin Login endpoint
+app.post('/api/client-admin/login', async (req, res) => {
+  const { email, password } = req.body;
+  db.query('SELECT * FROM clients WHERE companyEmail = ?', [email], async (err, results) => {
+    if (err) return res.status(500).json({ success: false, message: 'DB error', error: err });
+    if (!results.length) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    
+    const client = results[0];
+    try {
+      let isValidPassword = false;
+
+      // First try bcrypt comparison (for hashed passwords)
+      try {
+        isValidPassword = await bcrypt.compare(password, client.adminPassword);
+      } catch (hashError) {
+        // If bcrypt.compare fails, it might be a plain-text password
+        console.log('Hash comparison failed, trying plain-text comparison');
+        isValidPassword = (password === client.adminPassword);
+
+        // If plain-text password is correct, upgrade it to hashed
+        if (isValidPassword) {
+          console.log('Plain-text password matched. Upgrading to hashed password...');
+          const hashedPassword = await bcrypt.hash(password, 10);
+          db.query(
+            'UPDATE clients SET adminPassword = ? WHERE id = ?',
+            [hashedPassword, client.id],
+            (updateErr) => {
+              if (updateErr) {
+                console.error('Failed to upgrade password to hash:', updateErr);
+                // Continue anyway since login is successful
+              } else {
+                console.log('Successfully upgraded password to hash');
+              }
+            }
+          );
+        }
+      }
+
+      if (!isValidPassword) {
+        return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      }
+
+      // Create JWT token for client admin
+      const token = jwt.sign(
+        { 
+          id: client.id, 
+          email: client.companyEmail, 
+          role: 'client_admin',
+          companyName: client.companyName 
+        },
+        JWT_SECRET,
+        { expiresIn: '1d' }
+      );
+
+      res.cookie('token', token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 24*60*60*1000
+      });
+
+      res.json({ 
+        success: true, 
+        user: { 
+          id: client.id, 
+          email: client.companyEmail, 
+          role: 'client_admin',
+          companyName: client.companyName 
+        } 
+      });
+    } catch (err) {
+      console.error('Error in authentication:', err);
+      res.status(500).json({ success: false, message: 'Authentication error' });
+    }
+  });
+});
+
+// Reset client admin password
+app.post('/api/clients/:id/reset-password', async (req, res) => {
+  const clientId = req.params.id;
+  const { oldPassword, newPassword } = req.body;
+
+  if (!newPassword) {
+    return res.status(400).json({ success: false, message: 'New password is required' });
+  }
+
+  try {
+    // First get the current password hash
+    db.query('SELECT adminPassword FROM clients WHERE id = ?', [clientId], async (err, results) => {
+      if (err || results.length === 0) {
+        return res.status(404).json({ success: false, message: 'Client not found' });
+      }
+
+      const currentHashedPassword = results[0].adminPassword;
+
+      // If oldPassword is provided, verify it
+      if (oldPassword) {
+        try {
+          const isValid = await bcrypt.compare(oldPassword, currentHashedPassword);
+          if (!isValid) {
+            return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+          }
+        } catch (err) {
+          console.error('Error comparing passwords:', err);
+          return res.status(500).json({ success: false, message: 'Error verifying current password' });
+        }
+      }
+
+      // Hash the new password
+      const newHashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update the password in the database
+      db.query(
+        'UPDATE clients SET adminPassword = ? WHERE id = ?',
+        [newHashedPassword, clientId],
+        (updateErr) => {
+          if (updateErr) {
+            console.error('Error updating password:', updateErr);
+            return res.status(500).json({ success: false, message: 'Failed to update password' });
+          }
+          res.json({ success: true, message: 'Password updated successfully' });
+        }
+      );
+    });
+  } catch (err) {
+    console.error('Error in password reset:', err);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Add new endpoints for client profile management after the existing client endpoints
+
+// Update client profile
+app.put('/api/clients/:id/profile', authenticateJWT, async (req, res) => {
+  const { name, avatar_url, bio } = req.body;
+  const clientId = req.params.id;
+
+  // Verify the client belongs to the authenticated user
+  if (req.user.type !== 'client' || req.user.id !== parseInt(clientId)) {
+    return res.status(403).json({ success: false, message: 'Unauthorized' });
+  }
+
+  db.query(
+    'UPDATE clients SET companyName = ?, avatar_url = ?, bio = ? WHERE id = ?',
+    [name, avatar_url, bio, clientId],
+    (err) => {
+      if (err) {
+        console.error('Error updating client profile:', err);
+        return res.status(500).json({ success: false, message: 'Failed to update profile' });
+      }
+      res.json({ success: true, message: 'Profile updated successfully' });
+    }
+  );
+});
+
+// Upload client profile picture
+app.post('/api/clients/:id/avatar', authenticateJWT, upload.single('profile_picture'), (req, res) => {
+  const clientId = req.params.id;
+
+  // Verify the client belongs to the authenticated user
+  if (req.user.type !== 'client' || req.user.id !== parseInt(clientId)) {
+    return res.status(403).json({ success: false, message: 'Unauthorized' });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No file uploaded' });
+  }
+
+  const filePath = `/uploads/${req.file.filename}`;
+  db.query(
+    'UPDATE clients SET avatar_url = ? WHERE id = ?',
+    [filePath, clientId],
+    (err) => {
+      if (err) {
+        console.error('Error updating client avatar:', err);
+        return res.status(500).json({ success: false, message: 'Failed to update avatar' });
+      }
+      res.json({ success: true, avatar_url: filePath });
+    }
+  );
+});
+
+// Delete client profile picture
+app.delete('/api/clients/:id/avatar', authenticateJWT, (req, res) => {
+  const clientId = req.params.id;
+
+  // Verify the client belongs to the authenticated user
+  if (req.user.type !== 'client' || req.user.id !== parseInt(clientId)) {
+    return res.status(403).json({ success: false, message: 'Unauthorized' });
+  }
+
+  db.query(
+    'UPDATE clients SET avatar_url = NULL WHERE id = ?',
+    [clientId],
+    (err) => {
+      if (err) {
+        console.error('Error deleting client avatar:', err);
+        return res.status(500).json({ success: false, message: 'Failed to delete avatar' });
+      }
+      res.json({ success: true, message: 'Avatar deleted successfully' });
+    }
+  );
 });

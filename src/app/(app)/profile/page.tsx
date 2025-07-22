@@ -136,7 +136,7 @@ export default function ProfilePage() {
       toast({ title: 'Password Mismatch', description: 'New passwords do not match.', variant: 'destructive' });
       return;
     }
-    const res = await api.resetAdminUserPassword(user.userId);
+    const res = await api.resetAdminUserPassword(user.userId, data.newPassword);
     if (res.ok) {
       toast({ title: 'Password Reset', description: 'Password was reset successfully.' });
       passwordForm.reset();

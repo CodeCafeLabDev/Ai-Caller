@@ -11,7 +11,10 @@ export type AuthUser = {
   name?: string;
   fullName?: string;
   role: string;
+  type?: 'admin' | 'client';
   avatarUrl?: string;
+  companyName?: string;
+  clientId?: string; // <-- Add this line
 };
 
 interface UserContextType {

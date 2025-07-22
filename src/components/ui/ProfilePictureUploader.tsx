@@ -7,9 +7,10 @@ interface ProfilePictureUploaderProps {
   value: string;
   onChange: (url: string) => void;
   onDelete: () => void;
+  onUpload?: (file: File) => Promise<void>;
 }
 
-export default function ProfilePictureUploader({ value, onChange, onDelete }: ProfilePictureUploaderProps) {
+export default function ProfilePictureUploader({ value, onChange, onDelete, onUpload }: ProfilePictureUploaderProps) {
   const [showCrop, setShowCrop] = useState(false);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -23,6 +24,7 @@ export default function ProfilePictureUploader({ value, onChange, onDelete }: Pr
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
+        console.log('Image loaded, showing cropper');
         setImageSrc(reader.result);
         setShowCrop(true);
       }
@@ -38,16 +40,29 @@ export default function ProfilePictureUploader({ value, onChange, onDelete }: Pr
     if (!imageSrc || !croppedAreaPixels) return;
     const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
     if (!croppedBlob) return;
-    const formData = new FormData();
-    formData.append("profile_picture", croppedBlob, "profile.jpg");
-    const res = await api.uploadFile(formData);
-    const data = await res.json();
-    if (data.success) {
-      onChange(data.avatar_url);
+    const file = new File([croppedBlob], "profile.jpg", { type: "image/jpeg" });
+    if (onUpload) {
+      console.log('Calling custom onUpload handler with file:', file);
+      // The onUpload handler should return the new URL (or call onChange itself)
+      const result = await onUpload(file);
+      // If the handler returns a URL, call onChange
+      if (typeof result === 'string') {
+        onChange(result);
+      }
+    } else {
+      const formData = new FormData();
+      formData.append("profile_picture", file);
+      const res = await api.uploadFile(formData);
+      const data = await res.json();
+      if (data.success) {
+        onChange(data.avatar_url);
+      }
     }
     setShowCrop(false);
   };
 
+  // Before rendering the cropper modal
+  console.log('showCrop:', showCrop, 'imageSrc:', imageSrc);
   return (
     <div className="flex flex-col items-center">
       <img
