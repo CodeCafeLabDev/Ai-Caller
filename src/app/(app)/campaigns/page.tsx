@@ -101,7 +101,7 @@ export type Campaign = {
   representativePhoneNumber?: string; 
 };
 
-export const mockClientsForFilter = [
+const mockClientsForFilter = [
   { id: "client_1", name: "Innovate Corp" },
   { id: "client_2", name: "Solutions Ltd" },
   { id: "client_3", name: "Tech Ventures" },
