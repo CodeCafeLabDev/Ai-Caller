@@ -95,13 +95,49 @@ export default function ClientUsersPage() {
       });
   }, [toast, user?.userId]);
 
-  const handleUserAction = (action: string, userId: string, userName: string) => {
-     toast({ title: `Action: ${action}`, description: `Performed on user "${userName}" (ID: ${userId}) (Simulated)` });
-     if (action === "Suspend" || action === "Activate") {
-        setClientUsers(prevUsers => prevUsers.map(user => 
-            user.id === userId ? {...user, status: user.status === "Active" ? "Suspended" : "Active" } : user
-        ));
-     }
+  const handleUserAction = (action: string, userId: string, userName: string, currentStatus?: string) => {
+    if (action === "Suspend" || action === "Activate") {
+      const newStatus = action === "Suspend" ? "Suspended" : "Active";
+      const userToUpdate = clientUsers.find(u => u.id === userId);
+      if (!userToUpdate) return;
+      api.updateClientUser(userId, {
+        ...userToUpdate,
+        status: newStatus,
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setClientUsers(prevUsers => prevUsers.map(user =>
+              user.id === userId ? { ...user, status: newStatus } : user
+            ));
+            toast({ title: `User ${action}d`, description: `${userName} is now ${newStatus}.` });
+          } else {
+            toast({ title: "Error", description: data.message || `Failed to ${action.toLowerCase()} user.`, variant: "destructive" });
+          }
+        })
+        .catch(() => {
+          toast({ title: "Error", description: `Error trying to ${action.toLowerCase()} user.`, variant: "destructive" });
+        });
+      return;
+    }
+    if (action === "Delete") {
+      if (!window.confirm(`Are you sure you want to delete user ${userName}?`)) return;
+      api.deleteClientUser(userId)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setClientUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
+            toast({ title: "User Deleted", description: `${userName} has been deleted.` });
+          } else {
+            toast({ title: "Error", description: data.message || "Failed to delete user.", variant: "destructive" });
+          }
+        })
+        .catch(() => {
+          toast({ title: "Error", description: "Error deleting user.", variant: "destructive" });
+        });
+      return;
+    }
+    toast({ title: `Action: ${action}`, description: `Performed on user "${userName}" (ID: ${userId}) (Simulated)` });
   };
 
   const handleAddUserSuccess = (data: AddClientUserFormValues) => {
@@ -224,7 +260,7 @@ export default function ClientUsersPage() {
                       </Badge>
                       <Switch
                         checked={user.status === "Active"}
-                        onCheckedChange={() => handleUserAction(user.status === "Active" ? "Suspend" : "Activate", user.id, user.full_name || user.name)}
+                        onCheckedChange={() => handleUserAction(user.status === "Active" ? "Suspend" : "Activate", user.id, user.full_name || user.name, user.status)}
                         aria-label="Toggle user status"
                       />
                     </div>
@@ -245,7 +281,7 @@ export default function ClientUsersPage() {
                         <DropdownMenuItem onClick={() => handleUserAction("Reset Password", user.id, user.full_name || user.name)}>
                           <KeyRound className="mr-2 h-4 w-4" /> Reset Password
                         </DropdownMenuItem>
-                         <DropdownMenuItem onClick={() => handleUserAction(user.status === 'Active' ? "Suspend" : "Activate", user.id, user.full_name || user.name)}>
+                         <DropdownMenuItem onClick={() => handleUserAction(user.status === 'Active' ? "Suspend" : "Activate", user.id, user.full_name || user.name, user.status)}>
                            {user.status === 'Active' ? <UserX className="mr-2 h-4 w-4 text-red-500" /> : <UserCheck className="mr-2 h-4 w-4 text-green-500" />}
                           {user.status === 'Active' ? "Suspend" : "Activate"}
                         </DropdownMenuItem>
