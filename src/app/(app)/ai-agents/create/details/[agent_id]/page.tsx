@@ -737,6 +737,12 @@ export default function AgentDetailsPage() {
     custom_llm_api_key: "",
     custom_llm_headers: [] as { type: string; name: string; secret: string }[],
   });
+
+  // Analysis tab
+  const [criteria, setCriteria] = useState([]);
+  const [dataCollection, setDataCollection] = useState([]);
+
+  // Widget tab
   const [widgetConfig, setWidgetConfig] = useState({
     voice: "Eric",
     multi_voice: false,
@@ -757,18 +763,23 @@ export default function AgentDetailsPage() {
     require_terms: false,
     require_visitor_terms: false,
   });
+
+  // Voice tab
   const [voiceConfig, setVoiceConfig] = useState({
+    model_id: 'eleven_turbo_v2',
     voice: "Eric",
     multi_voice: false,
     use_flash: false,
     tts_output_format: "PCM 16000 Hz",
-    pronunciation_dictionaries: [] as string[],
+    pronunciation_dictionaries: [] as { pronunciation_dictionary_id: string; version_id: string }[],
     latency: 0.5,
     stability: 0.5,
     speed: 0.5,
     similarity: 0.5,
     multi_voice_ids: [] as string[],
   });
+
+  // Security tab
   const [securityConfig, setSecurityConfig] = useState({
     enable_authentication: false,
     allowlist: [] as string[],
@@ -779,6 +790,8 @@ export default function AgentDetailsPage() {
     concurrent_calls_limit: -1,
     daily_calls_limit: 100000,
   });
+
+  // Advanced tab
   const [advancedConfig, setAdvancedConfig] = useState({
     turn_timeout: 7,
     silence_end_call_timeout: 20,
@@ -795,6 +808,8 @@ export default function AgentDetailsPage() {
     delete_transcript_and_derived_fields: false,
     delete_audio: false,
   });
+
+  // Analysis tab
   const [analysisConfig, setAnalysisConfig] = useState({
     evaluation_criteria: [] as string[],
     data_collection: [] as string[],
@@ -910,6 +925,7 @@ export default function AgentDetailsPage() {
           require_visitor_terms: widget.require_visitor_terms || false,
         });
         setVoiceConfig({
+          model_id: tts.model_id || 'eleven_turbo_v2',
           voice: tts.voice_id || '',
           multi_voice: tts.multi_voice || false,
           use_flash: tts.use_flash || false,
@@ -1171,22 +1187,30 @@ export default function AgentDetailsPage() {
       try {
         const res = await fetch('https://api.elevenlabs.io/v1/convai/knowledge-base', {
           headers: {
-            'xi-api-key': apiKey,
+            'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
             'Content-Type': 'application/json',
           },
         });
         if (!res.ok) throw new Error('Failed to fetch documents');
         const data = await res.json();
-        // Ensure availableDocs is always an array
-        let docs = data.knowledge_bases || data.items || data;
-        if (!Array.isArray(docs)) docs = [];
+        console.log('ElevenLabs KB API response:', data); // Debug log
+        let docs: any[] = [];
+        if (Array.isArray(data)) {
+          docs = data;
+        } else if (data && Array.isArray(data.documents)) {
+          docs = data.documents;
+        } else if (data && Array.isArray(data.knowledge_bases)) {
+          docs = data.knowledge_bases;
+        } else if (data && Array.isArray(data.items)) {
+          docs = data.items;
+        }
         setAvailableDocs(docs);
       } catch (e) {
         setAvailableDocs([]);
       }
     };
     fetchDocs();
-  }, [apiKey]);
+  }, []);
 
   const [docTypeDropdownOpen, setDocTypeDropdownOpen] = useState(false);
 
@@ -1268,6 +1292,7 @@ export default function AgentDetailsPage() {
   const [multiVoices, setMultiVoices] = useState<string[]>(voiceConfig.multi_voice_ids || []);
   const [voicesLoading, setVoicesLoading] = useState(false);
 
+  // 2. Fetch voices on mount
   useEffect(() => {
     setVoicesLoading(true);
     api.elevenLabs.getVoices(process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY)
@@ -1278,6 +1303,194 @@ export default function AgentDetailsPage() {
       .catch(() => setElevenVoices([]))
       .finally(() => setVoicesLoading(false));
   }, []);
+
+  // 3. Fetch backend voice settings
+  async function fetchVoiceSettingsFromBackend() {
+    try {
+      const res = await fetch(`/api/agents/${agentId}/voice-settings`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data) {
+          setVoiceConfig(prev => ({ ...prev, ...data.data, pronunciation_dictionaries: data.data.pronunciation_dictionary_locators ? JSON.parse(data.data.pronunciation_dictionary_locators) : [], multi_voice_ids: data.data.multi_voice_ids ? JSON.parse(data.data.multi_voice_ids) : [] }));
+          setMultiVoices(data.data.multi_voice_ids ? JSON.parse(data.data.multi_voice_ids) : []);
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Fetch both ElevenLabs and backend settings on mount/tab switch
+  useEffect(() => {
+    if (activeTab === 'Voice') {
+      fetchElevenLabsAgentDetails();
+      fetchVoiceSettingsFromBackend();
+    }
+  }, [activeTab, agentId]);
+
+  // Add state for voice tab loading and save status
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voiceSaveLoading, setVoiceSaveLoading] = useState(false);
+  const [voiceSaveSuccess, setVoiceSaveSuccess] = useState(false);
+  const [voiceSaveError, setVoiceSaveError] = useState("");
+
+  // Helper to fetch latest agent details from ElevenLabs and update voiceConfig
+  async function fetchElevenLabsAgentDetails() {
+    setVoiceLoading(true);
+    try {
+      const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const tts = data?.conversation_config?.tts || {};
+        setVoiceConfig(prev => ({
+          ...prev,
+          model_id: tts.model_id || 'eleven_turbo_v2',
+          voice: tts.voice_id || '',
+          tts_output_format: tts.agent_output_audio_format || 'PCM 16000 Hz',
+          latency: tts.optimize_streaming_latency ?? 0.5,
+          stability: tts.stability ?? 0.5,
+          speed: tts.speed ?? 1,
+          similarity: tts.similarity_boost ?? 0.5,
+          pronunciation_dictionaries: tts.pronunciation_dictionary_locators || [],
+          multi_voice_ids: tts.multi_voice_ids || [],
+        }));
+      }
+    } finally {
+      setVoiceLoading(false);
+    }
+  }
+
+  // 5. Save handler for Voice tab
+  async function handleSaveVoice() {
+    setVoiceSaveLoading(true);
+    setVoiceSaveSuccess(false);
+    setVoiceSaveError("");
+    try {
+      const ttsPayload = {
+        conversation_config: {
+          tts: {
+            model_id: voiceConfig.model_id,
+            voice_id: voiceConfig.voice,
+            agent_output_audio_format: voiceConfig.tts_output_format,
+            optimize_streaming_latency: Math.max(0, Math.min(4, Math.round(voiceConfig.latency))),
+            stability: voiceConfig.stability,
+            speed: Math.min(voiceConfig.speed, 1.2),
+            similarity_boost: voiceConfig.similarity,
+            ...(Array.isArray(voiceConfig.pronunciation_dictionaries) && voiceConfig.pronunciation_dictionaries.length > 0
+              ? { pronunciation_dictionary_locators: voiceConfig.pronunciation_dictionaries }
+              : {}),
+            ...(Array.isArray(voiceConfig.multi_voice_ids) && voiceConfig.multi_voice_ids.length > 0
+              ? { multi_voice_ids: voiceConfig.multi_voice_ids }
+              : {}),
+          }
+        }
+      };
+      // Save to ElevenLabs
+      const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(ttsPayload),
+      });
+      // Save to backend DB
+      await fetch(`/api/agents/${agentId}/voice-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model_id: voiceConfig.model_id,
+          voice_id: voiceConfig.voice,
+          tts_output_format: voiceConfig.tts_output_format,
+          optimize_streaming_latency: Math.max(0, Math.min(4, Math.round(voiceConfig.latency))),
+          stability: voiceConfig.stability,
+          speed: Math.min(voiceConfig.speed, 1.2),
+          similarity_boost: voiceConfig.similarity,
+          pronunciation_dictionary_locators: voiceConfig.pronunciation_dictionaries,
+          multi_voice_ids: voiceConfig.multi_voice_ids,
+        }),
+      });
+      if (res.ok) {
+        setVoiceSaveSuccess(true);
+        await fetchElevenLabsAgentDetails();
+        await fetchVoiceSettingsFromBackend();
+      } else {
+        const err = await res.json();
+        setVoiceSaveError(err?.error || 'Failed to update voice config');
+      }
+    } catch (e) {
+      setVoiceSaveError('Network error. Please try again.');
+    } finally {
+      setVoiceSaveLoading(false);
+    }
+  }
+
+  // At the top of the component
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  function handleAddDictionaryFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1.6 * 1024 * 1024) {
+      alert('File too large (max 1.6MB)');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', file.name);
+    fetch('/api/elevenlabs/pronunciation-dictionary', {
+      method: 'POST',
+      body: formData,
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.pronunciation_dictionary_id && data.version_id) {
+          setVoiceConfig(prev => ({
+            ...prev,
+            pronunciation_dictionaries: [
+              ...(prev.pronunciation_dictionaries || []),
+              { pronunciation_dictionary_id: data.pronunciation_dictionary_id, version_id: data.version_id }
+            ]
+          }));
+          // Optionally, save to backend as before (call handleSaveVoice or similar)
+        } else {
+          alert('Failed to upload dictionary: ' + (data.error || 'Unknown error'));
+        }
+      })
+      .catch(() => alert('Failed to upload dictionary'));
+  }
+
+  // Add these state and handlers at the top of the component (inside AgentDetailsPage)
+  const [showCriteriaOverlay, setShowCriteriaOverlay] = useState(false);
+  const [showDataOverlay, setShowDataOverlay] = useState(false);
+  const [criteriaName, setCriteriaName] = useState("");
+  const [criteriaPrompt, setCriteriaPrompt] = useState("");
+  const [dataType, setDataType] = useState("String");
+  const [dataIdentifier, setDataIdentifier] = useState("");
+  const [dataDescription, setDataDescription] = useState("");
+
+  function handleOverlayBgClick(e: React.MouseEvent) {
+    // Only close if clicking the background, not the drawer
+    if (e.target === e.currentTarget) {
+      setShowCriteriaOverlay(false);
+      setShowDataOverlay(false);
+    }
+  }
+  function handleAddCriteria() {
+    // Add logic to save criteria (e.g., update analysisConfig.evaluation_criteria)
+    setShowCriteriaOverlay(false);
+    setCriteriaName("");
+    setCriteriaPrompt("");
+  }
+  function handleAddDataItem() {
+    // Add logic to save data item (e.g., update analysisConfig.data_collection)
+    setShowDataOverlay(false);
+    setDataType("String");
+    setDataIdentifier("");
+    setDataDescription("");
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -1817,178 +2030,208 @@ export default function AgentDetailsPage() {
         )}
         {activeTab === "Voice" && (
           <div className="space-y-6">
-            {/* Voice tab fields: voice select, multi-voice, use flash, TTS output, pronunciation dictionaries, latency, stability, speed, similarity */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Voice</div>
-              <div className="text-gray-500 text-sm mb-2">Select the ElevenLabs voice you want to use for the agent.</div>
-              <Select
-                isSearchable
-                isClearable={false}
-                value={elevenVoices.find(v => v.voice_id === voiceConfig.voice) ? {
-                  value: voiceConfig.voice,
-                  label: elevenVoices.find(v => v.voice_id === voiceConfig.voice)?.name,
-                  raw: elevenVoices.find(v => v.voice_id === voiceConfig.voice)
-                } : null}
-                onChange={(opt: any) => {
-                  if (opt && typeof opt === 'object' && !Array.isArray(opt) && 'value' in opt && typeof opt.value === 'string') {
-                    setVoiceConfig(prev => ({ ...prev, voice: opt.value }));
-                  } else {
-                    setVoiceConfig(prev => ({ ...prev, voice: '' }));
-                  }
-                }}
-                options={elevenVoices.map(v => ({
-                  value: v.voice_id,
-                  label: v.name,
-                  raw: v
-                }))}
-                formatOptionLabel={(option: any) => {
-                  const v = option.raw;
-                  return (
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `hsl(${v.voice_id.charCodeAt(0) * 13 % 360},70%,85%)` }}>
-                        <span className="text-base font-bold">{v.name?.[0] || '?'}</span>
-                      </div>
-                      <span>{v.name}</span>
-                      {v.labels?.use_case && (
-                        <span className="ml-2 text-xs text-gray-500 truncate max-w-[120px]">{v.labels.use_case}</span>
-                      )}
-                    </div>
-                  );
-                }}
-                styles={{
-                  option: (base, state) => ({ ...base, color: '#222', background: state.isSelected ? '#e0e7ff' : state.isFocused ? '#f3f4f6' : '#fff', fontWeight: state.isSelected ? 600 : 400 }),
-                  singleValue: base => ({ ...base, color: '#222' }),
-                  menu: base => ({ ...base, zIndex: 9999 }),
-                }}
-                classNamePrefix="voice-select"
-              />
-            </div>
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Multi-voice support <span className="text-xs bg-gray-100 px-2 py-1 rounded ml-2">New</span></div>
-              <div className="text-gray-500 text-sm mb-2">Specify additional ElevenLabs voices that the agent can switch to on demand. Useful for multi-character/emotional agents or language tutoring.</div>
-              <Select
-                isMulti
-                isSearchable
-                value={multiVoices.map(id => {
-                  const v = elevenVoices.find(vv => vv.voice_id === id);
-                  return v ? {
-                    value: v.voice_id,
-                    label: v.name,
-                    raw: v
-                  } : null;
-                }).filter(Boolean)}
-                onChange={(opts: MultiValue<any>, _action: ActionMeta<any>) => {
-                  const selected = (opts || []).map((opt: any) => opt.value as string);
-                  setMultiVoices(selected);
-                  setVoiceConfig(prev => ({ ...prev, multi_voice_ids: selected }));
-                }}
-                options={elevenVoices.map(v => ({
-                  value: v.voice_id,
-                  label: v.name,
-                  raw: v
-                }))}
-                formatOptionLabel={(option: any) => {
-                  const v = option.raw;
-                  return (
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `hsl(${v.voice_id.charCodeAt(0) * 13 % 360},70%,85%)` }}>
-                        <span className="text-base font-bold">{v.name?.[0] || '?'}</span>
-                      </div>
-                      <span>{v.name}</span>
-                      {v.labels?.use_case && (
-                        <span className="ml-2 text-xs text-gray-500 truncate max-w-[120px]">{v.labels.use_case}</span>
-                      )}
-                    </div>
-                  );
-                }}
-                styles={{
-                  option: (base, state) => ({ ...base, color: '#222', background: state.isSelected ? '#e0e7ff' : state.isFocused ? '#f3f4f6' : '#fff', fontWeight: state.isSelected ? 600 : 400 }),
-                  multiValue: base => ({ ...base, background: '#e0e7ff', color: '#222', borderRadius: 6, padding: '0 4px' }),
-                  multiValueLabel: base => ({ ...base, color: '#222', fontWeight: 500 }),
-                  menu: base => ({ ...base, zIndex: 9999 }),
-                }}
-                classNamePrefix="voice-select"
-              />
-            </div>
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={voiceConfig.use_flash} onChange={e => setVoiceConfig(prev => ({ ...prev, use_flash: e.target.checked }))} /> Use Flash</label>
-              <div className="text-xs text-gray-500 mb-2">Flash is our new recommended model for low latency use cases. For more comparison between Turbo and Flash, <a href="https://help.elevenlabs.io/hc/en-us/articles/19156300388881-Turbo-vs-Flash" target="_blank" rel="noopener noreferrer" className="underline">refer here</a>. Consider using Turbo for better quality at higher latency. We also recommend using Turbo for non-latin languages.<br/>Your agent will use <b>Turbo v2</b>.</div>
-            </div>
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">TTS output format</div>
-              <div className="text-gray-500 text-sm mb-2">Select the output format you want to use for ElevenLabs text to speech.</div>
-              <select
-                value={voiceConfig.tts_output_format}
-                onChange={e => setVoiceConfig(prev => ({ ...prev, tts_output_format: e.target.value }))}
-                className="border rounded px-3 py-2 w-64"
-              >
-                <option>PCM 16000 Hz</option>
-                <option>PCM 8000 Hz</option>
-                <option>WAV</option>
-              </select>
-            </div>
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Pronunciation Dictionaries</div>
-              <div className="text-gray-500 text-sm mb-2">Lexicon dictionary files will apply pronunciation replacements to agent responses. Currently, the phoneme function of the pronunciation dictionaries only works with the Turbo v2 model, while the alias function works with all models.</div>
-              <button className="bg-gray-200 px-3 py-2 rounded w-fit">Add dictionary</button>
-            </div>
-            {/* Sliders for latency, stability, speed, similarity */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Optimize streaming latency <span className="ml-1">🕒</span></div>
-              <div className="text-gray-500 text-sm mb-2">Configure latency optimizations for the speech generation. Latency can be optimized at the cost of quality.</div>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                value={String(typeof voiceConfig["latency"] === 'number' ? voiceConfig["latency"] : 0)}
-                onChange={e => setVoiceConfig(prev => ({ ...prev, ["latency"]: Number(e.target.value) }))}
-                  className="w-full"
-                />
-              <div className="text-xs text-gray-500">Current: {voiceConfig["latency"]}</div>
-              </div>
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Stability</div>
-              <div className="text-gray-500 text-sm mb-2">Higher values will make speech more consistent, but it can also make it sound monotone. Lower values will make speech sound more expressive, but may lead to instabilities.</div>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={String(typeof voiceConfig["stability"] === 'number' ? voiceConfig["stability"] : 0)}
-                onChange={e => setVoiceConfig(prev => ({ ...prev, ["stability"]: Number(e.target.value) }))}
-                className="w-full"
-              />
-              <div className="text-xs text-gray-500">Current: {voiceConfig["stability"]}</div>
-            </div>
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Speed</div>
-              <div className="text-gray-500 text-sm mb-2">Controls the speed of the generated speech. Values below 1.0 will slow down the speech, while values above 1.0 will speed it up. Extreme values may affect the quality of the generated speech.</div>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={String(typeof voiceConfig["speed"] === 'number' ? voiceConfig["speed"] : 0)}
-                onChange={e => setVoiceConfig(prev => ({ ...prev, ["speed"]: Number(e.target.value) }))}
-                className="w-full"
-              />
-              <div className="text-xs text-gray-500">Current: {voiceConfig["speed"]}</div>
-            </div>
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Similarity</div>
-              <div className="text-gray-500 text-sm mb-2">Higher values will boost the overall clarity and consistency of the voice. Very high values may lead to artifacts. Adjusting this value to find the right balance is recommended.</div>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={String(typeof voiceConfig["similarity"] === 'number' ? voiceConfig["similarity"] : 0)}
-                onChange={e => setVoiceConfig(prev => ({ ...prev, ["similarity"]: Number(e.target.value) }))}
-                className="w-full"
-              />
-              <div className="text-xs text-gray-500">Current: {voiceConfig["similarity"]}</div>
-            </div>
+            {voiceLoading ? (
+              <div className="text-center text-gray-500">Loading voice settings...</div>
+            ) : (
+              <>
+                {/* Voice tab fields: voice select, multi-voice, use flash, TTS output, pronunciation dictionaries, latency, stability, speed, similarity */}
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                  <div className="font-semibold">Voice</div>
+                  <div className="text-gray-500 text-sm mb-2">Select the ElevenLabs voice you want to use for the agent.</div>
+                  <Select
+                    isSearchable
+                    isClearable={false}
+                    value={elevenVoices.find(v => v.voice_id === voiceConfig.voice) ? {
+                      value: voiceConfig.voice,
+                      label: elevenVoices.find(v => v.voice_id === voiceConfig.voice)?.name,
+                      raw: elevenVoices.find(v => v.voice_id === voiceConfig.voice)
+                    } : null}
+                    onChange={(opt: any) => {
+                      if (opt && typeof opt === 'object' && !Array.isArray(opt) && 'value' in opt && typeof opt.value === 'string') {
+                        setVoiceConfig(prev => ({ ...prev, voice: opt.value }));
+                      } else {
+                        setVoiceConfig(prev => ({ ...prev, voice: '' }));
+                      }
+                    }}
+                    options={elevenVoices.map(v => ({
+                      value: v.voice_id,
+                      label: v.name,
+                      raw: v
+                    }))}
+                    formatOptionLabel={(option: any) => {
+                      const v = option.raw;
+                      return (
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `hsl(${v.voice_id.charCodeAt(0) * 13 % 360},70%,85%)` }}>
+                            <span className="text-base font-bold">{v.name?.[0] || '?'}</span>
+                          </div>
+                          <span>{v.name}</span>
+                          {v.labels?.use_case && (
+                            <span className="ml-2 text-xs text-gray-500 truncate max-w-[120px]">{v.labels.use_case}</span>
+                          )}
+                        </div>
+                      );
+                    }}
+                    styles={{
+                      option: (base, state) => ({ ...base, color: '#222', background: state.isSelected ? '#e0e7ff' : state.isFocused ? '#f3f4f6' : '#fff', fontWeight: state.isSelected ? 600 : 400 }),
+                      singleValue: base => ({ ...base, color: '#222' }),
+                      menu: base => ({ ...base, zIndex: 9999 }),
+                    }}
+                    classNamePrefix="voice-select"
+                  />
+                </div>
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                  <div className="font-semibold">Multi-voice support <span className="text-xs bg-gray-100 px-2 py-1 rounded ml-2">New</span></div>
+                  <div className="text-gray-500 text-sm mb-2">Specify additional ElevenLabs voices that the agent can switch to on demand. Useful for multi-character/emotional agents or language tutoring.</div>
+                  <Select
+                    isMulti
+                    isSearchable
+                    value={multiVoices.map(id => {
+                      const v = elevenVoices.find(vv => vv.voice_id === id);
+                      return v ? {
+                        value: v.voice_id,
+                        label: v.name,
+                        raw: v
+                      } : null;
+                    }).filter(Boolean)}
+                    onChange={(opts: MultiValue<any>, _action: ActionMeta<any>) => {
+                      const selected = (opts || []).map((opt: any) => opt.value as string);
+                      setMultiVoices(selected);
+                      setVoiceConfig(prev => ({ ...prev, multi_voice_ids: selected }));
+                    }}
+                    options={elevenVoices.map(v => ({
+                      value: v.voice_id,
+                      label: v.name,
+                      raw: v
+                    }))}
+                    formatOptionLabel={(option: any) => {
+                      const v = option.raw;
+                      return (
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: `hsl(${v.voice_id.charCodeAt(0) * 13 % 360},70%,85%)` }}>
+                            <span className="text-base font-bold">{v.name?.[0] || '?'}</span>
+                          </div>
+                          <span>{v.name}</span>
+                          {v.labels?.use_case && (
+                            <span className="ml-2 text-xs text-gray-500 truncate max-w-[120px]">{v.labels.use_case}</span>
+                          )}
+                        </div>
+                      );
+                    }}
+                    styles={{
+                      option: (base, state) => ({ ...base, color: '#222', background: state.isSelected ? '#e0e7ff' : state.isFocused ? '#f3f4f6' : '#fff', fontWeight: state.isSelected ? 600 : 400 }),
+                      multiValue: base => ({ ...base, background: '#e0e7ff', color: '#222', borderRadius: 6, padding: '0 4px' }),
+                      multiValueLabel: base => ({ ...base, color: '#222', fontWeight: 500 }),
+                      menu: base => ({ ...base, zIndex: 9999 }),
+                    }}
+                    classNamePrefix="voice-select"
+                  />
+                </div>
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={voiceConfig.use_flash} onChange={e => setVoiceConfig(prev => ({ ...prev, use_flash: e.target.checked }))} /> Use Flash</label>
+                  <div className="text-xs text-gray-500 mb-2">Flash is our new recommended model for low latency use cases. For more comparison between Turbo and Flash, <a href="https://help.elevenlabs.io/hc/en-us/articles/19156300388881-Turbo-vs-Flash" target="_blank" rel="noopener noreferrer" className="underline">refer here</a>. Consider using Turbo for better quality at higher latency. We also recommend using Turbo for non-latin languages.<br/>Your agent will use <b>Turbo v2</b>.</div>
+                </div>
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                  <div className="font-semibold">TTS output format</div>
+                  <div className="text-gray-500 text-sm mb-2">Select the output format you want to use for ElevenLabs text to speech.</div>
+                  <select
+                    value={voiceConfig.tts_output_format}
+                    onChange={e => setVoiceConfig(prev => ({ ...prev, tts_output_format: e.target.value }))}
+                    className="border rounded px-3 py-2 w-64"
+                  >
+                    <option value="pcm_8000">PCM 8000 Hz</option>
+                    <option value="pcm_16000">PCM 16000 Hz</option>
+                    <option value="pcm_22050">PCM 22050 Hz</option>
+                    <option value="pcm_24000">PCM 24000 Hz</option>
+                    <option value="pcm_44100">PCM 44100 Hz</option>
+                    <option value="pcm_48000">PCM 48000 Hz</option>
+                    <option value="ulaw_8000">µ-law 8000 Hz</option>
+                  </select>
+                </div>
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                  <div className="font-semibold">Pronunciation Dictionaries</div>
+                  <div className="text-gray-500 text-sm mb-2">Lexicon dictionary files will apply pronunciation replacements to agent responses. Currently, the phoneme function of the pronunciation dictionaries only works with the Turbo v2 model, while the alias function works with all models.</div>
+                  <input
+                    type="file"
+                    accept=".pls,.txt,.xml"
+                    style={{ display: 'none' }}
+                    ref={fileInputRef}
+                    onChange={handleAddDictionaryFile}
+                  />
+                  <button
+                    className="bg-gray-200 px-3 py-2 rounded w-fit"
+                    onClick={() => fileInputRef.current?.click()}
+                    type="button"
+                  >
+                    Add dictionary
+                  </button>
+                </div>
+                {/* Sliders for latency, stability, speed, similarity */}
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                  <div className="font-semibold">Optimize streaming latency <span className="ml-1">🕒</span></div>
+                  <div className="text-gray-500 text-sm mb-2">Configure latency optimizations for the speech generation. Latency can be optimized at the cost of quality.</div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={4}
+                      step={1}
+                    value={String(typeof voiceConfig["latency"] === 'number' ? voiceConfig["latency"] : 0)}
+                    onChange={e => setVoiceConfig(prev => ({ ...prev, ["latency"]: Number(e.target.value) }))}
+                      className="w-full"
+                    />
+                  <div className="text-xs text-gray-500">Current: {voiceConfig["latency"]}</div>
+                </div>
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                  <div className="font-semibold">Stability</div>
+                  <div className="text-gray-500 text-sm mb-2">Higher values will make speech more consistent, but it can also make it sound monotone. Lower values will make speech sound more expressive, but may lead to instabilities.</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={String(typeof voiceConfig["stability"] === 'number' ? voiceConfig["stability"] : 0)}
+                    onChange={e => setVoiceConfig(prev => ({ ...prev, ["stability"]: Number(e.target.value) }))}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-gray-500">Current: {voiceConfig["stability"]}</div>
+                </div>
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                  <div className="font-semibold">Speed</div>
+                  <div className="text-gray-500 text-sm mb-2">Controls the speed of the generated speech. Values below 1.0 will slow down the speech, while values above 1.0 will speed it up. Extreme values may affect the quality of the generated speech.</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1.2}
+                    step={0.01}
+                    value={String(typeof voiceConfig["speed"] === 'number' ? voiceConfig["speed"] : 0)}
+                    onChange={e => setVoiceConfig(prev => ({ ...prev, ["speed"]: Number(e.target.value) }))}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-gray-500">Current: {voiceConfig["speed"]}</div>
+                </div>
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                  <div className="font-semibold">Similarity</div>
+                  <div className="text-gray-500 text-sm mb-2">Higher values will boost the overall clarity and consistency of the voice. Very high values may lead to artifacts. Adjusting this value to find the right balance is recommended.</div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={String(typeof voiceConfig["similarity"] === 'number' ? voiceConfig["similarity"] : 0)}
+                    onChange={e => setVoiceConfig(prev => ({ ...prev, ["similarity"]: Number(e.target.value) }))}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-gray-500">Current: {voiceConfig["similarity"]}</div>
+                </div>
+                <div className="flex items-center gap-4 mt-4">
+                  <button type="button" onClick={handleSaveVoice} disabled={voiceSaveLoading} className="bg-black text-white px-6 py-2 rounded-lg font-medium">
+                    {voiceSaveLoading ? "Saving..." : "Save Voice Settings"}
+                  </button>
+                  {voiceSaveSuccess && <span className="text-green-600 text-sm">Voice settings saved!</span>}
+                  {voiceSaveError && <span className="text-red-600 text-sm">{voiceSaveError}</span>}
+                </div>
+              </>
+            )}
           </div>
         )}
         {activeTab === "Widget" && (
@@ -2250,12 +2493,61 @@ export default function AgentDetailsPage() {
             {/* Analysis tab fields: evaluation criteria, data collection */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Evaluation criteria</div>
-              <button className="bg-gray-200 px-3 py-2 rounded w-fit">Add criteria</button>
+              <button className="bg-gray-200 px-3 py-2 rounded w-fit" onClick={() => setShowCriteriaOverlay(true)}>Add criteria</button>
             </div>
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Data collection</div>
-              <button className="bg-gray-200 px-3 py-2 rounded w-fit">Add item</button>
+              <button className="bg-gray-200 px-3 py-2 rounded w-fit" onClick={() => setShowDataOverlay(true)}>Add item</button>
             </div>
+
+            {/* Right-side overlays for criteria and data collection */}
+            {showCriteriaOverlay && (
+              <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={handleOverlayBgClick}>
+                <div className="w-full h-full max-w-md bg-white shadow-xl p-8 flex flex-col absolute right-0 top-0" style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16, height: '100vh' }} onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="text-lg font-semibold">Add criteria</div>
+                    <button className="text-2xl text-gray-400 hover:text-gray-600" onClick={() => setShowCriteriaOverlay(false)}>&times;</button>
+                  </div>
+                  <div className="text-xs text-gray-500 mb-4">Goal prompt criteria<br/>Passes the conversation transcript together with a custom prompt to the LLM that verifies if a goal was met. The result will be one of three values: <b>success</b>, <b>failure</b>, or <b>unknown</b>, as well as a <i>rationale</i> describing why the given result was chosen.</div>
+                  <label className="font-medium text-sm mb-1">Name</label>
+                  <input className="border rounded px-3 py-2 w-full mb-4" placeholder="Enter the name to generate an ID." value={criteriaName} onChange={e => setCriteriaName(e.target.value)} />
+                  <label className="font-medium text-sm mb-1">Prompt</label>
+                  <textarea className="border rounded px-3 py-2 w-full mb-6 min-h-[80px]" placeholder="Enter prompt..." value={criteriaPrompt} onChange={e => setCriteriaPrompt(e.target.value)} />
+                  <div className="flex justify-end gap-2 mt-auto">
+                    <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setShowCriteriaOverlay(false)}>Cancel</button>
+                    <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddCriteria}>Add criteria</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {showDataOverlay && (
+              <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={handleOverlayBgClick}>
+                <div className="w-full h-full max-w-md bg-white shadow-xl p-8 flex flex-col absolute right-0 top-0" style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16, height: '100vh' }} onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="text-lg font-semibold">Add data collection item</div>
+                    <button className="text-2xl text-gray-400 hover:text-gray-600" onClick={() => setShowDataOverlay(false)}>&times;</button>
+                  </div>
+                  <div className="flex flex-col gap-2 mb-4">
+                    <label className="font-medium text-sm mb-1">Data type</label>
+                    <select className="border rounded px-3 py-2 w-full" value={dataType} onChange={e => setDataType(e.target.value)}>
+                      <option value="String">String</option>
+                      <option value="Number">Number</option>
+                      <option value="Boolean">Boolean</option>
+                      <option value="Integer">Integer</option>
+                    </select>
+                  </div>
+                  <label className="font-medium text-sm mb-1">Identifier</label>
+                  <input className="border rounded px-3 py-2 w-full mb-4" placeholder="Enter identifier..." value={dataIdentifier} onChange={e => setDataIdentifier(e.target.value)} />
+                  <label className="font-medium text-sm mb-1">Description</label>
+                  <textarea className="border rounded px-3 py-2 w-full mb-6 min-h-[80px]" placeholder="Describe how to extract the data from the transcript..." value={dataDescription} onChange={e => setDataDescription(e.target.value)} />
+                  <div className="text-xs text-gray-500 mb-4">This field will be passed to the LLM and should describe in detail how to extract the data from the transcript.</div>
+                  <div className="flex justify-end gap-2 mt-auto">
+                    <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setShowDataOverlay(false)}>Cancel</button>
+                    <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddDataItem}>Add item</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {/* New • Chat tab can be scaffolded similarly */}

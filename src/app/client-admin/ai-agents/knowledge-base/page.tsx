@@ -28,10 +28,12 @@ import { useEffect, useState } from 'react';
 import { Sheet, SheetHeader, SheetTitle, SheetFooter, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { api, API_BASE_URL } from "@/lib/apiConfig";
+import { useUser } from '@/lib/utils';
 
 
 export default function KnowledgeBasePage() {
   const { toast } = useToast();
+  const { user } = useUser();
   // Article type
   type KnowledgeBaseArticle = {
     id: string;
@@ -55,10 +57,6 @@ export default function KnowledgeBasePage() {
   const itemsPerPage = 10;
   const [openDialog, setOpenDialog] = React.useState<null | 'url' | 'files' | 'text'>(null);
   const [typeFilter, setTypeFilter] = React.useState({ file: false, url: false, text: false });
-  const [clients, setClients] = React.useState<{ id: string; companyName: string }[]>([]);
-  const [selectedClientId, setSelectedClientId] = React.useState<string | undefined>(undefined);
-  const [clientComboboxOpen, setClientComboboxOpen] = React.useState(false);
-  const [search, setSearch] = React.useState("");
   const [urlInput, setUrlInput] = useState("");
   const [textName, setTextName] = useState("");
   const [textContent, setTextContent] = useState("");
@@ -156,17 +154,12 @@ export default function KnowledgeBasePage() {
     return elevenData;
   }
 
-  // Fetch articles on load
+  // Fetch articles on load (from local DB, not just ElevenLabs)
   useEffect(() => {
-    fetchElevenLabsKnowledgeBase().then(setArticles);
-  }, []);
-
-  // Fetch clients on load
-  useEffect(() => {
-    api.getClients()
+    api.getKnowledgeBase()
       .then(res => res.json())
-      .then(data => setClients(data.data || []));
-  }, []);
+      .then(data => setArticles(data.data || []));
+  }, [user?.userId]);
 
   // Merge localMeta by url (or name if url is missing)
   async function fetchLocalMeta() {
@@ -184,26 +177,22 @@ export default function KnowledgeBasePage() {
     fetchLocalMeta();
   }, []);
 
-  const filteredClients = clients.filter(client =>
-    client.companyName.toLowerCase().includes(search.toLowerCase())
-  );
-
   const selectedTypes = Object.entries(typeFilter).filter(([_, v]) => v).map(([k]) => k);
   const typeLabels = { file: 'File', url: 'URL', text: 'Text' };
   const typeIcons = { file: Upload, url: Globe, text: FileText };
 
-  const filteredArticles = articles.filter((article) => {
+  // Filter articles to only show those for the current client admin
+  const filteredArticles = articles.filter((article) =>
+    String(article.client_id) === String(user?.userId)
+  ).filter((article) => {
     const lowerSearchTerm = searchTerm.toLowerCase();
     const matchesSearch =
       (article.name?.toLowerCase() ?? '').includes(lowerSearchTerm);
-
     // Type filter logic
     const matchesType =
       selectedTypes.length === 0 || selectedTypes.includes(article.type);
-
     const matchesCategory = categoryFilter === "all" || article.type === categoryFilter;
     const matchesStatus = statusFilter === "all" || article.type === statusFilter;
-
     return matchesSearch && matchesType && matchesCategory && matchesStatus;
   });
 
@@ -223,18 +212,19 @@ export default function KnowledgeBasePage() {
   // Add document dialog handlers
   const [addDocLoading, setAddDocLoading] = useState(false);
 
+  // When adding a knowledge base item, always use user.userId as client_id
   async function handleAddUrl() {
     setAddDocLoading(true);
     try {
       const localDbPayload = {
-        client_id: selectedClientId || null, // <-- use selected client
+        client_id: user?.userId || null, // always use logged-in user id
         type: "url",
         name: urlInput,
         url: urlInput,
         file_path: null,
         text_content: null,
         size: null,
-        created_by: "user@example.com", // replace with actual user email
+        created_by: "user@example.com", // replace with actual user email if available
       };
       await addKnowledgeBaseItem('url', { url: urlInput, name: urlInput }, ELEVENLABS_API_KEY, localDbPayload);
       setUrlInput("");
@@ -250,14 +240,14 @@ export default function KnowledgeBasePage() {
     setAddDocLoading(true);
     try {
       const localDbPayload = {
-        client_id: selectedClientId || null, // <-- use selected client
+        client_id: user?.userId || null, // always use logged-in user id
         type: "text",
         name: textName,
         url: null,
         file_path: null,
         text_content: textContent,
         size: `${textContent.length} chars`,
-        created_by: "user@example.com", // replace with actual user email
+        created_by: "user@example.com", // replace with actual user email if available
       };
       await addKnowledgeBaseItem('text', { name: textName, text: textContent }, ELEVENLABS_API_KEY, localDbPayload);
       setTextName("");
@@ -275,14 +265,14 @@ export default function KnowledgeBasePage() {
     setAddDocLoading(true);
     try {
       const localDbPayload = {
-        client_id: selectedClientId || null, // <-- use selected client
+        client_id: user?.userId || null, // always use logged-in user id
         type: "file",
         name: file.name,
         url: null,
         file_path: "/uploads/" + file.name, // replace with actual upload logic
         text_content: null,
         size: `${(file.size / 1024).toFixed(1)} kB`,
-        created_by: "user@example.com", // replace with actual user email
+        created_by: "user@example.com", // replace with actual user email if available
       };
       await addKnowledgeBaseItem('file', { name: file.name }, ELEVENLABS_API_KEY, localDbPayload);
       setFile(null);
@@ -410,46 +400,6 @@ export default function KnowledgeBasePage() {
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex justify-between items-start mb-4">
         <h1 className="text-3xl font-bold">Knowledge Base</h1>
-      </div>
-      <div className="max-w-xl mb-6">
-        <Popover open={clientComboboxOpen} onOpenChange={setClientComboboxOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-full justify-between">
-              {selectedClientId
-                ? clients.find(client => client.id === selectedClientId)?.companyName
-                : "Select client..."}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[550px] p-0">
-            <Command>
-              <CommandInput
-                placeholder="Search client..."
-                value={search}
-                onValueChange={setSearch}
-              />
-              <CommandList>
-                <CommandEmpty>No client found.</CommandEmpty>
-                <CommandGroup>
-                  {filteredClients.map(client => (
-                    <CommandItem
-                      key={client.id}
-                      value={client.companyName}
-                      onSelect={() => {
-                        setSelectedClientId(client.id);
-                        setClientComboboxOpen(false);
-                        setSearch("");
-                      }}
-                    >
-                      <Check className={cn("mr-2 h-4 w-4", selectedClientId === client.id ? "opacity-100" : "opacity-0")} />
-                      {client.companyName}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
       </div>
       <div className="flex gap-4 mb-6">
         <Dialog open={openDialog === 'url'} onOpenChange={v => setOpenDialog(v ? 'url' : null)}>
@@ -653,7 +603,6 @@ export default function KnowledgeBasePage() {
           <thead>
             <tr className="border-b">
               <th className="text-left font-medium px-6 py-3">Knowledge Base</th>
-              <th className="text-left font-medium px-6 py-3">Client</th>
               <th className="text-left font-medium px-6 py-3">Created by</th>
               <th className="text-left font-medium px-6 py-3">Last updated <span className="inline-block align-middle">↓</span></th>
               <th className="w-10"></th>
@@ -670,7 +619,6 @@ export default function KnowledgeBasePage() {
                   (article.url ? localMeta[article.url] : undefined) ||
                   (article.name ? localMeta[article.name] : undefined) ||
                   {};
-                const clientName = meta.client_id ? (clients.find(c => c.id == meta.client_id)?.companyName || meta.client_id) : '-';
                 return (
                   <tr
                     key={article.id}
@@ -703,7 +651,6 @@ export default function KnowledgeBasePage() {
                         <div className="text-xs text-muted-foreground">{article.size}</div>
                       </div>
                     </td>
-                    <td>{clientName}</td>
                     <td>{meta.created_by || '-'}</td>
                     <td>{meta.updated_at ? new Date(meta.updated_at).toLocaleString() : '-'}</td>
                     <td className="px-6 py-4 text-right">

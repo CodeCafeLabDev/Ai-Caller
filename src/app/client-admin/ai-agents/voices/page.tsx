@@ -476,7 +476,7 @@ export default function VoicesPage() {
                     </div>
                     {/* Hidden audio element for playback */}
                     <audio
-                      ref={el => (audioRefs.current[voice.voice_id] = el)}
+                      ref={el => { audioRefs.current[voice.voice_id] = el; }}
                       src={voice.preview_url || voice.audio_url || ''}
                       onEnded={handleAudioEnded}
                       style={{ display: 'none' }}

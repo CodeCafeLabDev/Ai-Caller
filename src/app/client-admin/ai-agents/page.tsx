@@ -127,8 +127,8 @@ const statusFilterOptions: {value: AIAgentStatus | "all"; label: string}[] = [
 
 
 export default function AiAgentsPage() {
-  const { toast } = useToast();
   const { user } = useUser();
+  const { toast } = useToast();
   const [agents, setAgents] = React.useState<AIAgent[]>(mockAgents);
   const [clients, setClients] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -344,7 +344,7 @@ export default function AiAgentsPage() {
                 {paginatedAgents.length > 0 ? paginatedAgents.map((agent) => (
                   <TableRow key={agent.id}>
                     <TableCell className="font-medium">
-                      <Link href={`/ai-agents/create/details/${agent.id}`} className="text-blue-600 hover:underline">
+                      <Link href={`/client-admin/ai-agents/create/details/${agent.id}`} className="text-blue-600 hover:underline">
                         {agent.name}
                       </Link>
                       <div className="flex flex-wrap gap-1 mt-1">

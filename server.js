@@ -11,6 +11,7 @@ const bcryptjs = require('bcryptjs');
 const cookieParser = require('cookie-parser');
 const fetch = (...args) => import('node-fetch').then(mod => mod.default(...args));
 const axios = require('axios');
+const { execFile } = require('child_process');
 
 console.log("🟡 Starting backend server...");
 
@@ -180,6 +181,29 @@ db.connect(err => {
             console.log("✅ Knowledge base table ready");
           }
         });
+
+        const createCriteriaTable = `
+         CREATE TABLE IF NOT EXISTS agent_analysis_criteria (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          agent_id VARCHAR(64) NOT NULL,
+          name VARCHAR(255) NOT NULL,
+          prompt TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `;
+      db.query(createCriteriaTable);
+
+      const createDataCollectionTable = `
+        CREATE TABLE IF NOT EXISTS agent_analysis_data_collection (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          agent_id VARCHAR(64) NOT NULL,
+          data_type VARCHAR(32) NOT NULL,
+          identifier VARCHAR(255) NOT NULL,
+          description TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `;
+      db.query(createDataCollectionTable);
 
         // --- AGENTS TABLE MIGRATION: Add language_code and additional_languages columns if not exist ---
         db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS language_code VARCHAR(20)`, () => {});
@@ -670,6 +694,56 @@ app.get('/api/elevenlabs/agents', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+//GET /api/agents/:id/analysis - Get analysis criteria and data collection for an agent
+app.get('/api/agents/:id/analysis', (req, res) => {
+  const agentId = req.params.id;
+  db.query('SELECT * FROM agent_analysis_criteria WHERE agent_id = ?', [agentId], (err, criteria) => {
+    if (err) return res.status(500).json({ error: err.message });
+    db.query('SELECT * FROM agent_analysis_data_collection WHERE agent_id = ?', [agentId], (err2, dataCollection) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      res.json({ criteria, data_collection: dataCollection });
+    });
+  });
+});
+
+//POST /api/agents/:id/analysis - Save analysis criteria and data collection for an agent
+app.post('/api/agents/:id/analysis', async (req, res) => {
+  const agentId = req.params.id;
+  const { criteria, data_collection, elevenlabs } = req.body;
+
+  // Save criteria
+  if (Array.isArray(criteria)) {
+    for (const c of criteria) {
+      db.query(
+        `INSERT INTO agent_analysis_criteria (agent_id, name, prompt) VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE prompt = VALUES(prompt)`,
+        [agentId, c.name, c.prompt]
+      );
+    }
+  }
+  // Save data_collection
+  if (Array.isArray(data_collection)) {
+    for (const d of data_collection) {
+      db.query(
+        `INSERT INTO agent_analysis_data_collection (agent_id, data_type, identifier, description) VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE data_type = VALUES(data_type), description = VALUES(description)`,
+        [agentId, d.data_type, d.identifier, d.description]
+      );
+    }
+  }
+  // Patch ElevenLabs
+  if (elevenlabs) {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' };
+    await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(elevenlabs),
+    });
+  }
+  res.json({ success: true });
 });
 
 // CRUD API for Plans
@@ -2037,4 +2111,98 @@ app.delete('/api/clients/:id/avatar', authenticateJWT, (req, res) => {
       res.json({ success: true, message: 'Avatar deleted successfully' });
     }
   );
+});
+
+// 1. SQL for the new table (to be run in your DB):
+// CREATE TABLE agent_voice_settings (
+//   agent_id VARCHAR(64) PRIMARY KEY,
+//   model_id VARCHAR(64),
+//   voice_id VARCHAR(64),
+//   tts_output_format VARCHAR(32),
+//   optimize_streaming_latency INT,
+//   stability FLOAT,
+//   speed FLOAT,
+//   similarity_boost FLOAT,
+//   pronunciation_dictionary_locators JSON,
+//   multi_voice_ids JSON
+// );
+
+// 2. Add endpoints to save and fetch voice settings
+app.get('/api/agents/:agentId/voice-settings', async (req, res) => {
+  const { agentId } = req.params;
+  try {
+    const [rows] = await db.query('SELECT * FROM agent_voice_settings WHERE agent_id = ?', [agentId]);
+    if (rows.length > 0) {
+      res.json({ success: true, data: rows[0] });
+    } else {
+      res.json({ success: true, data: null });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/agents/:agentId/voice-settings', async (req, res) => {
+  const { agentId } = req.params;
+  const {
+    model_id,
+    voice_id,
+    tts_output_format,
+    optimize_streaming_latency,
+    stability,
+    speed,
+    similarity_boost,
+    pronunciation_dictionary_locators,
+    multi_voice_ids
+  } = req.body;
+  try {
+    await db.query(
+      `INSERT INTO agent_voice_settings (agent_id, model_id, voice_id, tts_output_format, optimize_streaming_latency, stability, speed, similarity_boost, pronunciation_dictionary_locators, multi_voice_ids)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         model_id = VALUES(model_id),
+         voice_id = VALUES(voice_id),
+         tts_output_format = VALUES(tts_output_format),
+         optimize_streaming_latency = VALUES(optimize_streaming_latency),
+         stability = VALUES(stability),
+         speed = VALUES(speed),
+         similarity_boost = VALUES(similarity_boost),
+         pronunciation_dictionary_locators = VALUES(pronunciation_dictionary_locators),
+         multi_voice_ids = VALUES(multi_voice_ids)
+      `,
+      [
+        agentId,
+        model_id,
+        voice_id,
+        tts_output_format,
+        optimize_streaming_latency,
+        stability,
+        speed,
+        similarity_boost,
+        JSON.stringify(pronunciation_dictionary_locators || []),
+        JSON.stringify(multi_voice_ids || [])
+      ]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/elevenlabs/pronunciation-dictionary', upload.single('file'), (req, res) => {
+  const filePath = req.file.path;
+  const name = req.body.name || req.file.originalname;
+  execFile('python3', ['upload_dict.py', filePath, name], (err, stdout, stderr) => {
+    if (err) {
+      console.error('Python script error:', stderr);
+      return res.status(500).json({ error: stderr });
+    }
+    try {
+      const result = JSON.parse(stdout);
+      res.json(result); // { pronunciation_dictionary_id, version_id }
+    } catch (e) {
+      console.error('Failed to parse Python script output:', stdout);
+      res.status(500).json({ error: 'Failed to parse SDK output' });
+    }
+  });
 });
