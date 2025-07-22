@@ -447,31 +447,33 @@ export default function VoicesPage() {
                   <td className="px-4 py-2">{voice.labels?.use_case || '-'}</td>
                   <td className="px-4 py-2">{voice.created_at_unix ? timeAgo(voice.created_at_unix) : '-'}</td>
                   <td className="px-4 py-2 min-w-[100px] text-center">
-                    {/* Play button (no tooltip) */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handlePlay(voice.voice_id)}
-                      title={playingId === voice.voice_id ? 'Pause' : 'Play'}
-                    >
-                      {playingId === voice.voice_id ? (
-                        <span role="img" aria-label="pause">⏸️</span>
-                      ) : (
-                        <Volume2 className="w-5 h-5" />
-                      )}
-                    </Button>
-                    {/* Copy Voice ID button (no tooltip) */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        navigator.clipboard.writeText(voice.voice_id);
-                        toast({ description: 'Voice ID copied' });
-                      }}
-                      title="Copy Voice ID"
-                    >
-                      <Copy className="w-5 h-5" />
-                    </Button>
+                    <div className="flex flex-row gap-1 items-center justify-center">
+                      {/* Play button (no tooltip) */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handlePlay(voice.voice_id)}
+                        title={playingId === voice.voice_id ? 'Pause' : 'Play'}
+                      >
+                        {playingId === voice.voice_id ? (
+                          <span role="img" aria-label="pause">⏸️</span>
+                        ) : (
+                          <Volume2 className="w-5 h-5" />
+                        )}
+                      </Button>
+                      {/* Copy Voice ID button (no tooltip) */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          navigator.clipboard.writeText(voice.voice_id);
+                          toast({ description: 'Voice ID copied' });
+                        }}
+                        title="Copy Voice ID"
+                      >
+                        <Copy className="w-5 h-5" />
+                      </Button>
+                    </div>
                     {/* Hidden audio element for playback */}
                     <audio
                       ref={el => (audioRefs.current[voice.voice_id] = el)}

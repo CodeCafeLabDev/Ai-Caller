@@ -146,7 +146,6 @@ export default function AiAgentsPage() {
 
   React.useEffect(() => {
     setLoading(true);
-    if (!user?.clientId) { setAgents([]); setLoading(false); return; }
     Promise.all([
       fetch('/api/agents').then(res => res.json()),
       fetch('https://api.elevenlabs.io/v1/convai/agents', {
@@ -198,9 +197,11 @@ export default function AiAgentsPage() {
           status: 'Published',
           version: agent.model || '1.0',
           source: 'elevenlabs',
+          client_id: agent.client_id, // <-- Ensure this is included
         }));
         const merged = [...localAgents, ...elevenLabsAgents.filter(ea => !localAgents.some(la => la.id === ea.id))];
         setAgents(merged);
+        console.log("Agents set:", merged);
       })
       .catch(() => setAgents([]))
       .finally(() => setLoading(false));
@@ -217,16 +218,28 @@ export default function AiAgentsPage() {
   console.log("user.userId:", user?.userId, typeof user?.userId);
   console.log("agent.client_id values:", agents.map(a => [a.client_id, typeof a.client_id]));
 
-  // TEMP: Only filter by client_id for debugging
+  // In the render function, filter by client_id and then apply search/filters
   const filteredAgents = agents.filter((agent) =>
-    String(agent.client_id).trim() === String(user?.userId).trim()
-  );
+    String(agent.client_id) === String(user?.userId)
+  ).filter((agent) => {
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    const matchesSearch =
+      agent.name.toLowerCase().includes(lowerSearchTerm) ||
+      agent.useCase.toLowerCase().includes(lowerSearchTerm) ||
+      agent.tags.some(tag => tag.toLowerCase().includes(lowerSearchTerm));
+    const matchesUseCase = useCaseFilter === "all" || agent.useCase === useCaseFilter;
+    const matchesLanguage = languageFilter === "all" || agent.language === languageFilter;
+    const matchesStatus = statusFilter === "all" || agent.status === statusFilter;
+    return matchesSearch && matchesUseCase && matchesLanguage && matchesStatus;
+  });
 
   const totalPages = Math.ceil(filteredAgents.length / itemsPerPage);
   const paginatedAgents = filteredAgents.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  console.log("Agents in render:", agents);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -236,7 +249,7 @@ export default function AiAgentsPage() {
           <p className="text-muted-foreground">Manage global AI conversation agents.</p>
         </div>
         <Button size="lg" asChild>
-            <Link href="/ai-agents/create">
+            <Link href="/client-admin/ai-agents/create">
                 <PlusCircle className="mr-2 h-5 w-5" />
                 Create New Agent
             </Link>
