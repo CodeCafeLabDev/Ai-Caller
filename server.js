@@ -697,51 +697,68 @@ app.get('/api/elevenlabs/agents', async (req, res) => {
 });
 
 //GET /api/agents/:id/analysis - Get analysis criteria and data collection for an agent
-app.get('/api/agents/:id/analysis', (req, res) => {
+app.get('/api/agents/:id/analysis', async (req, res) => {
   const agentId = req.params.id;
-  db.query('SELECT * FROM agent_analysis_criteria WHERE agent_id = ?', [agentId], (err, criteria) => {
-    if (err) return res.status(500).json({ error: err.message });
-    db.query('SELECT * FROM agent_analysis_data_collection WHERE agent_id = ?', [agentId], (err2, dataCollection) => {
-      if (err2) return res.status(500).json({ error: err2.message });
-      res.json({ criteria, data_collection: dataCollection });
-    });
-  });
+  db.query(
+    'SELECT name, prompt FROM agent_analysis_criteria WHERE agent_id = ?',
+    [agentId],
+    (err, criteriaRows) => {
+      if (err) return res.status(500).json({ error: 'DB error (criteria)' });
+      db.query(
+        'SELECT data_type, identifier, description FROM agent_analysis_data_collection WHERE agent_id = ?',
+        [agentId],
+        (err2, dataRows) => {
+          if (err2) return res.status(500).json({ error: 'DB error (data_collection)' });
+          res.json({
+            criteria: criteriaRows,
+            data_collection: dataRows
+          });
+        }
+      );
+    }
+  );
 });
 
 //POST /api/agents/:id/analysis - Save analysis criteria and data collection for an agent
 app.post('/api/agents/:id/analysis', async (req, res) => {
   const agentId = req.params.id;
-  const { criteria, data_collection, elevenlabs } = req.body;
+  const { criteria, data_collection } = req.body;
 
-  // Save criteria
+  // Save criteria (deduplicate by name)
   if (Array.isArray(criteria)) {
+    const seen = new Set();
     for (const c of criteria) {
+      if (seen.has(c.name)) continue;
+      seen.add(c.name);
       db.query(
         `INSERT INTO agent_analysis_criteria (agent_id, name, prompt) VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE prompt = VALUES(prompt)`,
-        [agentId, c.name, c.prompt]
+        [agentId, c.name, c.prompt],
+        (err, result) => {
+          if (err) {
+            console.error('[POST /api/agents/:id/analysis] Error inserting criteria:', err, c);
+          }
+        }
       );
     }
   }
-  // Save data_collection
+  // Save data_collection (deduplicate by identifier)
   if (Array.isArray(data_collection)) {
+    const seen = new Set();
     for (const d of data_collection) {
+      if (seen.has(d.identifier)) continue;
+      seen.add(d.identifier);
       db.query(
-        `INSERT INTO agent_analysis_data_collection (agent_id, data_type, identifier, description) VALUES (?, ?, ?, ?)
+        `INSERT INTO agent_analysis_data_collection (agent_id, identifier, data_type, description) VALUES (?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE data_type = VALUES(data_type), description = VALUES(description)`,
-        [agentId, d.data_type, d.identifier, d.description]
+        [agentId, d.identifier, d.type || d.data_type, d.description],
+        (err, result) => {
+          if (err) {
+            console.error('[POST /api/agents/:id/analysis] Error inserting data_collection:', err, d);
+          }
+        }
       );
     }
-  }
-  // Patch ElevenLabs
-  if (elevenlabs) {
-    const apiKey = process.env.ELEVENLABS_API_KEY;
-    const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' };
-    await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify(elevenlabs),
-    });
   }
   res.json({ success: true });
 });
@@ -2205,4 +2222,46 @@ app.post('/api/elevenlabs/pronunciation-dictionary', upload.single('file'), (req
       res.status(500).json({ error: 'Failed to parse SDK output' });
     }
   });
+});
+
+// --- Analysis Criteria/Data Item DELETE Endpoints ---
+app.delete('/api/agents/:agentId/analysis/criteria', (req, res) => {
+  const { agentId } = req.params;
+  const { name } = req.query;
+  if (!name) return res.status(400).json({ error: 'Missing criteria name' });
+  db.query('DELETE FROM agent_analysis_criteria WHERE agent_id = ? AND name = ?', [agentId, name], (err, result) => {
+    if (err) return res.status(500).json({ error: 'DB error', details: err });
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Criteria not found' });
+    res.json({ success: true });
+  });
+});
+
+app.delete('/api/agents/:agentId/analysis/data-item', (req, res) => {
+  const { agentId } = req.params;
+  const { identifier } = req.query;
+  if (!identifier) return res.status(400).json({ error: 'Missing data item identifier' });
+  db.query('DELETE FROM agent_analysis_data_collection WHERE agent_id = ? AND identifier = ?', [agentId, identifier], (err, result) => {
+    if (err) return res.status(500).json({ error: 'DB error', details: err });
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Data item not found' });
+    res.json({ success: true });
+  });
+});
+
+// PATCH proxy for ElevenLabs API (if not already present)
+app.patch('/v1/convai/agents/:agentId', async (req, res) => {
+  const { agentId } = req.params;
+  try {
+    const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+      method: 'PATCH',
+      headers: {
+        'xi-api-key': process.env.ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to proxy PATCH to ElevenLabs', details: err.message });
+  }
 });

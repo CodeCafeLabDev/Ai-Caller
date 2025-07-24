@@ -7,6 +7,7 @@ import NewCustomMcpServerDrawer from '../../../../../../components/ai-agents/New
 import useElevenLabsTools from './useElevenLabsTools';
 import { api } from "@/lib/apiConfig";
 import languages from '@/data/languages.json';
+import { FaBrain, FaTrash } from 'react-icons/fa';
 
 const LANGUAGES = [
   { code: "en", label: "English", flag: "🇺🇸" },
@@ -699,6 +700,15 @@ function getLanguageName(code: string) {
   return code;
 }
 
+// At the top of the file/component:
+const elevenLabsBaseUrl = process.env.NEXT_PUBLIC_ELEVENLABS_API_BASE || 'http://localhost:5000';
+const localApiBase = typeof window !== 'undefined' ? window.location.origin : '';
+
+// Helper to truncate text
+function truncate(str: string, n: number) {
+  return str.length > n ? str.slice(0, n - 1) + '...' : str;
+}
+
 export default function AgentDetailsPage() {
   const params = useParams();
   const agentId = params.agent_id;
@@ -737,12 +747,6 @@ export default function AgentDetailsPage() {
     custom_llm_api_key: "",
     custom_llm_headers: [] as { type: string; name: string; secret: string }[],
   });
-
-  // Analysis tab
-  const [criteria, setCriteria] = useState([]);
-  const [dataCollection, setDataCollection] = useState([]);
-
-  // Widget tab
   const [widgetConfig, setWidgetConfig] = useState({
     voice: "Eric",
     multi_voice: false,
@@ -763,8 +767,6 @@ export default function AgentDetailsPage() {
     require_terms: false,
     require_visitor_terms: false,
   });
-
-  // Voice tab
   const [voiceConfig, setVoiceConfig] = useState({
     model_id: 'eleven_turbo_v2',
     voice: "Eric",
@@ -778,8 +780,6 @@ export default function AgentDetailsPage() {
     similarity: 0.5,
     multi_voice_ids: [] as string[],
   });
-
-  // Security tab
   const [securityConfig, setSecurityConfig] = useState({
     enable_authentication: false,
     allowlist: [] as string[],
@@ -790,8 +790,6 @@ export default function AgentDetailsPage() {
     concurrent_calls_limit: -1,
     daily_calls_limit: 100000,
   });
-
-  // Advanced tab
   const [advancedConfig, setAdvancedConfig] = useState({
     turn_timeout: 7,
     silence_end_call_timeout: 20,
@@ -808,8 +806,6 @@ export default function AgentDetailsPage() {
     delete_transcript_and_derived_fields: false,
     delete_audio: false,
   });
-
-  // Analysis tab
   const [analysisConfig, setAnalysisConfig] = useState({
     evaluation_criteria: [] as string[],
     data_collection: [] as string[],
@@ -1470,27 +1466,262 @@ export default function AgentDetailsPage() {
   const [dataType, setDataType] = useState("String");
   const [dataIdentifier, setDataIdentifier] = useState("");
   const [dataDescription, setDataDescription] = useState("");
+  const [criteriaList, setCriteriaList] = useState<{ name: string; prompt: string }[]>([]);
+  const [dataItemList, setDataItemList] = useState<{ type: string; identifier: string; description: string }[]>([]);
+  const [criteriaLoading, setCriteriaLoading] = useState(false);
+  const [dataItemLoading, setDataItemLoading] = useState(false);
+  const [criteriaError, setCriteriaError] = useState("");
+  const [dataItemError, setDataItemError] = useState("");
 
-  function handleOverlayBgClick(e: React.MouseEvent) {
-    // Only close if clicking the background, not the drawer
-    if (e.target === e.currentTarget) {
-      setShowCriteriaOverlay(false);
-      setShowDataOverlay(false);
+  // Fetch on mount/tab switch
+  useEffect(() => {
+    if (String(activeTab).trim().toLowerCase() === "analysis") return;
+    setCriteriaLoading(true);
+    setDataItemLoading(true);
+    setCriteriaError("");
+    setDataItemError("");
+    console.log('[AnalysisTab] Fetching analysis data for agentId:', agentId);
+    fetch(`/api/agents/${agentId}/analysis`)
+      .then(res => res.json())
+      .then(data => {
+        console.log('[AnalysisTab] Fetched analysis data:', data);
+        setCriteriaList((data.criteria || []).map((c: any) => ({ name: c.name, prompt: c.prompt })));
+        setDataItemList((data.data_collection || []).map((d: any) => ({ type: d.data_type, identifier: d.identifier, description: d.description })));
+        console.log('[AnalysisTab] Updated criteriaList:', (data.criteria || []).map((c: any) => ({ name: c.name, prompt: c.prompt })));
+        console.log('[AnalysisTab] Updated dataItemList:', (data.data_collection || []).map((d: any) => ({ type: d.data_type, identifier: d.identifier, description: d.description })));
+      })
+      .catch((err) => {
+        setCriteriaError("Failed to fetch analysis data");
+        setDataItemError("Failed to fetch analysis data");
+        console.error('[AnalysisTab] Error fetching analysis data:', err);
+      })
+      .finally(() => {
+        setCriteriaLoading(false);
+        setDataItemLoading(false);
+        console.log('[AnalysisTab] Loading states set to false');
+      });
+  }, [activeTab, agentId]);
+
+  // Add criteria
+  async function handleAddCriteriaSubmit() {
+    const newCriteria = { name: criteriaName, prompt: criteriaPrompt };
+    if (!criteriaName.trim() || !criteriaPrompt.trim()) {
+      alert('Please fill in all fields.');
+      return;
     }
-  }
-  function handleAddCriteria() {
-    // Add logic to save criteria (e.g., update analysisConfig.evaluation_criteria)
+    if (criteriaList.some(c => c.name === newCriteria.name)) {
+      alert('A criteria with this name already exists for this agent.');
+      return;
+    }
+    const updatedList = [...criteriaList, newCriteria];
+    setCriteriaList(updatedList);
     setShowCriteriaOverlay(false);
     setCriteriaName("");
     setCriteriaPrompt("");
+    // PATCH to ElevenLabs
+    try {
+      await fetch(`http://localhost:5000/v1/convai/agents/${agentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform_settings: { evaluation: { criteria: updatedList } } })
+      });
+    } catch {}
+    // POST to local DB
+    try {
+      const body = { criteria: updatedList, data_collection: dataItemList };
+      console.log('POST /api/agents/' + agentId + '/analysis', body);
+      const res = await fetch(`/api/agents/${agentId}/analysis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const result = await res.json();
+      console.log('POST /api/agents/:id/analysis result:', result);
+      alert('Criteria added successfully!');
+    } catch {
+      alert('Failed to add criteria.');
+    }
   }
-  function handleAddDataItem() {
-    // Add logic to save data item (e.g., update analysisConfig.data_collection)
+  // Add data item
+  async function handleAddDataItemSubmit() {
+    const newItem = { type: dataType, identifier: dataIdentifier, description: dataDescription };
+    if (!dataType.trim() || !dataIdentifier.trim() || !dataDescription.trim()) {
+      alert('Please fill in all fields.');
+      return;
+    }
+    if (dataItemList.some(d => d.identifier === newItem.identifier)) {
+      alert('A data item with this identifier already exists for this agent.');
+      return;
+    }
+    const updatedList = [...dataItemList, newItem];
+    setDataItemList(updatedList);
     setShowDataOverlay(false);
     setDataType("String");
     setDataIdentifier("");
     setDataDescription("");
+    // PATCH to ElevenLabs
+    try {
+      await fetch(`http://localhost:5000/v1/convai/agents/${agentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform_settings: { data_collection: updatedList } })
+      });
+    } catch {}
+    // POST to local DB
+    try {
+      const body = { criteria: criteriaList, data_collection: updatedList };
+      console.log('POST /api/agents/' + agentId + '/analysis', body);
+      const res = await fetch(`/api/agents/${agentId}/analysis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const result = await res.json();
+      console.log('POST /api/agents/:id/analysis result:', result);
+      alert('Data item added successfully!');
+    } catch {
+      alert('Failed to add data item.');
+    }
   }
+  // Delete handlers
+  function handleDeleteCriteria(name: string) {
+    if (!window.confirm('Are you sure you want to delete this criteria?')) return;
+    fetch(`/api/agents/${agentId}/analysis/criteria?name=${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to delete');
+        setCriteriaList(prev => prev.filter(c => c.name !== name));
+        alert('Criteria deleted successfully!');
+      })
+      .catch(() => alert('Failed to delete criteria.'));
+  }
+  function handleDeleteDataItem(identifier: string) {
+    if (!window.confirm('Are you sure you want to delete this data item?')) return;
+    fetch(`/api/agents/${agentId}/analysis/data-item?identifier=${encodeURIComponent(identifier)}`, {
+      method: 'DELETE',
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to delete');
+        setDataItemList(prev => prev.filter(d => d.identifier !== identifier));
+        alert('Data item deleted successfully!');
+      })
+      .catch(() => alert('Failed to delete data item.'));
+  }
+  // --- ANALYSIS TAB UI ---
+  // // Replace the Analysis tab content only
+  // {String(activeTab) === "Analysis" && (
+  //   <div>
+  //     <div className="bg-white rounded-2xl p-5 shadow flex flex-col gap-2 border border-gray-200">
+  //       <div className="flex items-center justify-between mb-2">
+  //         <div>
+  //           <div className="font-semibold text-lg">Evaluation criteria</div>
+  //           <div className="text-gray-500 text-sm">Define custom criteria to evaluate conversations against. You can find the evaluation results for each conversation in <a href="#" className="underline">the history tab</a>.</div>
+  //         </div>
+  //         <div className="flex items-center">
+  //           <button className="border border-black rounded-md px-3 py-1.5 text-sm font-medium hover:bg-gray-100" onClick={() => setShowCriteriaOverlay(true)}>Add criteria</button>
+  //         </div>
+  //       </div>
+  //       <div className="flex flex-col gap-3 mt-2">
+  //         {criteriaLoading ? <div>Loading...</div> : criteriaList.length === 0 ? (
+  //           <div className="text-gray-400 text-sm">No criteria yet. <span className='text-xs'>(criteriaList length: {criteriaList.length})</span></div>
+  //         ) : (
+  //           criteriaList.map((c, i) => {
+  //             console.log('[AnalysisTab] Rendering criteria:', c);
+  //             return (
+  //               <div key={c.name} className="flex items-center bg-gray-50 rounded-xl px-4 py-3 gap-4 border border-gray-100">
+  //                 <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-lg"><FaBrain className="text-2xl text-gray-400" /></div>
+  //                 <div className="flex-1 min-w-0">
+  //                   <div className="font-semibold text-base">{c.name}</div>
+  //                   <div className="text-gray-500 text-sm truncate">{c.prompt}</div>
+  //                 </div>
+  //                 <button className="ml-2 text-gray-400 hover:text-red-500" onClick={() => handleDeleteCriteria(c.name)}><FaTrash /></button>
+  //               </div>
+  //             );
+  //           })
+  //         )}
+  //       </div>
+  //     </div>
+  //     <div className="bg-white rounded-2xl p-5 shadow flex flex-col gap-2 border border-gray-200 mt-4">
+  //       <div className="flex items-center justify-between mb-2">
+  //         <div>
+  //           <div className="font-semibold text-lg">Data collection</div>
+  //           <div className="text-gray-500 text-sm">Define what data to extract from conversations for analytics or reporting.</div>
+  //         </div>
+  //         <div className="flex items-center">
+  //           <button className="border border-black rounded-md px-3 py-1.5 text-sm font-medium hover:bg-gray-100" onClick={() => setShowDataOverlay(true)}>Add item</button>
+  //         </div>
+  //       </div>
+  //       <div className="flex flex-col gap-3 mt-2">
+  //         {dataItemLoading ? <div>Loading...</div> : dataItemList.length === 0 ? (
+  //           <div className="text-gray-400 text-sm">No data items yet. <span className='text-xs'>(dataItemList length: {dataItemList.length})</span></div>
+  //         ) : (
+  //           dataItemList.map((d, i) => {
+  //             console.log('[AnalysisTab] Rendering data item:', d);
+  //             return (
+  //               <div key={d.identifier} className="flex items-center bg-gray-50 rounded-xl px-4 py-3 gap-4 border border-gray-100">
+  //                 <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-lg"><FaBrain className="text-2xl text-gray-400" /></div>
+  //                 <div className="flex-1 min-w-0">
+  //                   <div className="font-semibold text-base">{d.identifier} <span className="text-xs bg-gray-100 px-2 py-0.5 rounded ml-2">{d.type}</span></div>
+  //                   <div className="text-gray-500 text-sm truncate">{d.description}</div>
+  //                 </div>
+  //                 <button className="ml-2 text-gray-400 hover:text-red-500" onClick={() => handleDeleteDataItem(d.identifier)}><FaTrash /></button>
+  //               </div>
+  //             );
+  //           })
+  //         )}
+  //       </div>
+  //     </div>
+  //     {/* Overlays for Add Criteria and Add Data Item */}
+  //     {showCriteriaOverlay && (
+  //       <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={e => { if (e.target === e.currentTarget) setShowCriteriaOverlay(false); }}>
+  //         <div className="w-full h-full max-w-md bg-white shadow-xl p-8 flex flex-col absolute right-0 top-0" style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16, height: '100vh' }} onClick={e => e.stopPropagation()}>
+  //           <div className="flex items-center justify-between mb-6">
+  //             <div className="text-lg font-semibold">Add criteria</div>
+  //             <button className="text-2xl text-gray-400 hover:text-gray-600" onClick={() => setShowCriteriaOverlay(false)}>&times;</button>
+  //           </div>
+  //           <div className="text-xs text-gray-500 mb-4">Goal prompt criteria<br/>Passes the conversation transcript together with a custom prompt to the LLM that verifies if a goal was met. The result will be one of three values: <b>success</b>, <b>failure</b>, or <b>unknown</b>, as well as a <i>rationale</i> describing why the given result was chosen.</div>
+  //           <label className="font-medium text-sm mb-1">Name</label>
+  //           <input className="border rounded px-3 py-2 w-full mb-4" placeholder="Enter the name to generate an ID." value={criteriaName} onChange={e => setCriteriaName(e.target.value)} />
+  //           <label className="font-medium text-sm mb-1">Prompt</label>
+  //           <textarea className="border rounded px-3 py-2 w-full mb-6 min-h-[80px]" placeholder="Enter prompt..." value={criteriaPrompt} onChange={e => setCriteriaPrompt(e.target.value)} />
+  //           <div className="flex justify-end gap-2 mt-auto">
+  //             <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setShowCriteriaOverlay(false)}>Cancel</button>
+  //             <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddCriteriaSubmit}>Add criteria</button>
+  //           </div>
+  //         </div>
+  //       </div>
+  //     )}
+  //     {showDataOverlay && (
+  //       <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={e => { if (e.target === e.currentTarget) setShowDataOverlay(false); }}>
+  //         <div className="w-full h-full max-w-md bg-white shadow-xl p-8 flex flex-col absolute right-0 top-0" style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16, height: '100vh' }} onClick={e => e.stopPropagation()}>
+  //           <div className="flex items-center justify-between mb-6">
+  //             <div className="text-lg font-semibold">Add data collection item</div>
+  //             <button className="text-2xl text-gray-400 hover:text-gray-600" onClick={() => setShowDataOverlay(false)}>&times;</button>
+  //           </div>
+  //           <div className="flex flex-col gap-2 mb-4">
+  //             <label className="font-medium text-sm mb-1">Data type</label>
+  //             <select className="border rounded px-3 py-2 w-full" value={dataType} onChange={e => setDataType(e.target.value)}>
+  //               <option value="String">String</option>
+  //               <option value="Number">Number</option>
+  //               <option value="Boolean">Boolean</option>
+  //               <option value="Integer">Integer</option>
+  //             </select>
+  //           </div>
+  //           <label className="font-medium text-sm mb-1">Identifier</label>
+  //           <input className="border rounded px-3 py-2 w-full mb-4" placeholder="Enter identifier..." value={dataIdentifier} onChange={e => setDataIdentifier(e.target.value)} />
+  //           <label className="font-medium text-sm mb-1">Description</label>
+  //           <textarea className="border rounded px-3 py-2 w-full mb-6 min-h-[80px]" placeholder="Describe how to extract the data from the transcript..." value={dataDescription} onChange={e => setDataDescription(e.target.value)} />
+  //           <div className="text-xs text-gray-500 mb-4">This field will be passed to the LLM and should describe in detail how to extract the data from the transcript.</div>
+  //           <div className="flex justify-end gap-2 mt-auto">
+  //             <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setShowDataOverlay(false)}>Cancel</button>
+  //             <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddDataItemSubmit}>Add item</button>
+  //           </div>
+  //         </div>
+  //       </div>
+  //     )}
+  //   </div>
+  // )}
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -2410,7 +2641,7 @@ export default function AgentDetailsPage() {
               <div className="font-semibold">Privacy Settings</div>
               <div className="text-gray-500 text-sm mb-2">This section allows you to configure the privacy settings for the agent.</div>
               <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.privacy_settings.store_call_audio} onChange={e => setAdvancedConfig(prev => ({ ...prev, privacy_settings: { ...prev.privacy_settings, store_call_audio: e.target.checked } }))} /> Store Call Audio</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.privacy_settings.zero_ppi_retention_mode} onChange={e => setAdvancedConfig(prev => ({ ...prev, privacy_settings: { ...prev.privacy_settings, zero_ppi_retention_mode: e.target.checked } }))} /> Zero-PII Retention Mode <span className="text-xs text-gray-400">&#9432;</span></label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.privacy_settings.zero_ppi_retention_mode} onChange={e => setAdvancedConfig(prev => ({ ...prev, privacy_settings: { ...prev.privacy_settings, zero_ppi_retention_mode: e.target.checked } }))} /> Zero-PPI Retention Mode <span className="text-xs text-gray-400">&#9432;</span></label>
             </div>
             {/* Conversations Retention Period */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
@@ -2488,7 +2719,7 @@ export default function AgentDetailsPage() {
             </div>
           </div>
         )}
-        {activeTab === "Analysis" && (
+        {String(activeTab).trim().toLowerCase() === "analysis" && (
           <div className="space-y-6">
             {/* Analysis tab fields: evaluation criteria, data collection */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
@@ -2502,7 +2733,7 @@ export default function AgentDetailsPage() {
 
             {/* Right-side overlays for criteria and data collection */}
             {showCriteriaOverlay && (
-              <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={handleOverlayBgClick}>
+              <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={e => { if (e.target === e.currentTarget) setShowCriteriaOverlay(false); }}>
                 <div className="w-full h-full max-w-md bg-white shadow-xl p-8 flex flex-col absolute right-0 top-0" style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16, height: '100vh' }} onClick={e => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-6">
                     <div className="text-lg font-semibold">Add criteria</div>
@@ -2515,13 +2746,13 @@ export default function AgentDetailsPage() {
                   <textarea className="border rounded px-3 py-2 w-full mb-6 min-h-[80px]" placeholder="Enter prompt..." value={criteriaPrompt} onChange={e => setCriteriaPrompt(e.target.value)} />
                   <div className="flex justify-end gap-2 mt-auto">
                     <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setShowCriteriaOverlay(false)}>Cancel</button>
-                    <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddCriteria}>Add criteria</button>
+                    <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddCriteriaSubmit}>Add criteria</button>
                   </div>
                 </div>
               </div>
             )}
             {showDataOverlay && (
-              <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={handleOverlayBgClick}>
+              <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={e => { if (e.target === e.currentTarget) setShowDataOverlay(false); }}>
                 <div className="w-full h-full max-w-md bg-white shadow-xl p-8 flex flex-col absolute right-0 top-0" style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16, height: '100vh' }} onClick={e => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-6">
                     <div className="text-lg font-semibold">Add data collection item</div>
@@ -2543,7 +2774,7 @@ export default function AgentDetailsPage() {
                   <div className="text-xs text-gray-500 mb-4">This field will be passed to the LLM and should describe in detail how to extract the data from the transcript.</div>
                   <div className="flex justify-end gap-2 mt-auto">
                     <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setShowDataOverlay(false)}>Cancel</button>
-                    <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddDataItem}>Add item</button>
+                    <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddDataItemSubmit}>Add item</button>
                   </div>
                 </div>
               </div>

@@ -71,15 +71,30 @@ export default function KnowledgeBasePage() {
   // ElevenLabs API helpers
   const ELEVENLABS_API = 'https://api.elevenlabs.io/v1/convai/knowledge-base';
   const ELEVENLABS_API_KEY = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '';
-  console.log('ELEVENLABS_API_KEY (should not be empty):', ELEVENLABS_API_KEY);
 
   async function fetchElevenLabsKnowledgeBase() {
+    if (!ELEVENLABS_API_KEY) {
+      toast({
+        title: "Missing API Key",
+        description: "Please set your ElevenLabs API key in the environment variables.",
+        variant: "destructive",
+      });
+      return [];
+    }
     const res = await fetch(ELEVENLABS_API, {
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
         'Content-Type': 'application/json',
       } as HeadersInit,
     });
+    if (res.status === 401) {
+      toast({
+        title: "Unauthorized",
+        description: "Your ElevenLabs API key is missing or invalid.",
+        variant: "destructive",
+      });
+      return [];
+    }
     const data = await res.json();
     console.log('ElevenLabs KB API response:', data); // Debug log
     // Try all possible array properties, fallback to []
@@ -92,16 +107,40 @@ export default function KnowledgeBasePage() {
   }
 
   async function fetchElevenLabsDocument(id: string) {
+    if (!ELEVENLABS_API_KEY) {
+      toast({
+        title: "Missing API Key",
+        description: "Please set your ElevenLabs API key in the environment variables.",
+        variant: "destructive",
+      });
+      return null;
+    }
     const res = await fetch(`${ELEVENLABS_API}/${id}`, {
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
         'Content-Type': 'application/json',
       } as HeadersInit,
     });
+    if (res.status === 401) {
+      toast({
+        title: "Unauthorized",
+        description: "Your ElevenLabs API key is missing or invalid.",
+        variant: "destructive",
+      });
+      return null;
+    }
     return await res.json();
   }
 
   async function updateElevenLabsDocument(id: string, updatePayload: any) {
+    if (!ELEVENLABS_API_KEY) {
+      toast({
+        title: "Missing API Key",
+        description: "Please set your ElevenLabs API key in the environment variables.",
+        variant: "destructive",
+      });
+      return null;
+    }
     const res = await fetch(`${ELEVENLABS_API}/${id}`, {
       method: 'PATCH',
       headers: {
@@ -110,21 +149,52 @@ export default function KnowledgeBasePage() {
       } as HeadersInit,
       body: JSON.stringify(updatePayload),
     });
+    if (res.status === 401) {
+      toast({
+        title: "Unauthorized",
+        description: "Your ElevenLabs API key is missing or invalid.",
+        variant: "destructive",
+      });
+      return null;
+    }
     return await res.json();
   }
 
   async function deleteElevenLabsDocument(id: string) {
-    await fetch(`${ELEVENLABS_API}/${id}`, {
+    if (!ELEVENLABS_API_KEY) {
+      toast({
+        title: "Missing API Key",
+        description: "Please set your ElevenLabs API key in the environment variables.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const res = await fetch(`${ELEVENLABS_API}/${id}`, {
       method: 'DELETE',
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
         'Content-Type': 'application/json',
       } as HeadersInit,
     });
+    if (res.status === 401) {
+      toast({
+        title: "Unauthorized",
+        description: "Your ElevenLabs API key is missing or invalid.",
+        variant: "destructive",
+      });
+    }
   }
 
   // Helper to add a knowledge base item to ElevenLabs and local DB
   async function addKnowledgeBaseItem(type: 'url' | 'text' | 'file', payload: any, apiKey: string, localDbPayload: any) {
+    if (!apiKey) {
+      toast({
+        title: "Missing API Key",
+        description: "Please set your ElevenLabs API key in the environment variables.",
+        variant: "destructive",
+      });
+      return null;
+    }
     let endpoint = '';
     if (type === 'url') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/url';
     if (type === 'text') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/text';
@@ -145,6 +215,14 @@ export default function KnowledgeBasePage() {
       } as HeadersInit,
       body: JSON.stringify(elevenLabsPayload),
     });
+    if (elevenRes.status === 401) {
+      toast({
+        title: "Unauthorized",
+        description: "Your ElevenLabs API key is missing or invalid.",
+        variant: "destructive",
+      });
+      return null;
+    }
     const elevenData = await elevenRes.json();
     console.log('ElevenLabs response:', elevenData);
 
