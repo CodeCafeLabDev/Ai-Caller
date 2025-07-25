@@ -1505,7 +1505,7 @@ export default function AgentDetailsPage() {
       .catch(() => alert('Failed to upload dictionary'));
   }
 
-  // Add these state and handlers at the top of the component (inside AgentDetailsPage)
+  // --- Add state and handlers for Analysis tab (copied from client-admin panel) ---
   const [showCriteriaOverlay, setShowCriteriaOverlay] = useState(false);
   const [showDataOverlay, setShowDataOverlay] = useState(false);
   const [criteriaName, setCriteriaName] = useState("");
@@ -1522,30 +1522,24 @@ export default function AgentDetailsPage() {
 
   // Fetch on mount/tab switch
   useEffect(() => {
-    if (String(activeTab).trim().toLowerCase() === "analysis") return;
+    if (String(activeTab).trim().toLowerCase() !== "analysis") return;
     setCriteriaLoading(true);
     setDataItemLoading(true);
     setCriteriaError("");
     setDataItemError("");
-    console.log('[AnalysisTab] Fetching analysis data for agentId:', agentId);
     fetch(`/api/agents/${agentId}/analysis`)
       .then(res => res.json())
       .then(data => {
-        console.log('[AnalysisTab] Fetched analysis data:', data);
         setCriteriaList((data.criteria || []).map((c: any) => ({ name: c.name, prompt: c.prompt })));
         setDataItemList((data.data_collection || []).map((d: any) => ({ type: d.data_type, identifier: d.identifier, description: d.description })));
-        console.log('[AnalysisTab] Updated criteriaList:', (data.criteria || []).map((c: any) => ({ name: c.name, prompt: c.prompt })));
-        console.log('[AnalysisTab] Updated dataItemList:', (data.data_collection || []).map((d: any) => ({ type: d.data_type, identifier: d.identifier, description: d.description })));
       })
-      .catch((err) => {
+      .catch(() => {
         setCriteriaError("Failed to fetch analysis data");
         setDataItemError("Failed to fetch analysis data");
-        console.error('[AnalysisTab] Error fetching analysis data:', err);
       })
       .finally(() => {
         setCriteriaLoading(false);
         setDataItemLoading(false);
-        console.log('[AnalysisTab] Loading states set to false');
       });
   }, [activeTab, agentId]);
 
@@ -1567,23 +1561,19 @@ export default function AgentDetailsPage() {
     setCriteriaPrompt("");
     // PATCH to ElevenLabs
     try {
-      await fetch(`http://localhost:5000/v1/convai/agents/${agentId}`, {
+      await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", 'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '' },
         body: JSON.stringify({ platform_settings: { evaluation: { criteria: updatedList } } })
       });
     } catch {}
     // POST to local DB
     try {
-      const body = { criteria: updatedList, data_collection: dataItemList };
-      console.log('POST /api/agents/' + agentId + '/analysis', body);
-      const res = await fetch(`/api/agents/${agentId}/analysis`, {
+      await fetch(`/api/agents/${agentId}/analysis`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ criteria: updatedList, data_collection: dataItemList })
       });
-      const result = await res.json();
-      console.log('POST /api/agents/:id/analysis result:', result);
       alert('Criteria added successfully!');
     } catch {
       alert('Failed to add criteria.');
@@ -1608,23 +1598,19 @@ export default function AgentDetailsPage() {
     setDataDescription("");
     // PATCH to ElevenLabs
     try {
-      await fetch(`http://localhost:5000/v1/convai/agents/${agentId}`, {
+      await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", 'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '' },
         body: JSON.stringify({ platform_settings: { data_collection: updatedList } })
       });
     } catch {}
     // POST to local DB
     try {
-      const body = { criteria: criteriaList, data_collection: updatedList };
-      console.log('POST /api/agents/' + agentId + '/analysis', body);
-      const res = await fetch(`/api/agents/${agentId}/analysis`, {
+      await fetch(`/api/agents/${agentId}/analysis`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ criteria: criteriaList, data_collection: updatedList })
       });
-      const result = await res.json();
-      console.log('POST /api/agents/:id/analysis result:', result);
       alert('Data item added successfully!');
     } catch {
       alert('Failed to add data item.');
@@ -1655,120 +1641,7 @@ export default function AgentDetailsPage() {
       })
       .catch(() => alert('Failed to delete data item.'));
   }
-  // --- ANALYSIS TAB UI ---
-  // // Replace the Analysis tab content only
-  // {String(activeTab) === "Analysis" && (
-  //   <div>
-  //     <div className="bg-white rounded-2xl p-5 shadow flex flex-col gap-2 border border-gray-200">
-  //       <div className="flex items-center justify-between mb-2">
-  //         <div>
-  //           <div className="font-semibold text-lg">Evaluation criteria</div>
-  //           <div className="text-gray-500 text-sm">Define custom criteria to evaluate conversations against. You can find the evaluation results for each conversation in <a href="#" className="underline">the history tab</a>.</div>
-  //         </div>
-  //         <div className="flex items-center">
-  //           <button className="border border-black rounded-md px-3 py-1.5 text-sm font-medium hover:bg-gray-100" onClick={() => setShowCriteriaOverlay(true)}>Add criteria</button>
-  //         </div>
-  //       </div>
-  //       <div className="flex flex-col gap-3 mt-2">
-  //         {criteriaLoading ? <div>Loading...</div> : criteriaList.length === 0 ? (
-  //           <div className="text-gray-400 text-sm">No criteria yet. <span className='text-xs'>(criteriaList length: {criteriaList.length})</span></div>
-  //         ) : (
-  //           criteriaList.map((c, i) => {
-  //             console.log('[AnalysisTab] Rendering criteria:', c);
-  //             return (
-  //               <div key={c.name} className="flex items-center bg-gray-50 rounded-xl px-4 py-3 gap-4 border border-gray-100">
-  //                 <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-lg"><FaBrain className="text-2xl text-gray-400" /></div>
-  //                 <div className="flex-1 min-w-0">
-  //                   <div className="font-semibold text-base">{c.name}</div>
-  //                   <div className="text-gray-500 text-sm truncate">{c.prompt}</div>
-  //                 </div>
-  //                 <button className="ml-2 text-gray-400 hover:text-red-500" onClick={() => handleDeleteCriteria(c.name)}><FaTrash /></button>
-  //               </div>
-  //             );
-  //           })
-  //         )}
-  //       </div>
-  //     </div>
-  //     <div className="bg-white rounded-2xl p-5 shadow flex flex-col gap-2 border border-gray-200 mt-4">
-  //       <div className="flex items-center justify-between mb-2">
-  //         <div>
-  //           <div className="font-semibold text-lg">Data collection</div>
-  //           <div className="text-gray-500 text-sm">Define what data to extract from conversations for analytics or reporting.</div>
-  //         </div>
-  //         <div className="flex items-center">
-  //           <button className="border border-black rounded-md px-3 py-1.5 text-sm font-medium hover:bg-gray-100" onClick={() => setShowDataOverlay(true)}>Add item</button>
-  //         </div>
-  //       </div>
-  //       <div className="flex flex-col gap-3 mt-2">
-  //         {dataItemLoading ? <div>Loading...</div> : dataItemList.length === 0 ? (
-  //           <div className="text-gray-400 text-sm">No data items yet. <span className='text-xs'>(dataItemList length: {dataItemList.length})</span></div>
-  //         ) : (
-  //           dataItemList.map((d, i) => {
-  //             console.log('[AnalysisTab] Rendering data item:', d);
-  //             return (
-  //               <div key={d.identifier} className="flex items-center bg-gray-50 rounded-xl px-4 py-3 gap-4 border border-gray-100">
-  //                 <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-lg"><FaBrain className="text-2xl text-gray-400" /></div>
-  //                 <div className="flex-1 min-w-0">
-  //                   <div className="font-semibold text-base">{d.identifier} <span className="text-xs bg-gray-100 px-2 py-0.5 rounded ml-2">{d.type}</span></div>
-  //                   <div className="text-gray-500 text-sm truncate">{d.description}</div>
-  //                 </div>
-  //                 <button className="ml-2 text-gray-400 hover:text-red-500" onClick={() => handleDeleteDataItem(d.identifier)}><FaTrash /></button>
-  //               </div>
-  //             );
-  //           })
-  //         )}
-  //       </div>
-  //     </div>
-  //     {/* Overlays for Add Criteria and Add Data Item */}
-  //     {showCriteriaOverlay && (
-  //       <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={e => { if (e.target === e.currentTarget) setShowCriteriaOverlay(false); }}>
-  //         <div className="w-full h-full max-w-md bg-white shadow-xl p-8 flex flex-col absolute right-0 top-0" style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16, height: '100vh' }} onClick={e => e.stopPropagation()}>
-  //           <div className="flex items-center justify-between mb-6">
-  //             <div className="text-lg font-semibold">Add criteria</div>
-  //             <button className="text-2xl text-gray-400 hover:text-gray-600" onClick={() => setShowCriteriaOverlay(false)}>&times;</button>
-  //           </div>
-  //           <div className="text-xs text-gray-500 mb-4">Goal prompt criteria<br/>Passes the conversation transcript together with a custom prompt to the LLM that verifies if a goal was met. The result will be one of three values: <b>success</b>, <b>failure</b>, or <b>unknown</b>, as well as a <i>rationale</i> describing why the given result was chosen.</div>
-  //           <label className="font-medium text-sm mb-1">Name</label>
-  //           <input className="border rounded px-3 py-2 w-full mb-4" placeholder="Enter the name to generate an ID." value={criteriaName} onChange={e => setCriteriaName(e.target.value)} />
-  //           <label className="font-medium text-sm mb-1">Prompt</label>
-  //           <textarea className="border rounded px-3 py-2 w-full mb-6 min-h-[80px]" placeholder="Enter prompt..." value={criteriaPrompt} onChange={e => setCriteriaPrompt(e.target.value)} />
-  //           <div className="flex justify-end gap-2 mt-auto">
-  //             <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setShowCriteriaOverlay(false)}>Cancel</button>
-  //             <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddCriteriaSubmit}>Add criteria</button>
-  //           </div>
-  //         </div>
-  //       </div>
-  //     )}
-  //     {showDataOverlay && (
-  //       <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={e => { if (e.target === e.currentTarget) setShowDataOverlay(false); }}>
-  //         <div className="w-full h-full max-w-md bg-white shadow-xl p-8 flex flex-col absolute right-0 top-0" style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16, height: '100vh' }} onClick={e => e.stopPropagation()}>
-  //           <div className="flex items-center justify-between mb-6">
-  //             <div className="text-lg font-semibold">Add data collection item</div>
-  //             <button className="text-2xl text-gray-400 hover:text-gray-600" onClick={() => setShowDataOverlay(false)}>&times;</button>
-  //           </div>
-  //           <div className="flex flex-col gap-2 mb-4">
-  //             <label className="font-medium text-sm mb-1">Data type</label>
-  //             <select className="border rounded px-3 py-2 w-full" value={dataType} onChange={e => setDataType(e.target.value)}>
-  //               <option value="String">String</option>
-  //               <option value="Number">Number</option>
-  //               <option value="Boolean">Boolean</option>
-  //               <option value="Integer">Integer</option>
-  //             </select>
-  //           </div>
-  //           <label className="font-medium text-sm mb-1">Identifier</label>
-  //           <input className="border rounded px-3 py-2 w-full mb-4" placeholder="Enter identifier..." value={dataIdentifier} onChange={e => setDataIdentifier(e.target.value)} />
-  //           <label className="font-medium text-sm mb-1">Description</label>
-  //           <textarea className="border rounded px-3 py-2 w-full mb-6 min-h-[80px]" placeholder="Describe how to extract the data from the transcript..." value={dataDescription} onChange={e => setDataDescription(e.target.value)} />
-  //           <div className="text-xs text-gray-500 mb-4">This field will be passed to the LLM and should describe in detail how to extract the data from the transcript.</div>
-  //           <div className="flex justify-end gap-2 mt-auto">
-  //             <button className="px-4 py-2 rounded bg-gray-200" onClick={() => setShowDataOverlay(false)}>Cancel</button>
-  //             <button className="px-4 py-2 rounded bg-black text-white" onClick={handleAddDataItemSubmit}>Add item</button>
-  //           </div>
-  //         </div>
-  //       </div>
-  //     )}
-  //   </div>
-  // )}
+  // ... existing code ...
 
   // Add at the top of the component, after other useState hooks
   const [newClientEvent, setNewClientEvent] = useState("");
@@ -2829,18 +2702,132 @@ export default function AgentDetailsPage() {
           </div>
         )}
         {String(activeTab).trim().toLowerCase() === "analysis" && (
-          <div className="space-y-6">
-            {/* Analysis tab fields: evaluation criteria, data collection */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Evaluation criteria</div>
-              <button className="bg-gray-200 px-3 py-2 rounded w-fit" onClick={() => setShowCriteriaOverlay(true)}>Add criteria</button>
+          <div>
+            <div className="bg-white rounded-2xl p-5 shadow flex flex-col gap-2 border border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="font-semibold text-lg">Evaluation criteria</div>
+                  <div className="text-gray-500 text-sm">Define custom criteria to evaluate conversations against. You can find the evaluation results for each conversation in <a href="#" className="underline">the history tab</a>.</div>
+                </div>
+                <div className="flex items-center">
+                  <button className="border border-black rounded-md px-3 py-1.5 text-sm font-medium hover:bg-gray-100" onClick={() => setShowCriteriaOverlay(true)}>Add criteria</button>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 mt-2">
+                {criteriaLoading ? <div>Loading...</div> : criteriaList.length === 0 ? (
+                  <div className="text-gray-400 text-sm">No criteria yet.</div>
+                ) : (
+                  criteriaList.map((c, i) => (
+                    <div key={c.name} className="flex items-center bg-gray-50 rounded-xl px-4 py-3 gap-4 border border-gray-100">
+                      <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-lg"><FaBrain className="text-2xl text-gray-400" /></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-base">{c.name}</div>
+                        <div className="text-gray-500 text-sm truncate">{c.prompt}</div>
+                      </div>
+                      <button className="ml-2 text-gray-400 hover:text-red-500" onClick={() => handleDeleteCriteria(c.name)}><FaTrash /></button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Data collection</div>
-              <button className="bg-gray-200 px-3 py-2 rounded w-fit" onClick={() => setShowDataOverlay(true)}>Add item</button>
+            <div className="bg-white rounded-2xl p-5 shadow flex flex-col gap-2 border border-gray-200 mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="font-semibold text-lg">Data collection</div>
+                  <div className="text-gray-500 text-sm">Define what data to extract from conversations for analytics or reporting.</div>
+                </div>
+                <div className="flex items-center">
+                  <button className="border border-black rounded-md px-3 py-1.5 text-sm font-medium hover:bg-gray-100" onClick={() => setShowDataOverlay(true)}>Add item</button>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3 mt-2">
+                {dataItemLoading ? <div>Loading...</div> : dataItemList.length === 0 ? (
+                  <div className="text-gray-400 text-sm">No data items yet.</div>
+                ) : (
+                  dataItemList.map((d, i) => (
+                    <div key={d.identifier} className="flex items-center bg-gray-50 rounded-xl px-4 py-3 gap-4 border border-gray-100">
+                      <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-lg"><FaBrain className="text-2xl text-gray-400" /></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-base">{d.identifier} <span className="text-xs bg-gray-100 px-2 py-0.5 rounded ml-2">{d.type}</span></div>
+                        <div className="text-gray-500 text-sm truncate">{d.description}</div>
+                      </div>
+                      <button className="ml-2 text-gray-400 hover:text-red-500" onClick={() => handleDeleteDataItem(d.identifier)}><FaTrash /></button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-
-            {/* Right-side overlays for criteria and data collection */}
+            {/* Save button for Analysis tab */}
+            <div className="flex items-center gap-4 mt-6">
+              <button
+                type="button"
+                onClick={async () => {
+                  setSaveLoading(true);
+                  setSaveSuccess(false);
+                  setSaveError("");
+                  try {
+                    // Build correct payload for ElevenLabs
+                    const criteriaPayload = (criteriaList as any[]).map((c, idx) => ({
+                      id: c.id || c.name || `criteria_${idx}`,
+                      name: c.name,
+                      prompt: c.prompt,
+                      conversation_goal_prompt: c.conversation_goal_prompt || c.prompt
+                    }));
+                    // Only allow valid types for ElevenLabs: 'string', 'boolean', 'integer', 'number'
+                    const allowedTypes = ['string', 'boolean', 'integer', 'number'];
+                    const normalizeType = (t: string) => {
+                      if (!t) return 'string';
+                      const lower = t.toLowerCase();
+                      return allowedTypes.includes(lower) ? lower : 'string';
+                    };
+                    const dataCollectionPayload = Object.fromEntries(
+                      (dataItemList as any[]).map(d => [
+                        d.identifier,
+                        {
+                          identifier: d.identifier,
+                          type: normalizeType(d.type || d.data_type),
+                          data_type: normalizeType(d.data_type || d.type),
+                          description: d.description
+                        }
+                      ])
+                    );
+                    const payload = {
+                      platform_settings: {
+                        evaluation: {
+                          criteria: criteriaPayload
+                        },
+                        data_collection: dataCollectionPayload
+                      }
+                    };
+                    const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+                      method: "PATCH",
+                      headers: {
+                        'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(payload),
+                    });
+                    if (res.ok) {
+                      setSaveSuccess(true);
+                    } else {
+                      const err = await res.json();
+                      setSaveError(err?.error || JSON.stringify(err) || 'Failed to update analysis settings');
+                    }
+                  } catch {
+                    setSaveError('Network error. Please try again.');
+                  } finally {
+                    setSaveLoading(false);
+                  }
+                }}
+                disabled={saveLoading}
+                className="bg-black text-white px-6 py-2 rounded-lg font-medium"
+              >
+                {saveLoading ? "Saving..." : "Save"}
+              </button>
+              {saveSuccess && <span className="text-green-600 text-sm">Saved!</span>}
+              {saveError && <span className="text-red-600 text-sm">{saveError}</span>}
+            </div>
+            {/* Overlays for Add Criteria and Add Data Item */}
             {showCriteriaOverlay && (
               <div className="fixed inset-0 z-50 flex justify-end items-stretch bg-black bg-opacity-30 w-screen h-screen" onClick={e => { if (e.target === e.currentTarget) setShowCriteriaOverlay(false); }}>
                 <div className="w-full h-full max-w-md bg-white shadow-xl p-8 flex flex-col absolute right-0 top-0" style={{ borderTopLeftRadius: 16, borderBottomLeftRadius: 16, height: '100vh' }} onClick={e => e.stopPropagation()}>
