@@ -1111,6 +1111,24 @@ export default function AgentDetailsPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        // Also save advanced settings to local DB
+        await fetch(`/api/agents/${agentId}/advanced-settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            turn_timeout: advancedConfig.turn_timeout,
+            silence_end_call_timeout: advancedConfig.silence_end_call_timeout,
+            max_conversation_duration: advancedConfig.max_conversation_duration,
+            keywords: advancedConfig.keywords,
+            text_only: advancedConfig.text_only,
+            user_input_audio_format: advancedConfig.user_input_audio_format,
+            client_events: advancedConfig.client_events,
+            privacy_settings: advancedConfig.privacy_settings,
+            conversations_retention_period: advancedConfig.conversations_retention_period,
+            delete_transcript_and_derived_fields: advancedConfig.delete_transcript_and_derived_fields,
+            delete_audio: advancedConfig.delete_audio
+          })
+        });
         setSaveSuccess(true);
       } else {
         setSaveError(data?.error || "Failed to save agent.");

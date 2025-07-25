@@ -2265,3 +2265,86 @@ app.patch('/v1/convai/agents/:agentId', async (req, res) => {
     res.status(500).json({ error: 'Failed to proxy PATCH to ElevenLabs', details: err.message });
   }
 });
+
+// --- AGENT ADVANCED SETTINGS TABLE CREATION ---
+const createAgentAdvancedSettingsTable = `
+  CREATE TABLE IF NOT EXISTS agent_advanced_settings (
+    agent_id VARCHAR(64) PRIMARY KEY,
+    turn_timeout INT,
+    silence_end_call_timeout INT,
+    max_conversation_duration INT,
+    keywords TEXT,
+    text_only BOOLEAN,
+    user_input_audio_format VARCHAR(64),
+    client_events TEXT,
+    privacy_settings JSON,
+    conversations_retention_period INT,
+    delete_transcript_and_derived_fields BOOLEAN,
+    delete_audio BOOLEAN,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  );
+`;
+db.query(createAgentAdvancedSettingsTable, (err) => {
+  if (err) {
+    console.error("Failed to create agent_advanced_settings table:", err);
+  } else {
+    console.log("✅ agent_advanced_settings table ready");
+  }
+});
+// ... existing code ...
+// --- AGENT ADVANCED SETTINGS ENDPOINTS ---
+// Save advanced settings (POST or PUT)
+app.post('/api/agents/:agentId/advanced-settings', async (req, res) => {
+  const { agentId } = req.params;
+  const {
+    turn_timeout,
+    silence_end_call_timeout,
+    max_conversation_duration,
+    keywords,
+    text_only,
+    user_input_audio_format,
+    client_events,
+    privacy_settings,
+    conversations_retention_period,
+    delete_transcript_and_derived_fields,
+    delete_audio
+  } = req.body;
+  try {
+    await db.query(
+      `INSERT INTO agent_advanced_settings (
+        agent_id, turn_timeout, silence_end_call_timeout, max_conversation_duration, keywords, text_only, user_input_audio_format, client_events, privacy_settings, conversations_retention_period, delete_transcript_and_derived_fields, delete_audio
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        turn_timeout = VALUES(turn_timeout),
+        silence_end_call_timeout = VALUES(silence_end_call_timeout),
+        max_conversation_duration = VALUES(max_conversation_duration),
+        keywords = VALUES(keywords),
+        text_only = VALUES(text_only),
+        user_input_audio_format = VALUES(user_input_audio_format),
+        client_events = VALUES(client_events),
+        privacy_settings = VALUES(privacy_settings),
+        conversations_retention_period = VALUES(conversations_retention_period),
+        delete_transcript_and_derived_fields = VALUES(delete_transcript_and_derived_fields),
+        delete_audio = VALUES(delete_audio)
+      `,
+      [
+        agentId,
+        turn_timeout,
+        silence_end_call_timeout,
+        max_conversation_duration,
+        Array.isArray(keywords) ? keywords.join(',') : keywords,
+        text_only,
+        user_input_audio_format,
+        Array.isArray(client_events) ? client_events.join(',') : client_events,
+        privacy_settings ? JSON.stringify(privacy_settings) : null,
+        conversations_retention_period,
+        delete_transcript_and_derived_fields,
+        delete_audio
+      ]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+// ... existing code ...
