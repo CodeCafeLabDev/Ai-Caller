@@ -724,6 +724,16 @@ function truncate(str: string, n: number) {
   return str.length > n ? str.slice(0, n - 1) + '...' : str;
 }
 
+const CLIENT_EVENT_OPTIONS = [
+  { value: 'audio', label: 'audio' },
+  { value: 'interruption', label: 'interruption' },
+  { value: 'user_transcript', label: 'user_transcript' },
+  { value: 'agent_response', label: 'agent_response' },
+  { value: 'agent_response_correction', label: 'agent_response_correction' },
+  { value: 'agent_tool_response', label: 'agent_tool_response' },
+  { value: 'vad_score', label: 'vad_score' },
+];
+
 export default function AgentDetailsPage() {
   // useUser must be the very first hook call
   const { user } = useUser();
@@ -807,22 +817,36 @@ export default function AgentDetailsPage() {
     concurrent_calls_limit: -1,
     daily_calls_limit: 100000,
   });
-  const [advancedConfig, setAdvancedConfig] = useState({
-    turn_timeout: 7,
-    silence_end_call_timeout: 20,
-    max_conversation_duration: 300,
-    keywords: "",
-    text_only: false,
-    user_input_audio_format: "PCM 16000 Hz",
-    client_events: ["audio", "interruption", "user_transcript", "agent_response", "agent_response_correction"],
-    privacy_settings: {
-      store_call_audio: false,
-      zero_ppi_retention_mode: false,
-    },
-    conversations_retention_period: 730,
-    delete_transcript_and_derived_fields: false,
-    delete_audio: false,
-  });
+  const [advancedConfig, setAdvancedConfig] = useState<{
+    turn_timeout: number;
+    silence_end_call_timeout: number;
+    max_conversation_duration: number;
+    keywords: string[];
+    text_only: boolean;
+    user_input_audio_format: string;
+    client_events: string[];
+    privacy_settings: { store_call_audio: boolean; zero_ppi_retention_mode: boolean };
+    conversations_retention_period: number;
+    delete_transcript_and_derived_fields: boolean;
+    delete_audio: boolean;
+  }>(
+    {
+      turn_timeout: 7,
+      silence_end_call_timeout: 20,
+      max_conversation_duration: 300,
+      keywords: [],
+      text_only: false,
+      user_input_audio_format: "pcm_16000",
+      client_events: ["audio", "interruption", "user_transcript", "agent_response", "agent_response_correction"],
+      privacy_settings: {
+        store_call_audio: false,
+        zero_ppi_retention_mode: false,
+      },
+      conversations_retention_period: 730,
+      delete_transcript_and_derived_fields: false,
+      delete_audio: false,
+    }
+  );
   const [analysisConfig, setAnalysisConfig] = useState({
     evaluation_criteria: [] as string[],
     data_collection: [] as string[],
@@ -954,7 +978,7 @@ export default function AgentDetailsPage() {
           turn_timeout: cc.turn?.turn_timeout || 7,
           silence_end_call_timeout: cc.turn?.silence_end_call_timeout || 20,
           max_conversation_duration: cc.conversation?.max_duration_seconds || 300,
-          keywords: cc.asr?.keywords || '',
+          keywords: cc.asr?.keywords || [],
           text_only: cc.conversation?.text_only || false,
           user_input_audio_format: cc.asr?.user_input_audio_format || 'PCM 16000 Hz',
           client_events: cc.conversation?.client_events || [],
@@ -1044,6 +1068,13 @@ export default function AgentDetailsPage() {
 
   // Save handler: PATCH to backend, which updates both local DB and ElevenLabs
   const handleSave = async () => {
+    if (
+      advancedConfig.privacy_settings.store_call_audio &&
+      advancedConfig.privacy_settings.zero_ppi_retention_mode
+    ) {
+      alert("You cannot enable both 'Store Call Audio' and 'Zero Retention Mode' at the same time.");
+      return;
+    }
     setSaveLoading(true);
     setSaveSuccess(false);
     setSaveError("");
@@ -1662,13 +1693,18 @@ export default function AgentDetailsPage() {
 
   // Update add handlers to show confirmation
   async function handleAddCriteriaSubmit() {
-    const newCriteria = { name: criteriaName, prompt: criteriaPrompt };
+    const newCriteria = {
+      id: criteriaName || `criteria_${criteriaList.length}`,
+      name: criteriaName,
+      prompt: criteriaPrompt,
+      conversation_goal_prompt: criteriaPrompt
+    };
     if (!criteriaName.trim() || !criteriaPrompt.trim()) {
       alert('Please fill in all fields.');
       return;
     }
     // Prevent duplicate in current list
-    if (criteriaList.some(c => c.name === newCriteria.name)) {
+    if (criteriaList.some((c: any) => c.name === newCriteria.name)) {
       alert('A criteria with this name already exists for this agent.');
       return;
     }
@@ -1698,12 +1734,16 @@ export default function AgentDetailsPage() {
     }
   }
   async function handleAddDataItemSubmit() {
-    const newItem = { type: dataType, identifier: dataIdentifier, description: dataDescription };
+    const newItem = {
+      type: dataType,
+      identifier: dataIdentifier,
+      description: dataDescription
+    };
     if (!dataType.trim() || !dataIdentifier.trim() || !dataDescription.trim()) {
       alert('Please fill in all fields.');
       return;
     }
-    if (dataItemList.some(d => d.identifier === newItem.identifier)) {
+    if (dataItemList.some((d: any) => d.identifier === newItem.identifier)) {
       alert('A data item with this identifier already exists for this agent.');
       return;
     }
@@ -1842,10 +1882,89 @@ export default function AgentDetailsPage() {
             ))
           )}
         </div>
+        {/* Save button for Analysis tab */}
+        <div className="flex items-center gap-4 mt-6">
+          <button
+            type="button"
+            onClick={async () => {
+              setSaveLoading(true);
+              setSaveSuccess(false);
+              setSaveError("");
+              try {
+                // Build correct payload for ElevenLabs
+                const criteriaPayload = (criteriaList as any[]).map((c, idx) => ({
+                  id: c.id || c.name || `criteria_${idx}`,
+                  name: c.name,
+                  prompt: c.prompt,
+                  conversation_goal_prompt: c.conversation_goal_prompt || c.prompt
+                }));
+                // Only allow valid types for ElevenLabs: 'string', 'boolean', 'integer', 'number'
+                const allowedTypes = ['string', 'boolean', 'integer', 'number'];
+                const normalizeType = (t: string) => {
+                  if (!t) return 'string';
+                  const lower = t.toLowerCase();
+                  return allowedTypes.includes(lower) ? lower : 'string';
+                };
+                const dataCollectionPayload = Object.fromEntries(
+                  (dataItemList as any[]).map(d => [
+                    d.identifier,
+                    {
+                      identifier: d.identifier,
+                      type: normalizeType(d.type || d.data_type),
+                      data_type: normalizeType(d.data_type || d.type),
+                      description: d.description
+                    }
+                  ])
+                );
+                const payload = {
+                  platform_settings: {
+                    evaluation: {
+                      criteria: criteriaPayload
+                    },
+                    data_collection: dataCollectionPayload
+                  }
+                };
+                const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+                  method: "PATCH",
+                  headers: {
+                    'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(payload),
+                });
+                if (res.ok) {
+                  setSaveSuccess(true);
+                } else {
+                  const err = await res.json();
+                  setSaveError(err?.error || JSON.stringify(err) || 'Failed to update analysis settings');
+                }
+              } catch {
+                setSaveError('Network error. Please try again.');
+              } finally {
+                setSaveLoading(false);
+              }
+            }}
+            disabled={saveLoading}
+            className="bg-black text-white px-6 py-2 rounded-lg font-medium"
+          >
+            {saveLoading ? "Saving..." : "Save"}
+          </button>
+          {saveSuccess && <span className="text-green-600 text-sm">Saved!</span>}
+          {saveError && <span className="text-red-600 text-sm">{saveError}</span>}
+        </div>
       </div>
     </div>
   )}
   // ... existing code ...
+
+  // Add after other useState hooks at the top of AgentDetailsPage
+  const [newClientEvent, setNewClientEvent] = useState("");
+
+  // Add this near the top of the component, after other useState hooks
+  const [keywordsInput, setKeywordsInput] = useState(advancedConfig.keywords.join(", "));
+  useEffect(() => {
+    setKeywordsInput(advancedConfig.keywords.join(", "));
+  }, [advancedConfig.keywords]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -2759,25 +2878,35 @@ export default function AgentDetailsPage() {
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Turn timeout</div>
               <div className="text-gray-500 text-sm mb-2">The maximum number of seconds since the user last spoke. If exceeded, the agent will respond and force a turn. A value of -1 means the agent will never timeout and always wait for a response from the user.</div>
-              <input type="number" className="border rounded px-2 py-1 w-32" placeholder="7" />
+              <input type="number" className="border rounded px-2 py-1 w-32" value={advancedConfig.turn_timeout} onChange={e => setAdvancedConfig(prev => ({ ...prev, turn_timeout: Number(e.target.value) }))} placeholder="7" />
             </div>
             {/* Silence end call timeout */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Silence end call timeout</div>
               <div className="text-gray-500 text-sm mb-2">The maximum number of seconds since the user last spoke. If exceeded, the call will terminate. A value of -1 means there is no fixed cutoff.</div>
-              <input type="number" className="border rounded px-2 py-1 w-32" placeholder="20" />
+              <input type="number" className="border rounded px-2 py-1 w-32" value={advancedConfig.silence_end_call_timeout} onChange={e => setAdvancedConfig(prev => ({ ...prev, silence_end_call_timeout: Number(e.target.value) }))} placeholder="20" />
             </div>
             {/* Max conversation duration */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Max conversation duration</div>
               <div className="text-gray-500 text-sm mb-2">The maximum number of seconds that a conversation can last.</div>
-              <input type="number" className="border rounded px-2 py-1 w-32" placeholder="300" />
+              <input type="number" className="border rounded px-2 py-1 w-32" value={advancedConfig.max_conversation_duration} onChange={e => setAdvancedConfig(prev => ({ ...prev, max_conversation_duration: Number(e.target.value) }))} placeholder="300" />
             </div>
             {/* Keywords */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Keywords</div>
               <div className="text-gray-500 text-sm mb-2">Define a comma-separated list of keywords that have a higher likelihood of being predicted correctly.</div>
-              <input type="text" className="border rounded px-2 py-1 w-full" placeholder="keyword1, keyword2" />
+              <input
+                type="text"
+                className="border rounded px-2 py-1 w-full"
+                value={keywordsInput}
+                onChange={e => setKeywordsInput(e.target.value)}
+                onBlur={() => setAdvancedConfig(prev => ({
+                  ...prev,
+                  keywords: keywordsInput.split(",").map(k => k.trim()).filter(Boolean)
+                }))}
+                placeholder="keyword1, keyword2"
+              />
             </div>
             {/* Text only toggle */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
@@ -2795,38 +2924,83 @@ export default function AgentDetailsPage() {
                 onChange={e => setAdvancedConfig(prev => ({ ...prev, user_input_audio_format: e.target.value }))}
                 className="border rounded px-3 py-2 w-64"
               >
-                <option>PCM 16000 Hz</option>
-                <option>PCM 8000 Hz</option>
-                <option>WAV</option>
+                <option value="pcm_8000">PCM 8000 Hz</option>
+                <option value="pcm_16000">PCM 16000 Hz</option>
+                <option value="pcm_22050">PCM 22050 Hz</option>
+                <option value="pcm_24000">PCM 24000 Hz</option>
+                <option value="pcm_44100">PCM 44100 Hz</option>
+                <option value="pcm_48000">PCM 48000 Hz</option>
+                <option value="ulaw_8000">μ-law 8000 Hz</option>
               </select>
             </div>
             {/* Client Events */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Client Events</div>
-              <div className="text-gray-500 text-sm mb-2">Select the events that should be sent to the client.</div>
-              <div className="flex flex-wrap gap-2">
-                {["audio", "interruption", "user_transcript", "agent_response", "agent_response_correction"].map(ev => (
-                  <span key={ev} className="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-1 cursor-pointer">{ev} <button className="text-red-500">×</button></span>
-                ))}
+              <div className="text-gray-500 text-sm mb-2">
+                Select the events that should be sent to the client. If the "audio" event is disabled, the agent will only provide text responses without TTS. If "interruption" event is disabled, the agent will ignore user interruption and speak until the end of response.
               </div>
+              <Select
+                isMulti
+                options={CLIENT_EVENT_OPTIONS}
+                value={CLIENT_EVENT_OPTIONS.filter(opt => advancedConfig.client_events.includes(opt.value))}
+                onChange={(selected: any) =>
+                  setAdvancedConfig(prev => ({
+                    ...prev,
+                    client_events: Array.isArray(selected) ? selected.map((opt: any) => opt.value) : [],
+                  }))
+                }
+                classNamePrefix="react-select"
+                placeholder="Select client events"
+              />
             </div>
             {/* Privacy Settings */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Privacy Settings</div>
               <div className="text-gray-500 text-sm mb-2">This section allows you to configure the privacy settings for the agent.</div>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.privacy_settings.store_call_audio} onChange={e => setAdvancedConfig(prev => ({ ...prev, privacy_settings: { ...prev.privacy_settings, store_call_audio: e.target.checked } }))} /> Store Call Audio</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.privacy_settings.zero_ppi_retention_mode} onChange={e => setAdvancedConfig(prev => ({ ...prev, privacy_settings: { ...prev.privacy_settings, zero_ppi_retention_mode: e.target.checked } }))} /> Zero-PII Retention Mode <span className="text-xs text-gray-400">&#9432;</span></label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={advancedConfig.privacy_settings.store_call_audio}
+                  onChange={e => setAdvancedConfig(prev => ({
+                    ...prev,
+                    privacy_settings: {
+                      ...prev.privacy_settings,
+                      store_call_audio: e.target.checked,
+                      zero_ppi_retention_mode: e.target.checked ? false : prev.privacy_settings.zero_ppi_retention_mode,
+                    }
+                  }))}
+                />
+                Store Call Audio
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={advancedConfig.privacy_settings.zero_ppi_retention_mode}
+                  onChange={e => setAdvancedConfig(prev => ({
+                    ...prev,
+                    privacy_settings: {
+                      ...prev.privacy_settings,
+                      zero_ppi_retention_mode: e.target.checked,
+                      store_call_audio: e.target.checked ? false : prev.privacy_settings.store_call_audio,
+                    }
+                  }))}
+                />
+                Zero-PPI Retention Mode <span className="text-xs text-gray-400">&#9432;</span>
+              </label>
             </div>
             {/* Conversations Retention Period */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Conversations Retention Period</div>
               <div className="text-gray-500 text-sm mb-2">Set the number of days to keep conversations (-1 for unlimited).</div>
-              <input type="number" className="border rounded px-2 py-1 w-32" placeholder="730" />
+              <input type="number" className="border rounded px-2 py-1 w-32" value={advancedConfig.conversations_retention_period} onChange={e => setAdvancedConfig(prev => ({ ...prev, conversations_retention_period: Number(e.target.value) }))} placeholder="730" />
             </div>
-            {/* Delete Transcript and Derived Fields, Delete Audio */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.delete_transcript_and_derived_fields} onChange={e => setAdvancedConfig(prev => ({ ...prev, delete_transcript_and_derived_fields: e.target.checked }))} /> Delete Transcript and Derived Fields (PII)</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.delete_audio} onChange={e => setAdvancedConfig(prev => ({ ...prev, delete_audio: e.target.checked }))} /> Delete Audio</label>
+            {/* Save button */}
+            <div className="flex items-center gap-4 mt-4">
+              <button type="button" onClick={handleSave} disabled={saveLoading} className="bg-black text-white px-6 py-2 rounded-lg font-medium">
+                {saveLoading ? "Saving..." : "Save"}
+              </button>
+              {saveSuccess && <span className="text-green-600 text-sm">Saved!</span>}
+              {saveError && <span className="text-red-600 text-sm">{saveError}</span>}
             </div>
           </div>
         )}
@@ -2948,6 +3122,76 @@ export default function AgentDetailsPage() {
                   ))
                 )}
               </div>
+            </div>
+            {/* Save button for Analysis tab */}
+            <div className="flex items-center gap-4 mt-6">
+              <button
+                type="button"
+                onClick={async () => {
+                  setSaveLoading(true);
+                  setSaveSuccess(false);
+                  setSaveError("");
+                  try {
+                    // Build correct payload for ElevenLabs
+                    const criteriaPayload = (criteriaList as any[]).map((c, idx) => ({
+                      id: c.id || c.name || `criteria_${idx}`,
+                      name: c.name,
+                      prompt: c.prompt,
+                      conversation_goal_prompt: c.conversation_goal_prompt || c.prompt
+                    }));
+                    // Only allow valid types for ElevenLabs: 'string', 'boolean', 'integer', 'number'
+                    const allowedTypes = ['string', 'boolean', 'integer', 'number'];
+                    const normalizeType = (t: string) => {
+                      if (!t) return 'string';
+                      const lower = t.toLowerCase();
+                      return allowedTypes.includes(lower) ? lower : 'string';
+                    };
+                    const dataCollectionPayload = Object.fromEntries(
+                      (dataItemList as any[]).map(d => [
+                        d.identifier,
+                        {
+                          identifier: d.identifier,
+                          type: normalizeType(d.type || d.data_type),
+                          data_type: normalizeType(d.data_type || d.type),
+                          description: d.description
+                        }
+                      ])
+                    );
+                    const payload = {
+                      platform_settings: {
+                        evaluation: {
+                          criteria: criteriaPayload
+                        },
+                        data_collection: dataCollectionPayload
+                      }
+                    };
+                    const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+                      method: "PATCH",
+                      headers: {
+                        'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(payload),
+                    });
+                    if (res.ok) {
+                      setSaveSuccess(true);
+                    } else {
+                      const err = await res.json();
+                      setSaveError(err?.error || JSON.stringify(err) || 'Failed to update analysis settings');
+                    }
+                  } catch {
+                    setSaveError('Network error. Please try again.');
+                  } finally {
+                    setSaveLoading(false);
+                  }
+                }}
+                disabled={saveLoading}
+                className="bg-black text-white px-6 py-2 rounded-lg font-medium"
+              >
+                {saveLoading ? "Saving..." : "Save"}
+              </button>
+              {saveSuccess && <span className="text-green-600 text-sm">Saved!</span>}
+              {saveError && <span className="text-red-600 text-sm">{saveError}</span>}
             </div>
           </div>
         )}

@@ -709,6 +709,16 @@ function truncate(str: string, n: number) {
   return str.length > n ? str.slice(0, n - 1) + '...' : str;
 }
 
+const CLIENT_EVENT_OPTIONS = [
+  { value: 'audio', label: 'audio' },
+  { value: 'interruption', label: 'interruption' },
+  { value: 'user_transcript', label: 'user_transcript' },
+  { value: 'agent_response', label: 'agent_response' },
+  { value: 'agent_response_correction', label: 'agent_response_correction' },
+  { value: 'agent_tool_response', label: 'agent_tool_response' },
+  { value: 'vad_score', label: 'vad_score' },
+];
+
 export default function AgentDetailsPage() {
   const params = useParams();
   const agentId = params.agent_id;
@@ -790,13 +800,25 @@ export default function AgentDetailsPage() {
     concurrent_calls_limit: -1,
     daily_calls_limit: 100000,
   });
-  const [advancedConfig, setAdvancedConfig] = useState({
+  const [advancedConfig, setAdvancedConfig] = useState<{
+    turn_timeout: number;
+    silence_end_call_timeout: number;
+    max_conversation_duration: number;
+    keywords: string[];
+    text_only: boolean;
+    user_input_audio_format: string;
+    client_events: string[];
+    privacy_settings: { store_call_audio: boolean; zero_ppi_retention_mode: boolean };
+    conversations_retention_period: number;
+    delete_transcript_and_derived_fields: boolean;
+    delete_audio: boolean;
+  }>({
     turn_timeout: 7,
     silence_end_call_timeout: 20,
     max_conversation_duration: 300,
-    keywords: "",
+    keywords: [], // now an array
     text_only: false,
-    user_input_audio_format: "PCM 16000 Hz",
+    user_input_audio_format: "pcm_16000",
     client_events: ["audio", "interruption", "user_transcript", "agent_response", "agent_response_correction"],
     privacy_settings: {
       store_call_audio: false,
@@ -937,9 +959,9 @@ export default function AgentDetailsPage() {
           turn_timeout: cc.turn?.turn_timeout || 7,
           silence_end_call_timeout: cc.turn?.silence_end_call_timeout || 20,
           max_conversation_duration: cc.conversation?.max_duration_seconds || 300,
-          keywords: cc.asr?.keywords || '',
+          keywords: cc.asr?.keywords || [], // now an array
           text_only: cc.conversation?.text_only || false,
-          user_input_audio_format: cc.asr?.user_input_audio_format || 'PCM 16000 Hz',
+          user_input_audio_format: cc.asr?.user_input_audio_format || 'pcm_16000',
           client_events: cc.conversation?.client_events || [],
           privacy_settings: {
             store_call_audio: privacy.record_voice || false,
@@ -1027,6 +1049,13 @@ export default function AgentDetailsPage() {
 
   // Save handler: PATCH to backend, which updates both local DB and ElevenLabs
   const handleSave = async () => {
+    if (
+      advancedConfig.privacy_settings.store_call_audio &&
+      advancedConfig.privacy_settings.zero_ppi_retention_mode
+    ) {
+      alert("You cannot enable both 'Store Call Audio' and 'Zero Retention Mode' at the same time.");
+      return;
+    }
     setSaveLoading(true);
     setSaveSuccess(false);
     setSaveError("");
@@ -1722,6 +1751,15 @@ export default function AgentDetailsPage() {
   //     )}
   //   </div>
   // )}
+
+  // Add at the top of the component, after other useState hooks
+  const [newClientEvent, setNewClientEvent] = useState("");
+
+  // Add this near the top of the component, after other useState hooks
+  const [keywordsInput, setKeywordsInput] = useState(advancedConfig.keywords.join(", "));
+  useEffect(() => {
+    setKeywordsInput(advancedConfig.keywords.join(", "));
+  }, [advancedConfig.keywords]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -2585,25 +2623,35 @@ export default function AgentDetailsPage() {
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Turn timeout</div>
               <div className="text-gray-500 text-sm mb-2">The maximum number of seconds since the user last spoke. If exceeded, the agent will respond and force a turn. A value of -1 means the agent will never timeout and always wait for a response from the user.</div>
-              <input type="number" className="border rounded px-2 py-1 w-32" placeholder="7" />
+              <input type="number" className="border rounded px-2 py-1 w-32" value={advancedConfig.turn_timeout} onChange={e => setAdvancedConfig(prev => ({ ...prev, turn_timeout: Number(e.target.value) }))} placeholder="7" />
             </div>
             {/* Silence end call timeout */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Silence end call timeout</div>
               <div className="text-gray-500 text-sm mb-2">The maximum number of seconds since the user last spoke. If exceeded, the call will terminate. A value of -1 means there is no fixed cutoff.</div>
-              <input type="number" className="border rounded px-2 py-1 w-32" placeholder="20" />
+              <input type="number" className="border rounded px-2 py-1 w-32" value={advancedConfig.silence_end_call_timeout} onChange={e => setAdvancedConfig(prev => ({ ...prev, silence_end_call_timeout: Number(e.target.value) }))} placeholder="20" />
             </div>
             {/* Max conversation duration */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Max conversation duration</div>
               <div className="text-gray-500 text-sm mb-2">The maximum number of seconds that a conversation can last.</div>
-              <input type="number" className="border rounded px-2 py-1 w-32" placeholder="300" />
+              <input type="number" className="border rounded px-2 py-1 w-32" value={advancedConfig.max_conversation_duration} onChange={e => setAdvancedConfig(prev => ({ ...prev, max_conversation_duration: Number(e.target.value) }))} placeholder="300" />
             </div>
             {/* Keywords */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Keywords</div>
               <div className="text-gray-500 text-sm mb-2">Define a comma-separated list of keywords that have a higher likelihood of being predicted correctly.</div>
-              <input type="text" className="border rounded px-2 py-1 w-full" placeholder="keyword1, keyword2" />
+              <input
+                type="text"
+                className="border rounded px-2 py-1 w-full"
+                value={keywordsInput}
+                onChange={e => setKeywordsInput(e.target.value)}
+                onBlur={() => setAdvancedConfig(prev => ({
+                  ...prev,
+                  keywords: keywordsInput.split(",").map(k => k.trim()).filter(Boolean)
+                }))}
+                placeholder="keyword1, keyword2"
+              />
             </div>
             {/* Text only toggle */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
@@ -2621,38 +2669,81 @@ export default function AgentDetailsPage() {
                 onChange={e => setAdvancedConfig(prev => ({ ...prev, user_input_audio_format: e.target.value }))}
                 className="border rounded px-3 py-2 w-64"
               >
-                <option>PCM 16000 Hz</option>
-                <option>PCM 8000 Hz</option>
-                <option>WAV</option>
+                <option value="pcm_8000">PCM 8000 Hz</option>
+                <option value="pcm_16000">PCM 16000 Hz</option>
+                <option value="pcm_22050">PCM 22050 Hz</option>
+                <option value="pcm_24000">PCM 24000 Hz</option>
+                <option value="pcm_44100">PCM 44100 Hz</option>
+                <option value="pcm_48000">PCM 48000 Hz</option>
+                <option value="ulaw_8000">µ-law 8000 Hz</option>
               </select>
             </div>
             {/* Client Events */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Client Events</div>
               <div className="text-gray-500 text-sm mb-2">Select the events that should be sent to the client.</div>
-              <div className="flex flex-wrap gap-2">
-                {["audio", "interruption", "user_transcript", "agent_response", "agent_response_correction"].map(ev => (
-                  <span key={ev} className="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-1 cursor-pointer">{ev} <button className="text-red-500">×</button></span>
-                ))}
-              </div>
+              <Select
+                isMulti
+                options={CLIENT_EVENT_OPTIONS}
+                value={CLIENT_EVENT_OPTIONS.filter(opt => advancedConfig.client_events.includes(opt.value))}
+                onChange={(selected: any) =>
+                  setAdvancedConfig(prev => ({
+                    ...prev,
+                    client_events: Array.isArray(selected) ? selected.map((opt: any) => opt.value) : [],
+                  }))
+                }
+                classNamePrefix="react-select"
+                placeholder="Select client events"
+              />
             </div>
             {/* Privacy Settings */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Privacy Settings</div>
               <div className="text-gray-500 text-sm mb-2">This section allows you to configure the privacy settings for the agent.</div>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.privacy_settings.store_call_audio} onChange={e => setAdvancedConfig(prev => ({ ...prev, privacy_settings: { ...prev.privacy_settings, store_call_audio: e.target.checked } }))} /> Store Call Audio</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.privacy_settings.zero_ppi_retention_mode} onChange={e => setAdvancedConfig(prev => ({ ...prev, privacy_settings: { ...prev.privacy_settings, zero_ppi_retention_mode: e.target.checked } }))} /> Zero-PPI Retention Mode <span className="text-xs text-gray-400">&#9432;</span></label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={advancedConfig.privacy_settings.store_call_audio}
+                  onChange={e => setAdvancedConfig(prev => ({
+                    ...prev,
+                    privacy_settings: {
+                      ...prev.privacy_settings,
+                      store_call_audio: e.target.checked,
+                      zero_ppi_retention_mode: e.target.checked ? false : prev.privacy_settings.zero_ppi_retention_mode,
+                    }
+                  }))}
+                />
+                Store Call Audio
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={advancedConfig.privacy_settings.zero_ppi_retention_mode}
+                  onChange={e => setAdvancedConfig(prev => ({
+                    ...prev,
+                    privacy_settings: {
+                      ...prev.privacy_settings,
+                      zero_ppi_retention_mode: e.target.checked,
+                      store_call_audio: e.target.checked ? false : prev.privacy_settings.store_call_audio,
+                    }
+                  }))}
+                />
+                Zero-PPI Retention Mode <span className="text-xs text-gray-400">&#9432;</span>
+              </label>
             </div>
             {/* Conversations Retention Period */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Conversations Retention Period</div>
               <div className="text-gray-500 text-sm mb-2">Set the number of days to keep conversations (-1 for unlimited).</div>
-              <input type="number" className="border rounded px-2 py-1 w-32" placeholder="730" />
+              <input type="number" className="border rounded px-2 py-1 w-32" value={advancedConfig.conversations_retention_period} onChange={e => setAdvancedConfig(prev => ({ ...prev, conversations_retention_period: Number(e.target.value) }))} placeholder="730" />
             </div>
-            {/* Delete Transcript and Derived Fields, Delete Audio */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.delete_transcript_and_derived_fields} onChange={e => setAdvancedConfig(prev => ({ ...prev, delete_transcript_and_derived_fields: e.target.checked }))} /> Delete Transcript and Derived Fields (PII)</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={advancedConfig.delete_audio} onChange={e => setAdvancedConfig(prev => ({ ...prev, delete_audio: e.target.checked }))} /> Delete Audio</label>
+            {/* Save button */}
+            <div className="flex items-center gap-4 mt-4">
+              <button type="button" onClick={handleSave} disabled={saveLoading} className="bg-black text-white px-6 py-2 rounded-lg font-medium">
+                {saveLoading ? "Saving..." : "Save"}
+              </button>
+              {saveSuccess && <span className="text-green-600 text-sm">Saved!</span>}
+              {saveError && <span className="text-red-600 text-sm">{saveError}</span>}
             </div>
           </div>
         )}
