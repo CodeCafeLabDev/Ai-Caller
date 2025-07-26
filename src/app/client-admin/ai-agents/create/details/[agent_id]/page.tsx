@@ -724,6 +724,24 @@ function truncate(str: string, n: number) {
   return str.length > n ? str.slice(0, n - 1) + '...' : str;
 }
 
+interface EnableOverrides {
+  conversation_config_override: {
+    tts: {
+      voice_id: boolean;
+    };
+    conversation: {
+      text_only: boolean;
+    };
+    agent: {
+      first_message: boolean;
+      language: boolean;
+      prompt: {
+        prompt: boolean;
+      };
+    };
+  };
+}
+
 const CLIENT_EVENT_OPTIONS = [
   { value: 'audio', label: 'audio' },
   { value: 'interruption', label: 'interruption' },
@@ -810,7 +828,23 @@ export default function AgentDetailsPage() {
   const [securityConfig, setSecurityConfig] = useState({
     enable_authentication: false,
     allowlist: [] as string[],
-    enable_overrides: false,
+    enable_overrides: {
+      conversation_config_override: {
+        tts: {
+          voice_id: false,
+        },
+        conversation: {
+          text_only: false,
+        },
+        agent: {
+          first_message: false,
+          language: false,
+          prompt: {
+            prompt: false,
+          },
+        },
+      },
+    },
     fetch_initiation_client_data: false,
     post_call_webhook: "",
     enable_bursting: false,
@@ -993,7 +1027,23 @@ export default function AgentDetailsPage() {
         setSecurityConfig({
           enable_authentication: auth.enable_auth || false,
           allowlist: auth.allowlist || [],
-          enable_overrides: false, // map as needed
+          enable_overrides: {
+            conversation_config_override: {
+              tts: {
+                voice_id: false,
+              },
+              conversation: {
+                text_only: false,
+              },
+              agent: {
+                first_message: false,
+                language: false,
+                prompt: {
+                  prompt: false,
+                },
+              },
+            },
+          },
           fetch_initiation_client_data: false, // map as needed
           post_call_webhook: '', // map as needed
           enable_bursting: call_limits.bursting_enabled || false,
@@ -1983,6 +2033,134 @@ export default function AgentDetailsPage() {
   useEffect(() => {
     setKeywordsInput(advancedConfig.keywords.join(", "));
   }, [advancedConfig.keywords]);
+
+  // ... existing code ...
+  // Add at the top of AgentDetailsPage (after other useState hooks)
+  const [securityLoading, setSecurityLoading] = useState(false);
+  const [securitySaveLoading, setSecuritySaveLoading] = useState(false);
+  const [securitySaveSuccess, setSecuritySaveSuccess] = useState(false);
+  const [securitySaveError, setSecuritySaveError] = useState("");
+
+  // Fetch security settings from ElevenLabs when Security tab is activated
+  useEffect(() => {
+    if (activeTab !== 'Security') return;
+    setSecurityLoading(true);
+    fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+      headers: {
+        'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+        'Content-Type': 'application/json',
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        const auth = data?.platform_settings?.auth || {};
+        const call_limits = data?.platform_settings?.call_limits || {};
+        const overrides = data?.platform_settings?.overrides || {}; // Look under platform_settings
+        console.log('[DEBUG] Fetched overrides from ElevenLabs:', overrides);
+        setSecurityConfig(prev => ({
+          ...prev,
+          enable_authentication: !!auth.enable_auth,
+          allowlist: Array.isArray(auth.allowlist) ? auth.allowlist : [],
+          enable_overrides: (overrides && typeof overrides === 'object') ? {
+            conversation_config_override: {
+              tts: {
+                voice_id: !!overrides.conversation_config_override?.tts?.voice_id,
+              },
+              conversation: {
+                text_only: !!overrides.conversation_config_override?.conversation?.text_only,
+              },
+              agent: {
+                first_message: !!overrides.conversation_config_override?.agent?.first_message,
+                language: !!overrides.conversation_config_override?.agent?.language,
+                prompt: {
+                  prompt: !!overrides.conversation_config_override?.agent?.prompt?.prompt,
+                },
+              },
+            },
+          } : {
+            conversation_config_override: {
+              tts: {
+                voice_id: false,
+              },
+              conversation: {
+                text_only: false,
+              },
+              agent: {
+                first_message: false,
+                language: false,
+                prompt: {
+                  prompt: false,
+                },
+              },
+            },
+          },
+          enable_bursting: !!call_limits.bursting_enabled,
+          concurrent_calls_limit: typeof call_limits.agent_concurrency_limit === 'number' ? call_limits.agent_concurrency_limit : -1,
+          daily_calls_limit: typeof call_limits.daily_limit === 'number' ? call_limits.daily_limit : 100000,
+        }));
+      })
+      .catch(() => {})
+      .finally(() => setSecurityLoading(false));
+  }, [activeTab, agentId]);
+
+  // Save handler for Security tab
+  async function handleSaveSecurity() {
+    setSecuritySaveLoading(true);
+    setSecuritySaveSuccess(false);
+    setSecuritySaveError("");
+    try {
+      const payload = {
+        platform_settings: {
+          auth: {
+            enable_auth: securityConfig.enable_authentication,
+            allowlist: securityConfig.allowlist,
+          },
+          call_limits: {
+            bursting_enabled: securityConfig.enable_bursting,
+            agent_concurrency_limit: securityConfig.concurrent_calls_limit,
+            daily_limit: securityConfig.daily_calls_limit,
+          },
+          overrides: securityConfig.enable_overrides, // Add overrides under platform_settings
+        },
+      };
+      console.log('[DEBUG] PATCH payload to ElevenLabs:', payload);
+      const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      console.log('[DEBUG] PATCH response from ElevenLabs:', data);
+      if (res.ok) {
+        setSecuritySaveSuccess(true);
+      } else {
+        setSecuritySaveError(data?.error || 'Failed to update security settings');
+      }
+    } catch (e) {
+      setSecuritySaveError('Network error. Please try again.');
+    } finally {
+      setSecuritySaveLoading(false);
+    }
+  }
+  // ... existing code ...
+  // In the Security tab, update the Save button and show loading/success/error
+  {activeTab === "Security" && (
+    <div className="space-y-6">
+      {/* ...existing fields... */}
+      <div className="flex items-center gap-4 mt-4">
+        <button type="button" onClick={handleSaveSecurity} disabled={securitySaveLoading} className="bg-black text-white px-6 py-2 rounded-lg font-medium">
+          {securitySaveLoading ? "Saving..." : "Save"}
+        </button>
+        {securitySaveSuccess && <span className="text-green-600 text-sm">Saved!</span>}
+        {securitySaveError && <span className="text-red-600 text-sm">{securitySaveError}</span>}
+        {securityLoading && <span className="text-gray-500 text-sm">Loading from ElevenLabs...</span>}
+      </div>
+    </div>
+  )}
+  // ... existing code ...
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -3045,8 +3223,31 @@ export default function AgentDetailsPage() {
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Enable overrides</div>
               <div className="text-gray-500 text-sm mb-2">Choose which parts of the config can be overridden by the client at the start of the conversation.</div>
-              {['Agent language', 'First message', 'System prompt', 'Voice', 'Text only'].map(f => (
-                <label key={f} className="flex items-center gap-2"><input type="checkbox" checked={securityConfig.enable_overrides} onChange={e => setSecurityConfig(prev => ({ ...prev, enable_overrides: e.target.checked }))} /> {f}</label>
+              {[
+                { key: 'agent.language', label: 'Agent language', path: ['agent', 'language'] },
+                { key: 'agent.first_message', label: 'First message', path: ['agent', 'first_message'] },
+                { key: 'agent.prompt.prompt', label: 'System prompt', path: ['agent', 'prompt', 'prompt'] },
+                { key: 'tts.voice_id', label: 'Voice', path: ['tts', 'voice_id'] },
+                { key: 'conversation.text_only', label: 'Text only', path: ['conversation', 'text_only'] },
+              ].map(f => (
+                <label key={f.key} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!getNestedValue(securityConfig.enable_overrides.conversation_config_override, f.path)}
+                    onChange={e => setSecurityConfig(prev => ({
+                      ...prev,
+                      enable_overrides: {
+                        ...prev.enable_overrides,
+                        conversation_config_override: setNestedValue(
+                          prev.enable_overrides.conversation_config_override,
+                          f.path,
+                          e.target.checked
+                        ),
+                      },
+                    }))}
+                  />
+                  {f.label}
+                </label>
               ))}
             </div>
             {/* Fetch initiation client data from webhook */}
@@ -3082,6 +3283,14 @@ export default function AgentDetailsPage() {
               <div className="font-semibold">Daily Calls Limit</div>
               <div className="text-gray-500 text-sm mb-2">The maximum number of calls allowed per day.</div>
               <input type="number" className="border rounded px-2 py-1 w-32" placeholder="100000" />
+            </div>
+            <div className="flex items-center gap-4 mt-4">
+              <button type="button" onClick={handleSaveSecurity} disabled={securitySaveLoading} className="bg-black text-white px-6 py-2 rounded-lg font-medium">
+                {securitySaveLoading ? "Saving..." : "Save"}
+              </button>
+              {securitySaveSuccess && <span className="text-green-600 text-sm">Saved!</span>}
+              {securitySaveError && <span className="text-red-600 text-sm">{securitySaveError}</span>}
+              {securityLoading && <span className="text-gray-500 text-sm">Loading from ElevenLabs...</span>}
             </div>
           </div>
         )}
@@ -3230,5 +3439,21 @@ function getToolDescription(value: string) {
     case 'play_keypad_tone': return 'Gives agent the ability to play keypad touch tones during a phone call.';
     default: return '';
   }
+}
+
+// Add helper functions for nested object manipulation:
+function getNestedValue(obj: any, path: string[]): any {
+  return path.reduce((current, key) => current?.[key], obj);
+}
+
+function setNestedValue(obj: any, path: string[], value: any): any {
+  const newObj = { ...obj };
+  let current = newObj;
+  for (let i = 0; i < path.length - 1; i++) {
+    current[path[i]] = { ...current[path[i]] };
+    current = current[path[i]];
+  }
+  current[path[path.length - 1]] = value;
+  return newObj;
 }
 
