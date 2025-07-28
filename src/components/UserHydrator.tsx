@@ -14,6 +14,8 @@ export function UserHydrator({ children }: { children: React.ReactNode }) {
         setUser(JSON.parse(stored));
       } catch {}
     }
+    
+    // Only try to fetch from API if backend is available
     api.getCurrentUser()
       .then(res => res.json())
       .then(data => {
@@ -28,6 +30,10 @@ export function UserHydrator({ children }: { children: React.ReactNode }) {
           setUser(userObj);
           localStorage.setItem("user", JSON.stringify(userObj));
         }
+      })
+      .catch(error => {
+        console.warn('Backend server not available, using cached user data:', error.message);
+        // Continue with cached data if available
       });
   }, [setUser]);
 
