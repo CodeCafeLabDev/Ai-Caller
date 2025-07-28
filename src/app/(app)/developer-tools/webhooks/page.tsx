@@ -41,6 +41,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -162,9 +163,12 @@ export default function WebhooksPage() {
     if (editingWebhook) {
       setWebhooks(prev => prev.map(wh => wh.id === editingWebhook.id ? {
         ...editingWebhook,
-        ...data,
-        clientName: client.name,
+        clientId: data.clientId,
+        endpointUrl: data.endpointUrl,
+        eventTypes: data.eventTypes as WebhookEventType[],
         status: data.status ? "Active" : "Inactive",
+        secretKey: data.secretKey,
+        clientName: client.name,
       } : wh));
       toast({ title: "Webhook Updated", description: `Webhook for ${client.name} has been updated.` });
     } else {

@@ -33,7 +33,7 @@ import { Check, ChevronsUpDown, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import type { Campaign, CampaignType } from "@/app/(app)/campaigns/page";
 
-const campaignTypes: CampaignType[] = ["Outbound", "Follow-Up", "Reminder"];
+const campaignTypes = ["Outbound", "Follow-Up", "Reminder"] as [CampaignType, ...CampaignType[]];
 
 const addCampaignFormSchema = z.object({
   name: z.string().min(3, { message: "Campaign name must be at least 3 characters." }),
@@ -89,7 +89,7 @@ export function AddCampaignForm({ clients, onSuccess, onCancel }: AddCampaignFor
         clientName: selectedClient.name,
         clientId: data.clientId,
         tags: data.tags ? data.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
-        type: data.type,
+        type: data.type as CampaignType,
         callsTargeted: data.callsTargeted,
         startDate: data.startDate,
         endDate: data.endDate,
@@ -192,7 +192,7 @@ export function AddCampaignForm({ clients, onSuccess, onCancel }: AddCampaignFor
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {campaignTypes.filter(type => type && type !== "").map(type => (
+                      {campaignTypes.map(type => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
                     </SelectContent>

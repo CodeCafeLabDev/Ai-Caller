@@ -96,7 +96,7 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
     // Normalize status to match enum values
     let normalizedStatus = "Draft";
     if (plan.status) {
-      const statusMap = {
+      const statusMap: { [key: string]: EditPlanFormValues['status'] } = {
         active: "Active",
         draft: "Draft",
         archived: "Archived"
@@ -123,7 +123,7 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
       overagesAllowed: plan.overagesAllowed || false,
       overageChargesPer100Calls: plan.overageChargesPer100Calls?.toString() || "",
       trialEligible: plan.trialEligible || false,
-      status: normalizedStatus,
+      status: normalizedStatus as EditPlanFormValues['status'],
     });
   }, [plan, form]);
 
@@ -394,7 +394,7 @@ export function EditPlanForm({ plan, onSuccess, onCancel }: EditPlanFormProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {planStatusOptions.filter(option => option && option !== "").map(option => (
+                      {planStatusOptions.map(option => (
                         <SelectItem key={option} value={option}>{option}</SelectItem>
                       ))}
                     </SelectContent>

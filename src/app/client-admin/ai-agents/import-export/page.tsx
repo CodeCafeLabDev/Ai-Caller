@@ -36,7 +36,8 @@ interface MockAgent {
   id: string;
   name: string;
   version: string;
-  content: object; 
+  content: object;
+  description?: string;
 }
 
 const mockAgentsForExport: MockAgent[] = [
