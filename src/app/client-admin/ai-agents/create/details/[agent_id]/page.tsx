@@ -11,6 +11,7 @@ import { useUser } from '@/lib/utils';
 // Import toast if available, else fallback to alert
 // import { toast } from 'your-toast-library';
 import { FaBrain, FaTrash } from 'react-icons/fa';
+import WebhookModal from '@/components/ui/WebhookModal';
 
 const LANGUAGES = [
   { code: "en", label: "English", flag: "🇺🇸" },
@@ -2162,6 +2163,142 @@ export default function AgentDetailsPage() {
   )}
   // ... existing code ...
 
+  const [webhookModalOpen, setWebhookModalOpen] = useState(false);
+  const [currentWebhook, setCurrentWebhook] = useState<{id: string, name: string, url: string, auth_method?: string} | null>(null);
+  const [sendAudio, setSendAudio] = useState(false);
+  const [webhookLoading, setWebhookLoading] = useState(false);
+
+  // Fetch current webhook assignment when component loads
+  useEffect(() => {
+    if (agentId) {
+      setWebhookLoading(true);
+      fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+      })
+        .then(res => res.json())
+        .then(data => {
+          console.log('[DEBUG] Agent data:', data);
+          const postCallWebhookId = data.webhooks?.post_call_webhook_id;
+          const sendAudio = data.webhooks?.send_audio || false;
+          
+          setSendAudio(sendAudio);
+          
+          if (postCallWebhookId) {
+            // Fetch webhook details
+            return fetch('https://api.elevenlabs.io/v1/workspace/webhooks', {
+              headers: {
+                'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+                'Content-Type': 'application/json',
+              },
+            }).then(webhookRes => webhookRes.json()).then(webhookData => {
+              console.log('[DEBUG] Webhooks data:', webhookData);
+              const webhook = webhookData.webhooks?.find((w: any) => w.id === postCallWebhookId);
+              console.log('[DEBUG] Found webhook:', webhook);
+              if (webhook) {
+                setCurrentWebhook(webhook);
+              }
+            });
+          }
+        })
+        .catch(console.error)
+        .finally(() => setWebhookLoading(false));
+    }
+  }, [agentId]);
+
+  const handleWebhookSelect = async (webhookId: string) => {
+    setWebhookLoading(true);
+    try {
+      const payload = {
+        webhooks: {
+          post_call_webhook_id: webhookId,
+          send_audio: sendAudio
+        }
+      };
+      console.log('[DEBUG] PATCH payload for webhook assignment:', payload);
+      
+      const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      const responseData = await res.json();
+      console.log('[DEBUG] PATCH response for webhook assignment:', responseData);
+      
+      if (res.ok) {
+        // Fetch webhook details to display
+        const webhookRes = await fetch('https://api.elevenlabs.io/v1/workspace/webhooks', {
+          headers: {
+            'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+            'Content-Type': 'application/json',
+          },
+        });
+        const webhookData = await webhookRes.json();
+        const selectedWebhook = webhookData.webhooks.find((w: any) => w.id === webhookId);
+        setCurrentWebhook(selectedWebhook || null);
+      } else {
+        console.error('[DEBUG] Failed to assign webhook:', responseData);
+      }
+    } catch (error) {
+      console.error('Failed to assign webhook:', error);
+    } finally {
+      setWebhookLoading(false);
+    }
+  };
+
+  const handleRemoveWebhook = async () => {
+    setWebhookLoading(true);
+    try {
+      const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          webhooks: {
+            post_call_webhook_id: null,
+            send_audio: sendAudio
+          }
+        }),
+      });
+      if (res.ok) {
+        setCurrentWebhook(null);
+      }
+    } catch (error) {
+      console.error('Failed to remove webhook:', error);
+    } finally {
+      setWebhookLoading(false);
+    }
+  };
+
+  const handleSendAudioToggle = async (enabled: boolean) => {
+    setSendAudio(enabled);
+    try {
+      await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          webhooks: {
+            post_call_webhook_id: currentWebhook?.id || null,
+            send_audio: enabled
+          }
+        }),
+      });
+    } catch (error) {
+      console.error('Failed to update send audio setting:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Overlay for Add Criteria */}
@@ -3258,13 +3395,70 @@ export default function AgentDetailsPage() {
               </label>
             </div>
             {/* Post-Call Webhook */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Post-Call Webhook</div>
-              <div className="flex gap-2 mb-2">
-                <button className="bg-gray-200 px-3 py-2 rounded">Create Webhook</button>
+            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-lg">Post-Call Webhook</div>
+                  <div className="text-xs text-gray-500">Override the post-call webhook configured in settings for this agent.</div>
+                </div>
+                <button 
+                  className="bg-gray-200 px-3 py-2 rounded text-sm" 
+                  onClick={() => setWebhookModalOpen(true)}
+                  disabled={webhookLoading}
+                >
+                  Select Webhook
+                </button>
               </div>
-              <div className="text-xs text-gray-500">Override the post-call webhook configured in settings for this agent.</div>
+              
+              {currentWebhook ? (
+                <div className="bg-white border rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-gray-200 rounded flex items-center justify-center text-gray-500 text-xs">
+                      ⚡
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm">{currentWebhook.name}</div>
+                      <div className="text-gray-500 text-xs truncate">{currentWebhook.url}</div>
+                      <div className="text-gray-500 text-xs">
+                        Auth Method: {currentWebhook.auth_method || 'None'}
+                      </div>
+                    </div>
+                    <button 
+                      onClick={handleRemoveWebhook}
+                      disabled={webhookLoading}
+                      className="text-gray-400 hover:text-red-500 p-1"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-gray-500 text-sm">No webhook assigned</div>
+              )}
             </div>
+
+            {/* Send audio data - only show when webhook is assigned */}
+            {currentWebhook && (
+              <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold">Send audio data</div>
+                    <div className="text-xs text-gray-500">When enabled, a secondary streaming webhook will be sent including the audio data for each conversation.</div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={sendAudio}
+                      onChange={(e) => handleSendAudioToggle(e.target.checked)}
+                      disabled={webhookLoading}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+            )}
+                          <WebhookModal open={webhookModalOpen} onOpenChange={setWebhookModalOpen} agentId={String(agentId ?? '')} onWebhookSelect={handleWebhookSelect} />
             {/* Enable bursting */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <label className="flex items-center gap-2">
