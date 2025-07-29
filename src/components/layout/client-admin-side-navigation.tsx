@@ -51,7 +51,6 @@ const clientAdminNavItems: ClientAdminNavItem[] = [
     subItems: [
       { href: '/client-admin/ai-agents', label: 'Manage Agents', icon: Users },
       { href: '/client-admin/ai-agents/create', label: 'Create Agent', icon: UserPlus },
-      { href: '/client-admin/ai-agents/version-history', label: 'Version History', icon: History },
       { href: '/client-admin/ai-agents/language-settings', label: 'Language Settings', icon: Languages },
       { href: '/client-admin/ai-agents/voices', label: 'Voices', icon: Volume2 },
       { href: '/client-admin/ai-agents/knowledge-base', label: 'Knowledge Base', icon: BookOpen },

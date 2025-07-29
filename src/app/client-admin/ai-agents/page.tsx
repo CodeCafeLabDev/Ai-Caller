@@ -336,7 +336,6 @@ export default function AiAgentsPage() {
                   <TableHead>Created By</TableHead>
                   <TableHead>Last Modified</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Version</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -398,7 +397,6 @@ export default function AiAgentsPage() {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell>{agent.version}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -440,7 +438,7 @@ export default function AiAgentsPage() {
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                       No agents found matching your criteria.
                     </TableCell>
                   </TableRow>

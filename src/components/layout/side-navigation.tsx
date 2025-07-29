@@ -87,7 +87,6 @@ const initialNavItems: NavItemType[] = [
     subItems: [
         { href: '/ai-agents', label: 'Manage Agents', icon: Bot },
         { href: '/ai-agents/create', label: 'Create Agent', icon: UserPlus }, 
-        { href: '/ai-agents/version-history', label: 'Version History', icon: History },
         { href: '/ai-agents/language-settings', label: 'Language Settings', icon: Languages },
         { href: '/ai-agents/voices', label: 'Voices', icon: Megaphone },
         { href: '/ai-agents/knowledge-base', label: 'Knowledge Base', icon: BookOpen },
