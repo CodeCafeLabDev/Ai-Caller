@@ -205,6 +205,26 @@ db.connect(err => {
       `;
       db.query(createDataCollectionTable);
 
+      // Create widget settings table
+      const createWidgetSettingsTable = `
+        CREATE TABLE IF NOT EXISTS agent_widget_settings (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          agent_id VARCHAR(64) NOT NULL UNIQUE,
+          feedback_mode ENUM('none', 'during', 'end') DEFAULT 'during',
+          embed_code TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_agent_id (agent_id)
+        );
+      `;
+      db.query(createWidgetSettingsTable, (err) => {
+        if (err) {
+          console.error('Failed to create widget settings table:', err);
+        } else {
+          console.log('✅ Widget settings table ready');
+        }
+      });
+
         // --- AGENTS TABLE MIGRATION: Add language_code and additional_languages columns if not exist ---
         db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS language_code VARCHAR(20)`, () => {});
         db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS additional_languages TEXT`, () => {});
@@ -2199,6 +2219,58 @@ app.post('/api/agents/:agentId/voice-settings', async (req, res) => {
         JSON.stringify(pronunciation_dictionary_locators || []),
         JSON.stringify(multi_voice_ids || [])
       ]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --- WIDGET SETTINGS API ENDPOINTS ---
+app.get('/api/agents/:agentId/widget-settings', async (req, res) => {
+  const { agentId } = req.params;
+  try {
+    const [rows] = await db.query('SELECT * FROM agent_widget_settings WHERE agent_id = ?', [agentId]);
+    if (rows.length > 0) {
+      res.json({ success: true, data: rows[0] });
+    } else {
+      res.json({ success: true, data: null });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/agents/:agentId/widget-settings', async (req, res) => {
+  const { agentId } = req.params;
+  const { feedback_mode, embed_code } = req.body;
+  try {
+    await db.query(
+      `INSERT INTO agent_widget_settings (agent_id, feedback_mode, embed_code)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         feedback_mode = VALUES(feedback_mode),
+         embed_code = VALUES(embed_code),
+         updated_at = NOW()
+      `,
+      [agentId, feedback_mode, embed_code]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/agents/:agentId/widget-settings', async (req, res) => {
+  const { agentId } = req.params;
+  const { feedback_mode, embed_code } = req.body;
+  try {
+    await db.query(
+      `UPDATE agent_widget_settings 
+       SET feedback_mode = ?, embed_code = ?, updated_at = NOW()
+       WHERE agent_id = ?
+      `,
+      [feedback_mode, embed_code, agentId]
     );
     res.json({ success: true });
   } catch (err) {

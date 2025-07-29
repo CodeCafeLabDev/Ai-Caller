@@ -162,6 +162,120 @@ interface ImportedAgentDetails {
   agentData?: CompleteAgent;
 }
 
+// Sample agent template for import
+const sampleAgentTemplate = {
+  name: "Sample Agent",
+  description: "A sample agent for import template.",
+  useCase: "Lead Generation",
+  tags: ["sample", "import"],
+  language: "English (US)",
+  status: "Draft",
+  version: "1.0",
+  source: "local",
+  agentSettings: {
+    language: "en",
+    additional_languages: [],
+    first_message: "Hello! How can I help you?",
+    llm: "gpt-4.1-nano",
+    temperature: 0.5,
+    token_limit: 1024,
+    tool_ids: [],
+    built_in_tools: {},
+    mcp_server_ids: [],
+    native_mcp_server_ids: [],
+    knowledge_base: [],
+    custom_llm: null,
+    ignore_default_personality: false,
+    rag: {},
+    timezone: null,
+    tools: [],
+    custom_llm_url: "",
+    custom_llm_model_id: "",
+    custom_llm_api_key: "",
+    custom_llm_headers: [],
+    enable_overrides: {},
+  },
+  widgetConfig: {
+    voice: "Eric",
+    multi_voice: false,
+    use_flash: false,
+    tts_output_format: "PCM 16000 Hz",
+    pronunciation_dictionaries: [],
+    latency: 0.5,
+    stability: 0.5,
+    speed: 0.5,
+    similarity: 0.5,
+    feedback_collection: "during",
+    text_input: true,
+    switch_to_text_only: true,
+    conversation_transcript: false,
+    language_dropdown: false,
+    enable_muting: false,
+    placement: "bottom-right",
+    require_terms: true,
+    require_visitor_terms: false,
+  },
+  voiceConfig: {
+    model_id: "eleven_turbo_v2",
+    voice: "Eric",
+    multi_voice: false,
+    use_flash: false,
+    tts_output_format: "PCM 16000 Hz",
+    pronunciation_dictionaries: [],
+    latency: 0.5,
+    stability: 0.5,
+    speed: 0.5,
+    similarity: 0.5,
+    multi_voice_ids: [],
+  },
+  securityConfig: {
+    enable_authentication: false,
+    allowlist: [],
+    enable_overrides: {},
+    fetch_initiation_client_data: false,
+    post_call_webhook: "",
+    enable_bursting: false,
+    concurrent_calls_limit: -1,
+    daily_calls_limit: 100000,
+  },
+  advancedConfig: {
+    max_conversation_duration: 300,
+    keywords: [],
+    text_only: false,
+    user_input_audio_format: "pcm_16000",
+    client_events: ["audio", "interruption", "user_transcript", "agent_response", "agent_response_correction"],
+    privacy_settings: {
+      store_call_audio: true,
+      zero_ppi_retention_mode: false,
+    },
+    conversations_retention_period: 730,
+    delete_transcript_and_derived_fields: false,
+    delete_audio: false,
+  },
+  analysisConfig: {
+    evaluation_criteria: [],
+    data_collection: [],
+  },
+  firstMessage: "Hello! How can I help you?",
+  systemPrompt: "You are a helpful AI agent.",
+  first_message_vars: [],
+  system_prompt_vars: [],
+  dynamic_vars: [],
+};
+
+function downloadTemplate() {
+  const json = JSON.stringify(sampleAgentTemplate, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "agent_template.json";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export default function AiAgentImportExportPage() {
   const { toast } = useToast();
   const user = { userId: '1', name: 'Admin User', email: 'admin@example.com' };
@@ -245,10 +359,11 @@ export default function AiAgentImportExportPage() {
 
             // For admin panel, show all ElevenLabs agents
             elevenLabsAgents = agentsArr
-              .filter((agent: any) => {
-                // Show all agents for admin, but ensure they have a client_id
-                return agent.client_id;
-              })
+              // .filter((agent: any) => {
+              //   // Show all agents for admin, but ensure they have a client_id
+              //   return agent.client_id;
+              // })
+
               .map((agent: any) => ({
                 id: agent.agent_id || agent.id,
                 name: agent.name,
@@ -630,13 +745,13 @@ export default function AiAgentImportExportPage() {
       return;
     }
 
-    setSelectedFile(file);
-    setFileName(file.name);
-    setShowImportConfirmation(false);
-    setImportedAgentDetails(null);
-    
-    setIsImporting(true);
-    setImportProgress(0);
+        setSelectedFile(file);
+        setFileName(file.name);
+        setShowImportConfirmation(false); 
+        setImportedAgentDetails(null);
+        
+        setIsImporting(true);
+        setImportProgress(0);
 
     try {
       // Simulate processing progress
@@ -680,12 +795,12 @@ export default function AiAgentImportExportPage() {
 
     } catch (error) {
       console.error('Import error:', error);
-      toast({
+        toast({
         title: "Import Error",
         description: "Could not parse JSON file. Please check the file format.",
-        variant: "destructive",
-      });
-      resetImportState();
+          variant: "destructive",
+        });
+        resetImportState();
     } finally {
       setIsImporting(false);
     }
@@ -843,13 +958,13 @@ export default function AiAgentImportExportPage() {
 
       if (response.ok) {
         const result = await response.json();
-        
-        toast({
+
+    toast({
           title: `Import Complete`,
           description: `Agent "${finalName}" imported as ${status}. Category: ${finalCategory}.`,
-        });
+    });
         
-        resetImportState();
+    resetImportState();
         
         // Reload agents list to show the new agent
         await loadAvailableAgents();
@@ -870,12 +985,22 @@ export default function AiAgentImportExportPage() {
 
   return (
     <div className="container mx-auto py-8 space-y-10">
-      <div className="flex flex-col items-center text-center">
-        <FileJson className="h-16 w-16 text-primary mb-4" />
-        <h1 className="text-4xl font-bold font-headline">Import & Export AI Agents</h1>
-        <p className="text-lg text-muted-foreground mt-2 max-w-2xl">
-          Export your existing agents with complete configuration or import pre-configured agents from JSON files.
-        </p>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-4xl font-bold font-headline flex items-center">
+          Import & Export AI Agents
+        </h1>
+      </div>
+
+      <div className="flex justify-end mb-4">
+        <a
+          href="/agent_template.json"
+          download
+          className="inline-flex items-center h-7 px-2 py-0.5 text-xs border rounded hover:bg-gray-100 transition"
+          style={{ fontWeight: 500 }}
+        >
+          <span className="mr-1" style={{ fontSize: 14 }}>{"{"}{"}"}</span>
+          Download JSON Template
+        </a>
       </div>
 
       <div className="grid md:grid-cols-2 gap-8 items-start">
@@ -987,39 +1112,39 @@ export default function AiAgentImportExportPage() {
             )}
             
             {showImportConfirmation && importedAgentDetails && (
-              <div className="pt-4 border-t">
-                <h3 className="text-md font-semibold mb-3">Review & Finalize Import</h3>
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-name">Agent Name*</Label>
+                <div className="pt-4 border-t">
+                    <h3 className="text-md font-semibold mb-3">Review & Finalize Import</h3>
+                    <div className="space-y-3">
+                         <div className="space-y-1">
+                            <Label htmlFor="edit-name">Agent Name*</Label>
                     <Input 
                       id="edit-name" 
                       value={editName} 
                       onChange={e => setEditName(e.target.value)} 
                       placeholder="Enter agent name" 
                     />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-category">Category*</Label>
+                        </div>
+                        <div className="space-y-1">
+                             <Label htmlFor="edit-category">Category*</Label>
                     <Input 
                       id="edit-category" 
                       value={editCategory} 
                       onChange={e => setEditCategory(e.target.value)} 
                       placeholder="e.g., Lead Generation" 
                     />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="edit-status">Set Status*</Label>
-                    <Select value={editStatus} onValueChange={(value) => setEditStatus(value as "Draft" | "Published")}>
-                      <SelectTrigger id="edit-status">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Draft">Draft</SelectItem>
-                        <SelectItem value="Published">Published</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                        </div>
+                         <div className="space-y-1">
+                            <Label htmlFor="edit-status">Set Status*</Label>
+                             <Select value={editStatus} onValueChange={(value) => setEditStatus(value as "Draft" | "Published")}>
+                                <SelectTrigger id="edit-status">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Draft">Draft</SelectItem>
+                                    <SelectItem value="Published">Published</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                   
                   {importedAgentDetails.agentData && (
                     <div className="p-3 bg-muted rounded-md">
@@ -1035,11 +1160,11 @@ export default function AiAgentImportExportPage() {
                       </div>
                     </div>
                   )}
+                    </div>
                 </div>
-              </div>
             )}
           </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4">
+           <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4">
             {showImportConfirmation ? (
               <>
                 <Button onClick={() => handleFinalizeImport("Draft")} variant="secondary" className="w-full sm:w-auto">
@@ -1050,17 +1175,17 @@ export default function AiAgentImportExportPage() {
                 </Button>
               </>
             ) : (
-              <Button onClick={() => document.getElementById('file-upload')?.click()} disabled={isImporting} className="w-full text-base py-3">
-                {isImporting ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Importing...
-                  </>
-                ) : (
-                  <>
-                    <FileJson className="mr-2 h-5 w-5" /> Choose JSON File
-                  </>
-                )}
-              </Button>
+                 <Button onClick={() => document.getElementById('file-upload')?.click()} disabled={isImporting} className="w-full text-base py-3">
+                    {isImporting ? (
+                        <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Importing...
+                        </>
+                    ) : (
+                        <>
+                         <FileJson className="mr-2 h-5 w-5" /> Choose JSON File
+                        </>
+                    )}
+                 </Button>
             )}
           </CardFooter>
         </Card>
@@ -1070,7 +1195,7 @@ export default function AiAgentImportExportPage() {
       
       <Card className="mt-8">
         <CardHeader>
-          <CardTitle>How it Works</CardTitle>
+            <CardTitle>How it Works</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
           <p><strong>Exporting:</strong> Select one of your existing agents from the dropdown. The system will export the complete agent configuration including all settings, voice config, widget settings, security settings, and conversation flows. This creates a comprehensive backup or sharing file.</p>

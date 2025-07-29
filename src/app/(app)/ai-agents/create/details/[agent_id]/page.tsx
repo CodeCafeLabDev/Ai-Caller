@@ -9,6 +9,7 @@ import { api } from "@/lib/apiConfig";
 import languages from '@/data/languages.json';
 import { FaBrain, FaTrash } from 'react-icons/fa';
 import WebhookModal from '@/components/ui/WebhookModal';
+import { useToast } from '@/components/ui/use-toast';
 
 const LANGUAGES = [
   { code: "en", label: "English", flag: "🇺🇸" },
@@ -740,6 +741,7 @@ interface EnableOverrides {
 }
 
 export default function AgentDetailsPage() {
+  const { toast } = useToast();
   const params = useParams();
   const agentId = params.agent_id;
   const [localAgent, setLocalAgent] = useState<any>({});
@@ -753,6 +755,13 @@ export default function AgentDetailsPage() {
   // Add these state hooks at the top of the component
   const [firstMessage, setFirstMessage] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
+  
+  // Widget settings state
+  const [widgetSettings, setWidgetSettings] = useState({
+    feedback_mode: 'during',
+    embed_code: ''
+  });
+  const [widgetSettingsLoading, setWidgetSettingsLoading] = useState(false);
 
   // 1. Add state for all fields in every tab (Voice, Widget, Advanced, Security, Analysis)
   const [agentSettings, setAgentSettings] = useState({
@@ -804,7 +813,7 @@ export default function AgentDetailsPage() {
     stability: 0.5,
     speed: 0.5,
     similarity: 0.5,
-    feedback_collection: "During conversation",
+    feedback_collection: "during",
     text_input: false,
     switch_to_text_only: false,
     conversation_transcript: false,
@@ -1497,6 +1506,9 @@ export default function AgentDetailsPage() {
       fetchElevenLabsAgentDetails();
       fetchVoiceSettingsFromBackend();
     }
+    if (activeTab === 'Widget') {
+      fetchWidgetSettings();
+    }
   }, [activeTab, agentId]);
 
   // Add state for voice tab loading and save status
@@ -1517,6 +1529,11 @@ export default function AgentDetailsPage() {
       });
       if (res.ok) {
         const data = await res.json();
+        
+        // Set ElevenLabs agent data
+        setElevenLabsAgent(data);
+        
+        // Update voice config
         const tts = data?.conversation_config?.tts || {};
         setVoiceConfig(prev => ({
           ...prev,
@@ -1530,9 +1547,52 @@ export default function AgentDetailsPage() {
           pronunciation_dictionaries: tts.pronunciation_dictionary_locators || [],
           multi_voice_ids: tts.multi_voice_ids || [],
         }));
+        
+        // Update widget config with feedback collection from ElevenLabs
+        const widget = data?.platform_settings?.widget || {};
+        setWidgetConfig(prev => ({
+          ...prev,
+          feedback_collection: widget.feedback_mode || 'during',
+        }));
       }
     } finally {
       setVoiceLoading(false);
+    }
+  }
+
+  // Fetch widget settings from ElevenLabs
+  async function fetchWidgetSettings() {
+    if (!agentId) return;
+    setWidgetSettingsLoading(true);
+    try {
+      const res = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        
+        // Update widget config with feedback collection from ElevenLabs
+        const widget = data?.platform_settings?.widget || {};
+        const feedbackMode = widget.feedback_mode || 'during';
+        
+        setWidgetConfig(prev => ({
+          ...prev,
+          feedback_collection: feedbackMode,
+        }));
+        
+        // Update widget settings state with ElevenLabs data
+        setWidgetSettings({
+          feedback_mode: feedbackMode,
+          embed_code: `<elevenlabs-convai agent-id="${data.agent_id || agentId}"></elevenlabs-convai><script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>`
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching widget settings from ElevenLabs:', error);
+    } finally {
+      setWidgetSettingsLoading(false);
     }
   }
 
@@ -2775,120 +2835,130 @@ export default function AgentDetailsPage() {
             )}
           </div>
         )}
+
         {activeTab === "Widget" && (
           <div className="space-y-6">
             {/* Embed code */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Embed code</div>
+              <div className="text-gray-500 text-sm mb-2">Add the following snippet to the pages where you want the conversation widget to be.</div>
               <div className="flex items-center gap-2">
-                <code className="bg-gray-100 px-2 py-1 rounded text-xs flex-1 overflow-x-auto">{'<elevenlabs-convai agent-id="agent_01k041qz7cfy69vj79lyzekm79"></elevenlabs-convai>'}</code>
-                <button className="bg-gray-200 px-3 py-1 rounded">Copy</button>
+                <code className="bg-gray-100 px-2 py-1 rounded text-xs flex-1 overflow-x-auto">
+                  {`<elevenlabs-convai agent-id="${elevenLabsAgent?.agent_id || localAgent?.agent_id || 'loading...'}"></elevenlabs-convai><script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>`}
+                </code>
+                <button 
+                  className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+                  onClick={() => {
+                    const codeToCopy = `<elevenlabs-convai agent-id="${elevenLabsAgent?.agent_id || localAgent?.agent_id || ''}"></elevenlabs-convai><script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>`;
+                    navigator.clipboard.writeText(codeToCopy);
+                    toast({
+                      title: "Copied!",
+                      description: "Embed code copied to clipboard.",
+                    });
+                  }}
+                >
+                  Copy
+                </button>
               </div>
             </div>
+            
             {/* Feedback collection */}
             <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
               <div className="font-semibold">Feedback collection</div>
               <div className="text-gray-500 text-sm mb-2">Callers will be able to provide feedback continuously during the conversation and after it ends. Information about which agent response caused the feedback will be collected.</div>
               <select
                 value={widgetConfig.feedback_collection}
-                onChange={e => setWidgetConfig(prev => ({ ...prev, feedback_collection: e.target.value }))}
+                onChange={e => {
+                  setWidgetConfig(prev => ({ ...prev, feedback_collection: e.target.value }));
+                  setWidgetSettings(prev => ({ ...prev, feedback_mode: e.target.value }));
+                }}
                 className="border rounded px-3 py-2 w-64"
               >
-                <option>During conversation</option>
-                <option>After conversation</option>
-                <option>Never</option>
+                <option value="none">None</option>
+                <option value="during">During conversation</option>
+                <option value="end">End of conversation</option>
               </select>
             </div>
-            {/* Interface */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Interface</div>
-              <div className="text-gray-500 text-sm mb-2">Configure parts of the widget interface.</div>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={widgetConfig.text_input} onChange={e => setWidgetConfig(prev => ({ ...prev, text_input: e.target.checked }))} /> Text input <span className="bg-gray-100 text-xs px-2 py-1 rounded ml-2">New</span></label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={widgetConfig.switch_to_text_only} onChange={e => setWidgetConfig(prev => ({ ...prev, switch_to_text_only: e.target.checked }))} /> Allow switching to text-only mode <span className="bg-gray-100 text-xs px-2 py-1 rounded ml-2">New</span></label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={widgetConfig.conversation_transcript} onChange={e => setWidgetConfig(prev => ({ ...prev, conversation_transcript: e.target.checked }))} /> Conversation transcript <span className="bg-gray-100 text-xs px-2 py-1 rounded ml-2">New</span></label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={widgetConfig.language_dropdown} onChange={e => setWidgetConfig(prev => ({ ...prev, language_dropdown: e.target.checked }))} /> Language dropdown</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={widgetConfig.enable_muting} onChange={e => setWidgetConfig(prev => ({ ...prev, enable_muting: e.target.checked }))} /> Enable muting during a call</label>
+            
+            {/* Save button for Widget tab */}
+            <div className="flex items-center gap-4 mt-6">
+              <button
+                type="button"
+                onClick={async () => {
+                  setSaveLoading(true);
+                  setSaveSuccess(false);
+                  setSaveError("");
+                  try {
+                    // Generate embed code
+                    const embedCode = `<elevenlabs-convai agent-id="${elevenLabsAgent?.agent_id || localAgent?.agent_id || ''}"></elevenlabs-convai><script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>`;
+                    
+                    // Save to database first
+                    const dbRes = await fetch(`/api/agents/${agentId}/widget-settings`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        feedback_mode: widgetConfig.feedback_collection,
+                        embed_code: embedCode
+                      }),
+                    });
+                    
+                    if (!dbRes.ok) {
+                      throw new Error('Failed to save to database');
+                    }
+                    
+                    // Save to ElevenLabs
+                    const elevenLabsPayload = {
+                      platform_settings: {
+                        widget: {
+                          feedback_mode: widgetConfig.feedback_collection,
+                        }
+                      }
+                    };
+                    
+                    const elevenLabsRes = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+                      method: 'PATCH',
+                      headers: {
+                        'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(elevenLabsPayload),
+                    });
+                    
+                    if (elevenLabsRes.ok) {
+                      setSaveSuccess(true);
+                      toast({
+                        title: "Saved!",
+                        description: "Widget settings updated in database and ElevenLabs.",
+                      });
+                      // Refresh widget settings from database
+                      await fetchWidgetSettings();
+                    } else {
+                      const err = await elevenLabsRes.json();
+                      setSaveError(err?.error || 'Failed to update ElevenLabs settings');
+                    }
+                  } catch (error) {
+                    setSaveError('Network error. Please try again.');
+                  } finally {
+                    setSaveLoading(false);
+                  }
+                }}
+                disabled={saveLoading}
+                className="bg-black text-white px-6 py-2 rounded-lg font-medium"
+              >
+                {saveLoading ? "Saving..." : "Save"}
+              </button>
+              {saveSuccess && <span className="text-green-600 text-sm">Saved!</span>}
+              {saveError && <span className="text-red-600 text-sm">{saveError}</span>}
             </div>
-            {/* Appearance */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Appearance</div>
-              <div className="text-gray-500 text-sm mb-2">Customize the widget to best fit your website.</div>
-              <div className="flex gap-2 mb-2">
-                <button className="bg-gray-200 px-3 py-1 rounded">Tiny</button>
-                <button className="bg-gray-200 px-3 py-1 rounded">Compact</button>
-                <button className="bg-gray-200 px-3 py-1 rounded">Full</button>
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="font-medium">Placement</label>
-                <select
-                  value={widgetConfig.placement}
-                  onChange={e => setWidgetConfig(prev => ({ ...prev, placement: e.target.value }))}
-                  className="border rounded px-3 py-2 w-64"
-                >
-                  <option>Bottom-right</option>
-                  <option>Bottom-left</option>
-                  <option>Top-right</option>
-                  <option>Top-left</option>
-                </select>
-              </div>
-            </div>
-            {/* Avatar */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Avatar</div>
-              <div className="flex gap-2 mb-2">
-                <button className="bg-gray-200 px-3 py-2 rounded">Orb</button>
-                <button className="bg-gray-200 px-3 py-2 rounded">Link</button>
-                <button className="bg-gray-200 px-3 py-2 rounded">Image</button>
-              </div>
-              <div className="flex gap-2">
-                <div>
-                  <div className="text-xs text-gray-500">First color</div>
-                  <input type="text" className="border rounded px-2 py-1 w-32" placeholder="#2792DC" />
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Second color</div>
-                  <input type="text" className="border rounded px-2 py-1 w-32" placeholder="#9CE6E6" />
-                </div>
-              </div>
-            </div>
-            {/* Theme */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Theme</div>
-              <div className="text-xs text-gray-500 mb-2">Modify the colors and style of your widget.</div>
-              {renderColorFields()}
-              {renderRadiusFields()}
-            </div>
-            {/* Text contents */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Text contents</div>
-              <div className="text-xs text-gray-500 mb-2">Modify the text displayed in the widget.</div>
-              {renderTextContents()}
-            </div>
-            {/* Terms and conditions */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <label className="flex items-center gap-2 mb-2">
-                <input type="checkbox" checked={widgetConfig.require_terms} onChange={e => setWidgetConfig(prev => ({ ...prev, require_terms: e.target.checked }))} /> Terms and conditions
-                <span className="text-gray-500 text-sm">Require the caller to accept your terms and conditions before initiating a call.</span>
-              </label>
-              <div className="flex flex-col gap-2">
-                <label className="font-medium">Terms content</label>
-                <textarea className="border rounded px-3 py-2 w-full" rows={4} placeholder="#### Terms and conditions\nBy clicking 'Agree', ..." />
-                <label className="font-medium">Local storage key</label>
-                <input type="text" className="border rounded px-2 py-1 w-64" placeholder="e.g. terms.accepted" />
-              </div>
-            </div>
-            {/* Shareable Page */}
-            <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-              <div className="font-semibold">Shareable Page</div>
-              <div className="text-gray-500 text-sm mb-2">Configure the page shown when people visit your shareable link.</div>
-              <label className="font-medium">Description</label>
-              <input type="text" className="border rounded px-2 py-1 w-full" placeholder="Chat with AI" />
-              <label className="flex items-center gap-2 mt-2">
-                <input type="checkbox" checked={widgetConfig.require_visitor_terms} onChange={e => setWidgetConfig(prev => ({ ...prev, require_visitor_terms: e.target.checked }))} /> Require visitors to accept our terms
-              </label>
+            <div className="mt-2 text-gray-600 text-sm">
+              If you want to make more changes to the widget,{' '}
+              <a href="https://elevenlabs.io/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">go to ElevenLabs</a>.
             </div>
           </div>
         )}
+
         {activeTab === "Advanced" && (
           <div className="space-y-6">
             {/* Turn timeout */}
