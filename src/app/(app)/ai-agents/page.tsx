@@ -55,6 +55,7 @@ import type { Metadata } from 'next';
 import { useUser } from '@/lib/utils';
 import { api } from '@/lib/apiConfig';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { useRouter } from 'next/navigation';
 
 // export const metadata: Metadata = {
 //   title: 'AI Script Agents - AI Caller',
@@ -128,6 +129,7 @@ const statusFilterOptions: {value: AIAgentStatus | "all"; label: string}[] = [
 export default function AiAgentsPage() {
   const { toast } = useToast();
   const { user } = useUser();
+  const router = useRouter();
   const [agents, setAgents] = React.useState<AIAgent[]>(mockAgents);
   const [clients, setClients] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -143,7 +145,11 @@ export default function AiAgentsPage() {
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 10;
 
-  React.useEffect(() => {
+  const [viewAgent, setViewAgent] = React.useState<any | null>(null);
+  const [viewModalOpen, setViewModalOpen] = React.useState(false);
+
+  // Helper to refresh agents
+  const refreshAgents = React.useCallback(() => {
     setLoading(true);
     Promise.all([
       fetch('/api/agents').then(res => res.json()),
@@ -169,7 +175,7 @@ export default function AiAgentsPage() {
               tags: agent.tags ? JSON.parse(agent.tags) : [],
               createdBy: user?.name || user?.fullName || user?.email || 'You',
               clientName: client ? client.companyName : '-',
-              language: '', // not used
+              language: '',
               lastModified: agent.updated_at,
               status: 'Published',
               version: agent.model || '1.0',
@@ -203,11 +209,56 @@ export default function AiAgentsPage() {
       .finally(() => setLoading(false));
   }, [user]);
 
-  const handleAgentAction = (actionName: string, agentName: string) => {
-    toast({
-      title: `${actionName} (Simulated)`,
-      description: `Action performed on agent: ${agentName}.`,
-    });
+  React.useEffect(() => {
+    refreshAgents();
+  }, [refreshAgents]);
+
+  // Replace handleAgentAction with real handlers
+  const handleView = async (agent: any) => {
+    // Fetch full details from backend
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/details`);
+      const data = await res.json();
+      setViewAgent({ ...agent, details: data });
+      setViewModalOpen(true);
+    } catch {
+      toast({ title: 'Failed to load agent details', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleEdit = (agent: any) => {
+    router.push(`/ai-agents/create/details/${agent.id}`);
+  };
+  const handleDuplicate = async (agent: any) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agent.id}/duplicate`, { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        toast({ title: 'Agent duplicated!' });
+        refreshAgents();
+      } else {
+        toast({ title: 'Failed to duplicate agent', variant: 'destructive' });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleDelete = async (agent: any) => {
+    if (!window.confirm('Are you sure you want to delete this agent? This cannot be undone.')) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/agents/${agent.id}`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) {
+        toast({ title: 'Agent deleted!' });
+        refreshAgents();
+      } else {
+        toast({ title: 'Failed to delete agent', variant: 'destructive' });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredAgents = agents.filter((agent) => {
@@ -393,33 +444,21 @@ export default function AiAgentsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleAgentAction("View", agent.name)}>
+                          <DropdownMenuItem onClick={() => handleView(agent)}>
                             <Eye className="mr-2 h-4 w-4" /> View
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAgentAction("Edit", agent.name)}>
+                          <DropdownMenuItem onClick={() => handleEdit(agent)}>
                             <Edit2 className="mr-2 h-4 w-4" /> Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAgentAction("Duplicate", agent.name)}>
+                          <DropdownMenuItem onClick={() => handleDuplicate(agent)}>
                             <Copy className="mr-2 h-4 w-4" /> Duplicate
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            className="text-yellow-600 focus:text-yellow-700"
-                            onClick={async () => {
-                              if (agent.source === 'local') {
-                                await fetch(`/api/agents/${agent.id}/status`, {
-                                  method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ status: 'Archived' }),
-                                });
-                                setAgents(prev =>
-                                  prev.map(a => a.id === agent.id ? { ...a, status: 'Archived' as AIAgentStatus } : a)
-                                );
-                                toast({ title: "Agent Archived", description: `Agent \"${agent.name}\" archived.` });
-                              }
-                            }}
+                            className="text-red-600 focus:text-red-700"
+                            onClick={() => handleDelete(agent)}
                           >
-                            <Archive className="mr-2 h-4 w-4" /> Archive
+                            <Archive className="mr-2 h-4 w-4" /> Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -447,6 +486,29 @@ export default function AiAgentsPage() {
            </div>
         </CardFooter>
       </Card>
+
+      {/* Agent Details Modal */}
+      {viewModalOpen && viewAgent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 relative">
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-black" onClick={() => setViewModalOpen(false)}>&times;</button>
+            <h2 className="text-xl font-bold mb-2">Agent Details</h2>
+            <div className="mb-2"><b>Name:</b> {viewAgent.name}</div>
+            <div className="mb-2"><b>Use Case:</b> {viewAgent.useCase}</div>
+            <div className="mb-2"><b>Tags:</b> {viewAgent.tags && viewAgent.tags.join(', ')}</div>
+            <div className="mb-2"><b>Created By:</b> {viewAgent.createdBy}</div>
+            <div className="mb-2"><b>Client:</b> {viewAgent.clientName}</div>
+            <div className="mb-2"><b>Status:</b> {viewAgent.status}</div>
+            <div className="mb-2"><b>Version:</b> {viewAgent.version}</div>
+            <div className="mb-2"><b>Source:</b> {viewAgent.source}</div>
+            <div className="mb-2"><b>Last Modified:</b> {viewAgent.lastModified ? new Date(viewAgent.lastModified).toLocaleString() : ''}</div>
+            {/* Show more details from details API if available */}
+            {viewAgent.details && (
+              <pre className="bg-gray-100 rounded p-2 text-xs overflow-x-auto mt-2 max-h-60">{JSON.stringify(viewAgent.details, null, 2)}</pre>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

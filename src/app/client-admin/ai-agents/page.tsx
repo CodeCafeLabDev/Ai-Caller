@@ -3,6 +3,7 @@
 
 import Link from "next/link"; 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -37,6 +38,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Search,
   ListFilter,
   MoreHorizontal,
@@ -48,6 +56,7 @@ import {
   Check,
   ChevronsUpDown,
   FileText,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/cn";
@@ -129,6 +138,7 @@ const statusFilterOptions: {value: AIAgentStatus | "all"; label: string}[] = [
 export default function AiAgentsPage() {
   const { user } = useUser();
   const { toast } = useToast();
+  const router = useRouter();
   const [agents, setAgents] = React.useState<AIAgent[]>(mockAgents);
   const [clients, setClients] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -144,74 +154,208 @@ export default function AiAgentsPage() {
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 10;
 
-  React.useEffect(() => {
+  // View modal state
+  const [viewAgent, setViewAgent] = React.useState<any>(null);
+  const [viewModalOpen, setViewModalOpen] = React.useState(false);
+
+  const refreshAgents = React.useCallback(async () => {
     setLoading(true);
-    Promise.all([
-      fetch('/api/agents').then(res => res.json()),
-      fetch('https://api.elevenlabs.io/v1/convai/agents', {
-        headers: {
-          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
-          'Content-Type': 'application/json',
-        }
-      }).then(res => res.json()),
-      api.getClients().then(res => res.json())
-    ])
-      .then(([localData, elevenData, clientsData]) => {
-        let localAgents: AIAgent[] = [];
-        let allClients: any[] = Array.isArray(clientsData.data) ? clientsData.data : [];
-        setClients(allClients);
-        if (Array.isArray(localData.data)) {
-          localAgents = localData.data.map((agent: any) => {
-            const client = allClients.find((c: any) => String(c.id) === String(agent.client_id));
-            return {
-              id: agent.agent_id,
-              name: agent.name,
-              useCase: agent.description || 'Other',
-              tags: agent.tags ? JSON.parse(agent.tags) : [],
-              createdBy: user?.name || user?.fullName || user?.email || 'You',
-              clientName: client ? client.companyName : '-',
-              language: '', // not used
-              lastModified: agent.updated_at,
-              status: agent.status || 'Published',
-              version: agent.model || '1.0',
-              source: 'local',
-              client_id: agent.client_id, // <-- Ensure this is included
-            };
-          });
-        }
-        let elevenLabsAgents: AIAgent[] = [];
-        let agentsArr = [];
-        if (Array.isArray(elevenData.agents)) agentsArr = elevenData.agents;
-        else if (Array.isArray(elevenData.items)) agentsArr = elevenData.items;
-        else if (Array.isArray(elevenData.data)) agentsArr = elevenData.data;
-        else if (Array.isArray(elevenData)) agentsArr = elevenData;
-        elevenLabsAgents = agentsArr.map((agent: any) => ({
-          id: agent.agent_id || agent.id,
-          name: agent.name,
-          useCase: agent.description || 'Other',
-          tags: agent.tags || [],
-          createdBy: 'ElevenLabs',
-          clientName: '-',
-          language: '',
-          lastModified: agent.updated_at || agent.last_modified,
-          status: 'Published',
-          version: agent.model || '1.0',
-          source: 'elevenlabs',
-          client_id: agent.client_id, // <-- Ensure this is included
-        }));
-        const merged = [...localAgents, ...elevenLabsAgents.filter(ea => !localAgents.some(la => la.id === ea.id))];
-        setAgents(merged);
-        console.log("Agents set:", merged);
-      })
-      .catch(() => setAgents([]))
-      .finally(() => setLoading(false));
+    try {
+      const [localRes, elevenRes, clientsRes] = await Promise.all([
+        fetch('/api/agents'),
+        fetch('https://api.elevenlabs.io/v1/convai/agents', {
+          headers: {
+            'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+            'Content-Type': 'application/json',
+          }
+        }),
+        api.getClients()
+      ]);
+
+      const [localData, elevenData, clientsData] = await Promise.all([
+        localRes.json(),
+        elevenRes.json(),
+        clientsRes.json()
+      ]);
+
+      let localAgents: AIAgent[] = [];
+      let allClients: any[] = Array.isArray(clientsData.data) ? clientsData.data : [];
+      setClients(allClients);
+      
+      if (Array.isArray(localData.data)) {
+        localAgents = localData.data.map((agent: any) => {
+          const client = allClients.find((c: any) => String(c.id) === String(agent.client_id));
+          return {
+            id: agent.agent_id,
+            name: agent.name,
+            useCase: agent.description || 'Other',
+            tags: agent.tags ? JSON.parse(agent.tags) : [],
+            createdBy: user?.name || user?.fullName || user?.email || 'You',
+            clientName: client ? client.companyName : '-',
+            language: '', // not used
+            lastModified: agent.updated_at,
+            status: agent.status || 'Published',
+            version: agent.model || '1.0',
+            source: 'local',
+            client_id: agent.client_id,
+          };
+        });
+      }
+      
+      let elevenLabsAgents: AIAgent[] = [];
+      let agentsArr = [];
+      if (Array.isArray(elevenData.agents)) agentsArr = elevenData.agents;
+      else if (Array.isArray(elevenData.items)) agentsArr = elevenData.items;
+      else if (Array.isArray(elevenData.data)) agentsArr = elevenData.data;
+      else if (Array.isArray(elevenData)) agentsArr = elevenData;
+      
+      elevenLabsAgents = agentsArr.map((agent: any) => ({
+        id: agent.agent_id || agent.id,
+        name: agent.name,
+        useCase: agent.description || 'Other',
+        tags: agent.tags || [],
+        createdBy: 'ElevenLabs',
+        clientName: '-',
+        language: '',
+        lastModified: agent.updated_at || agent.last_modified,
+        status: 'Published',
+        version: agent.model || '1.0',
+        source: 'elevenlabs',
+        client_id: agent.client_id,
+      }));
+      
+      const merged = [...localAgents, ...elevenLabsAgents.filter(ea => !localAgents.some(la => la.id === ea.id))];
+      setAgents(merged);
+    } catch (error) {
+      console.error('Error loading agents:', error);
+      setAgents([]);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
-  const handleAgentAction = (actionName: string, agentName: string) => {
-    toast({
-      title: `${actionName} (Simulated)`,
-      description: `Action performed on agent: ${agentName}.`,
-    });
+  React.useEffect(() => {
+    refreshAgents();
+  }, [refreshAgents]);
+
+  const handleView = async (agent: AIAgent) => {
+    try {
+      const response = await fetch(`/api/agents/${agent.id}/details`);
+      if (response.ok) {
+        const data = await response.json();
+        // Merge local and ElevenLabs data, prioritizing ElevenLabs
+        const mergedData = {
+          ...data.local,
+          ...data.elevenlabs,
+          // Extract specific fields from ElevenLabs conversation_config
+          name: data.elevenlabs?.name || data.local?.name,
+          description: data.elevenlabs?.description || data.local?.description,
+          first_message: data.elevenlabs?.conversation_config?.agent?.first_message || data.local?.first_message,
+          system_prompt: data.elevenlabs?.conversation_config?.agent?.prompt?.prompt || data.local?.system_prompt,
+          language_code: data.elevenlabs?.conversation_config?.agent?.language || data.local?.language_code,
+          llm: data.elevenlabs?.conversation_config?.agent?.prompt?.llm || data.local?.llm,
+          temperature: data.elevenlabs?.conversation_config?.agent?.prompt?.temperature || data.local?.temperature,
+          voice_id: data.elevenlabs?.conversation_config?.tts?.voice_id || data.local?.voice_id,
+          model: data.elevenlabs?.model || data.local?.model,
+          tags: data.elevenlabs?.tags || (data.local?.tags ? JSON.parse(data.local.tags) : []),
+          status: data.local?.status || 'Published',
+          agent_id: data.elevenlabs?.agent_id || data.local?.agent_id,
+          id: data.elevenlabs?.agent_id || data.local?.agent_id
+        };
+        setViewAgent(mergedData);
+        setViewModalOpen(true);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to fetch agent details",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching agent details:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch agent details",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEdit = (agent: AIAgent) => {
+    router.push(`/client-admin/ai-agents/create/details/${agent.id}`);
+  };
+
+  const handleDuplicate = async (agent: AIAgent) => {
+    try {
+      const response = await fetch(`/api/agents/${agent.id}/duplicate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: user?.userId // Include the logged-in client's ID
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: `Agent "${agent.name}" duplicated successfully`,
+        });
+        refreshAgents();
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error",
+          description: errorData.message || "Failed to duplicate agent",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error duplicating agent:', error);
+      toast({
+        title: "Error",
+        description: "Failed to duplicate agent",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (agent: AIAgent) => {
+    if (!confirm(`Are you sure you want to delete "${agent.name}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/agents/${agent.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: `Agent "${agent.name}" deleted successfully`,
+        });
+        refreshAgents();
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: "Error",
+          description: errorData.message || "Failed to delete agent",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting agent:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete agent",
+        variant: "destructive",
+      });
+    }
   };
 
   // Debug logging
@@ -404,33 +548,21 @@ export default function AiAgentsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleAgentAction("View", agent.name)}>
+                          <DropdownMenuItem onClick={() => handleView(agent)}>
                             <Eye className="mr-2 h-4 w-4" /> View
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAgentAction("Edit", agent.name)}>
+                          <DropdownMenuItem onClick={() => handleEdit(agent)}>
                             <Edit2 className="mr-2 h-4 w-4" /> Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAgentAction("Duplicate", agent.name)}>
+                          <DropdownMenuItem onClick={() => handleDuplicate(agent)}>
                             <Copy className="mr-2 h-4 w-4" /> Duplicate
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            className="text-yellow-600 focus:text-yellow-700"
-                            onClick={async () => {
-                              if (agent.source === 'local') {
-                                await fetch(`/api/agents/${agent.id}/status`, {
-                                  method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ status: 'Archived' }),
-                                });
-                                setAgents(prev =>
-                                  prev.map(a => a.id === agent.id ? { ...a, status: 'Archived' as AIAgentStatus } : a)
-                                );
-                                toast({ title: "Agent Archived", description: `Agent \"${agent.name}\" archived.` });
-                              }
-                            }}
+                            className="text-red-600 focus:text-red-700"
+                            onClick={() => handleDelete(agent)}
                           >
-                            <Archive className="mr-2 h-4 w-4" /> Archive
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -458,6 +590,81 @@ export default function AiAgentsPage() {
            </div>
         </CardFooter>
       </Card>
+
+      {/* View Agent Modal - Updated */}
+      <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Agent Details</DialogTitle>
+            <DialogDescription>
+              View complete information about the selected agent.
+            </DialogDescription>
+          </DialogHeader>
+          {viewAgent && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="font-semibold mb-2">Basic Information</h3>
+                  <div className="space-y-2 text-sm">
+                    <div><span className="font-medium">Name:</span> {viewAgent.name}</div>
+                    <div><span className="font-medium">Description:</span> {viewAgent.description || 'N/A'}</div>
+                    <div><span className="font-medium">Status:</span> {viewAgent.status}</div>
+                    <div><span className="font-medium">Language:</span> {viewAgent.language_code || 'N/A'}</div>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2">Configuration</h3>
+                  <div className="space-y-2 text-sm">
+                    <div><span className="font-medium">LLM:</span> {viewAgent.llm || 'N/A'}</div>
+                    <div><span className="font-medium">Temperature:</span> {viewAgent.temperature || 'N/A'}</div>
+                    <div><span className="font-medium">Voice ID:</span> {viewAgent.voice_id || 'N/A'}</div>
+                    <div><span className="font-medium">Model:</span> {viewAgent.model || 'N/A'}</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="font-semibold mb-2">First Message</h3>
+                <div className="bg-gray-50 p-3 rounded text-sm">
+                  {viewAgent.first_message || 'N/A'}
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="font-semibold mb-2">System Prompt</h3>
+                <div className="bg-gray-50 p-3 rounded text-sm">
+                  {viewAgent.system_prompt || 'N/A'}
+                </div>
+              </div>
+              
+              {viewAgent.tags && viewAgent.tags.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-2">Tags</h3>
+                  <div className="flex flex-wrap gap-1">
+                    {Array.isArray(viewAgent.tags) ? viewAgent.tags.map((tag: string, index: number) => (
+                      <Badge key={index} variant="secondary">{tag}</Badge>
+                    )) : (
+                      <Badge variant="secondary">{viewAgent.tags}</Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setViewModalOpen(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  setViewModalOpen(false);
+                  handleEdit({ id: viewAgent.agent_id || viewAgent.id } as AIAgent);
+                }}>
+                  Edit Agent
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

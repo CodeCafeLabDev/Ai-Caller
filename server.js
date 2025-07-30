@@ -2420,3 +2420,123 @@ app.post('/api/agents/:agentId/advanced-settings', async (req, res) => {
   }
 });
 // ... existing code ...
+
+// Duplicate agent in local DB and ElevenLabs
+app.post('/api/agents/:agentId/duplicate', authenticateJWT, async (req, res) => {
+  const agentId = req.params.agentId;
+  const { client_id } = req.body; // Get client_id from request body
+  try {
+    if (process.env.ELEVENLABS_API_KEY) {
+      // Duplicate in ElevenLabs
+      const duplicateRes = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}/duplicate`, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': process.env.ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+      const duplicateData = await duplicateRes.json();
+      if (duplicateRes.ok && duplicateData.agent_id) {
+        // Fetch full agent details from ElevenLabs for the new agent
+        const detailsRes = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${duplicateData.agent_id}`, {
+          headers: {
+            'xi-api-key': process.env.ELEVENLABS_API_KEY,
+            'Content-Type': 'application/json'
+          }
+        });
+        const details = await detailsRes.json();
+        // Look up language_id from languages table
+        const languageCode = details.conversation_config?.agent?.language || '';
+        db.query('SELECT id FROM languages WHERE code = ? LIMIT 1', [languageCode], (langErr, langRows) => {
+          let language_id = null;
+          if (!langErr && langRows && langRows.length > 0) {
+            language_id = langRows[0].id;
+          } else {
+            language_id = 1; // fallback to 1 (likely English)
+          }
+          const newAgent = {
+            agent_id: details.agent_id,
+            client_id: client_id || null, // Use provided client_id or null
+            name: (details.name || '') + ' (Copy)',
+            description: details.description || '',
+            first_message: details.conversation_config?.agent?.first_message || '',
+            system_prompt: details.conversation_config?.agent?.prompt?.prompt || '',
+            language_id,
+            voice_id: details.conversation_config?.tts?.voice_id || '',
+            model: details.model || '',
+            tags: JSON.stringify(details.tags || []),
+            platform_settings: JSON.stringify(details.platform_settings || {}),
+            language_code: languageCode,
+            additional_languages: JSON.stringify(details.conversation_config?.agent?.additional_languages || []),
+            custom_llm_url: details.conversation_config?.agent?.prompt?.custom_llm_url || '',
+            custom_llm_model_id: details.conversation_config?.agent?.prompt?.custom_llm_model_id || '',
+            custom_llm_api_key: details.conversation_config?.agent?.prompt?.custom_llm_api_key || '',
+            custom_llm_headers: JSON.stringify(details.conversation_config?.agent?.prompt?.custom_llm_headers || []),
+            llm: details.conversation_config?.agent?.prompt?.llm || '',
+            temperature: details.conversation_config?.agent?.prompt?.temperature || 0.5
+          };
+          db.query('INSERT INTO agents SET ?', newAgent, (err2, result) => {
+            if (err2) {
+              console.error('DB insert error:', err2, newAgent);
+              return res.status(500).json({ success: false, message: err2.message });
+            }
+            res.json({ success: true, data: { ...newAgent, id: result.insertId } });
+          });
+        });
+        return;
+      }
+    }
+    // If ElevenLabs duplication fails, fallback to local duplication (optional)
+    db.query('SELECT * FROM agents WHERE agent_id = ?', [agentId], (err, rows) => {
+      if (err || !rows.length) return res.status(404).json({ success: false, message: 'Agent not found' });
+      const agent = rows[0];
+      const newAgent = { ...agent };
+      newAgent.agent_id = `local_${Date.now()}`;
+      newAgent.name = agent.name + ' (Copy)';
+      newAgent.client_id = client_id || agent.client_id; // Use provided client_id or keep original
+      delete newAgent.id;
+      db.query('INSERT INTO agents SET ?', newAgent, (err2, result) => {
+        if (err2) {
+          console.error('DB insert error:', err2, newAgent);
+          return res.status(500).json({ success: false, message: err2.message });
+        }
+        res.json({ success: true, data: { ...newAgent, id: result.insertId } });
+      });
+    });
+  } catch (err) {
+    console.error('Duplicate agent error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Improved DELETE: always try both ElevenLabs and local DB, return success if either works
+app.delete('/api/agents/:agentId', authenticateJWT, async (req, res) => {
+  const agentId = req.params.agentId;
+  let deletedFromElevenLabs = false;
+  let deletedFromLocal = false;
+  try {
+    // Try to delete from ElevenLabs
+    if (process.env.ELEVENLABS_API_KEY) {
+      const elevenRes = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'DELETE',
+        headers: {
+          'xi-api-key': process.env.ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (elevenRes.ok) deletedFromElevenLabs = true;
+    }
+    // Try to delete from local DB
+    db.query('DELETE FROM agents WHERE agent_id = ?', [agentId], (err2, result) => {
+      if (!err2 && result.affectedRows > 0) deletedFromLocal = true;
+      if (deletedFromElevenLabs || deletedFromLocal) {
+        return res.json({ success: true, deletedFromElevenLabs, deletedFromLocal });
+      } else {
+        return res.status(404).json({ success: false, message: 'Agent not found in ElevenLabs or local DB' });
+      }
+    });
+  } catch (err) {
+    console.error('Delete agent error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});

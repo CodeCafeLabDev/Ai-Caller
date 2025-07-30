@@ -972,26 +972,26 @@ export default function AgentDetailsPage() {
         const evaluation = (el.platform_settings && el.platform_settings.evaluation) || {};
         setAgentSettings(prev => ({
           ...prev,
-          language: data?.local?.language_code ?? agent?.language ?? prev.language ?? 'en',
-          additional_languages: data?.local?.additional_languages ?? agent?.additional_languages ?? prev.additional_languages ?? [],
-          llm: data?.local?.llm ?? agent?.prompt?.llm ?? prev.llm ?? '',
-          temperature: typeof data?.local?.temperature === 'number' ? data.local.temperature : (typeof agent?.prompt?.temperature === 'number' ? agent.prompt.temperature : (typeof prev.temperature === 'number' ? prev.temperature : 0.5)),
-          token_limit: typeof data?.local?.token_limit === 'number' ? data.local.token_limit : (typeof agent?.prompt?.max_tokens === 'number' ? agent.prompt.max_tokens : (typeof prev.token_limit === 'number' ? prev.token_limit : -1)),
-          tool_ids: data?.local?.tool_ids ?? agent?.prompt?.tool_ids ?? prev.tool_ids ?? [],
-          built_in_tools: data?.local?.built_in_tools ?? agent?.prompt?.built_in_tools ?? prev.built_in_tools ?? {},
-          mcp_server_ids: data?.local?.mcp_server_ids ?? agent?.prompt?.mcp_server_ids ?? prev.mcp_server_ids ?? [],
-          native_mcp_server_ids: data?.local?.native_mcp_server_ids ?? agent?.prompt?.native_mcp_server_ids ?? prev.native_mcp_server_ids ?? [],
-          knowledge_base: data?.local?.knowledge_base ?? agent?.prompt?.knowledge_base ?? prev.knowledge_base ?? [],
-          custom_llm: data?.local?.custom_llm ?? agent?.prompt?.custom_llm ?? prev.custom_llm ?? null,
-          ignore_default_personality: data?.local?.ignore_default_personality ?? agent?.prompt?.ignore_default_personality ?? prev.ignore_default_personality ?? false,
-          rag: data?.local?.rag ?? agent?.prompt?.rag ?? prev.rag ?? {},
-          timezone: data?.local?.timezone ?? agent?.prompt?.timezone ?? prev.timezone ?? null,
-          tools: data?.local?.tools ?? agent?.prompt?.tools ?? prev.tools ?? [],
-          first_message: data?.local?.first_message ?? agent?.first_message ?? prev.first_message ?? '',
-          custom_llm_url: data?.local?.custom_llm_url ?? agent?.custom_llm_url ?? prev.custom_llm_url ?? '',
-          custom_llm_model_id: data?.local?.custom_llm_model_id ?? agent?.custom_llm_model_id ?? prev.custom_llm_model_id ?? '',
-          custom_llm_api_key: data?.local?.custom_llm_api_key ?? agent?.custom_llm_api_key ?? prev.custom_llm_api_key ?? '',
-          custom_llm_headers: data?.local?.custom_llm_headers ?? agent?.custom_llm_headers ?? prev.custom_llm_headers ?? [],
+          language: data.elevenlabs.conversation_config?.agent?.language || data?.local?.language_code || prev.language || 'en',
+          additional_languages: data.elevenlabs.conversation_config?.agent?.additional_languages || data?.local?.additional_languages || prev.additional_languages || [],
+          llm: data.elevenlabs.conversation_config?.agent?.prompt?.llm || data?.local?.llm || prev.llm || '',
+          temperature: (typeof data.elevenlabs.conversation_config?.agent?.prompt?.temperature === 'number' ? data.elevenlabs.conversation_config.agent.prompt.temperature : undefined)
+            ?? (typeof data?.local?.temperature === 'number' ? data.local.temperature : undefined)
+            ?? (typeof prev.temperature === 'number' ? prev.temperature : 0.5),
+          token_limit: (typeof data.elevenlabs.conversation_config?.agent?.prompt?.max_tokens === 'number' ? data.elevenlabs.conversation_config.agent.prompt.max_tokens : undefined)
+            ?? (typeof data?.local?.token_limit === 'number' ? data.local.token_limit : undefined)
+            ?? (typeof prev.token_limit === 'number' ? prev.token_limit : -1),
+          first_message: data.elevenlabs.conversation_config?.agent?.first_message || data?.local?.first_message || prev.first_message || '',
+          // system_prompt: data.elevenlabs.conversation_config?.agent?.prompt?.prompt || data?.local?.system_prompt || prev.system_prompt || '',
+          tools: data.elevenlabs.conversation_config?.agent?.tools || data.elevenlabs.conversation_config?.agent?.prompt?.tool_ids || data?.local?.tools || prev.tools || [],
+          custom_llm: agent.prompt?.custom_llm || data?.local?.custom_llm || prev.custom_llm || null,
+          ignore_default_personality: agent.prompt?.ignore_default_personality ?? data?.local?.ignore_default_personality ?? prev.ignore_default_personality ?? false,
+          rag: agent.prompt?.rag || data?.local?.rag || prev.rag || {},
+          timezone: agent.prompt?.timezone || data?.local?.timezone || prev.timezone || null,
+          custom_llm_url: agent.custom_llm_url || data?.local?.custom_llm_url || prev.custom_llm_url || '',
+          custom_llm_model_id: agent.custom_llm_model_id || data?.local?.custom_llm_model_id || prev.custom_llm_model_id || '',
+          custom_llm_api_key: agent.custom_llm_api_key || data?.local?.custom_llm_api_key || prev.custom_llm_api_key || '',
+          custom_llm_headers: agent.custom_llm_headers || data?.local?.custom_llm_headers || prev.custom_llm_headers || [],
           enable_overrides: (auth.enable_overrides && typeof auth.enable_overrides === 'object') ? {
             conversation_config_override: {
               tts: {
@@ -1025,7 +1025,12 @@ export default function AgentDetailsPage() {
               },
             },
           },
+          built_in_tools: agent.prompt?.built_in_tools || data?.local?.built_in_tools || prev.built_in_tools || {},
+          mcp_server_ids: agent.prompt?.mcp_server_ids || data?.local?.mcp_server_ids || prev.mcp_server_ids || [],
+          native_mcp_server_ids: agent.prompt?.native_mcp_server_ids || data?.local?.native_mcp_server_ids || prev.native_mcp_server_ids || [],
+          knowledge_base: agent.prompt?.knowledge_base || data?.local?.knowledge_base || prev.knowledge_base || [],
         }));
+        console.log('ElevenLabs API response:', data.elevenlabs);
         setFirstMessage(agent?.first_message || '');
         setSystemPrompt(agent?.prompt?.prompt || '');
         setWidgetConfig({
@@ -2951,7 +2956,7 @@ export default function AgentDetailsPage() {
               </button>
               {saveSuccess && <span className="text-green-600 text-sm">Saved!</span>}
               {saveError && <span className="text-red-600 text-sm">{saveError}</span>}
-            </div>
+              </div>
             <div className="mt-2 text-gray-600 text-sm">
               If you want to make more changes to the widget,{' '}
               <a href="https://elevenlabs.io/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">go to ElevenLabs</a>.
