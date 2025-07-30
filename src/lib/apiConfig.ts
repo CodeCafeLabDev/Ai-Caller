@@ -7,9 +7,12 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Base URLs
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || (isDevelopment 
-  ? 'http://localhost:5000' 
+  ? (typeof window !== 'undefined' && window.location.hostname.includes('ngrok') 
+     ? window.location.origin 
+     : 'http://localhost:5000')
   : 'https://api.aicaller.com');
 // Use NEXT_PUBLIC_API_BASE_URL if set, otherwise fallback to localhost:5000 (dev) or prod URL
+// For ngrok development, automatically detect and use the ngrok URL
 
 export const EXTERNAL_APIS = {
   ELEVENLABS: {

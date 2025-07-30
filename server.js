@@ -19,7 +19,10 @@ const app = express();
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'https://2nq68jpg-3000.inc1.devtunnels.ms' // <-- Add your tunnel URL here
+    'https://2nq68jpg-3000.inc1.devtunnels.ms', // <-- Add your tunnel URL here
+    /^https:\/\/.*\.ngrok-free\.app$/, // Allow all ngrok-free.app subdomains
+    /^https:\/\/.*\.ngrok\.io$/, // Allow all ngrok.io subdomains
+    /^https:\/\/.*\.ngrok\.app$/ // Allow all ngrok.app subdomains
   ],
   credentials: true
 }));
