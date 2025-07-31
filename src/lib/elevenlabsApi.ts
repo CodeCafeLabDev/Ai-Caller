@@ -20,9 +20,15 @@ export const elevenLabsApi = {
       body: JSON.stringify({ conversation_config: {} }),
     });
   },
-  getAgent: (id: string): Promise<Response> => fetch(`${ELEVENLABS_BASE_URL}/agents/${id}`, {
-    headers: withApiKeyHeaders(),
-  }),
+  getAgent: (id: string): Promise<Response> => {
+    console.log(`[ElevenLabs API] Fetching agent details for agent ID: ${id}`, {
+      agentId: id,
+      timestamp: new Date().toISOString()
+    });
+    return fetch(`${ELEVENLABS_BASE_URL}/agents/${id}`, {
+      headers: withApiKeyHeaders(),
+    });
+  },
   deleteAgent: (id: string): Promise<Response> => fetch(`${ELEVENLABS_BASE_URL}/agents/${id}`, {
     method: "DELETE",
     headers: withApiKeyHeaders(),
@@ -51,11 +57,18 @@ export const elevenLabsApi = {
     headers: withApiKeyHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   }),
-  addToAgentKnowledgeBase: (id: string, data: any): Promise<Response> => fetch(`${ELEVENLABS_BASE_URL}/agents/${id}/knowledge-base`, {
-    method: "POST",
-    headers: withApiKeyHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify(data),
-  }),
+  addToAgentKnowledgeBase: (id: string, data: any): Promise<Response> => {
+    console.log(`[ElevenLabs API] Adding knowledge base item to agent ID: ${id}`, {
+      agentId: id,
+      knowledgeBaseData: data,
+      timestamp: new Date().toISOString()
+    });
+    return fetch(`${ELEVENLABS_BASE_URL}/agents/${id}/knowledge-base`, {
+      method: "POST",
+      headers: withApiKeyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(data),
+    });
+  },
   getAgentsPage: (params: any): Promise<Response> => fetch(`${ELEVENLABS_BASE_URL}/agents?${new URLSearchParams(params)}`, {
     headers: withApiKeyHeaders(),
   }),

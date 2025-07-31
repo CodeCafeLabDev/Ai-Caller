@@ -957,6 +957,41 @@ export default function AgentDetailsPage() {
       .then(data => {
         setLocalAgent(data.local || {});
         setElevenLabsAgent(data.elevenlabs || {});
+        
+        // Populate selectedDocs with agent's existing knowledge base items
+        const agentKnowledgeBase = data.elevenlabs?.conversation_config?.agent?.prompt?.knowledge_base || data?.local?.knowledge_base || [];
+        if (Array.isArray(agentKnowledgeBase) && agentKnowledgeBase.length > 0) {
+          console.log(`[Client Admin Agent Details] Found ${agentKnowledgeBase.length} knowledge base items for agent ${agentId}:`, {
+            agentId,
+            knowledgeBaseItems: agentKnowledgeBase,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Map the knowledge base items to the format expected by selectedDocs
+          const mappedDocs = agentKnowledgeBase.map((kbItem: any) => ({
+            id: String(kbItem.id), // Ensure ID is always a string
+            name: kbItem.name,
+            type: kbItem.type,
+            url: kbItem.url,
+            usage_mode: kbItem.usage_mode,
+            icon: kbItem.type === 'url' ? '🌐' : kbItem.type === 'text' ? '📝' : '📄'
+          }));
+          
+          setSelectedDocs(mappedDocs);
+          
+          console.log(`[Client Admin Agent Details] Populated selectedDocs for agent ${agentId}:`, {
+            agentId,
+            selectedDocsCount: mappedDocs.length,
+            selectedDocs: mappedDocs,
+            timestamp: new Date().toISOString()
+          });
+        } else {
+          console.log(`[Client Admin Agent Details] No knowledge base items found for agent ${agentId}`, {
+            agentId,
+            timestamp: new Date().toISOString()
+          });
+          setSelectedDocs([]);
+        }
         // Ensure additional_languages is always an array
         if (data.local && typeof data.local.additional_languages === 'string') {
           try {
@@ -1200,24 +1235,49 @@ export default function AgentDetailsPage() {
     setSaveSuccess(false);
     setSaveError("");
     try {
+      // Update agentSettings with selectedDocs for knowledge base
+      const updatedAgentSettings = {
+        ...agentSettings,
+        knowledge_base: selectedDocs.map(doc => ({
+          id: String(doc.id), // Ensure ID is a string for ElevenLabs API
+          name: doc.name,
+          type: doc.type,
+          url: doc.url,
+          usage_mode: doc.usage_mode || 'auto'
+        }))
+      };
+      
+      console.log(`[Client Admin Agent Details] Saving agent ${agentId} with knowledge base:`, {
+        agentId,
+        selectedDocsCount: selectedDocs.length,
+        knowledgeBase: updatedAgentSettings.knowledge_base,
+        knowledgeBaseTypes: updatedAgentSettings.knowledge_base.map(kb => ({
+          id: kb.id,
+          idType: typeof kb.id,
+          name: kb.name,
+          type: kb.type
+        })),
+        timestamp: new Date().toISOString()
+      });
+      
       // Map UI state to correct ElevenLabs structure
       const localPayload = {
-        language_code: agentSettings.language,
-        additional_languages: agentSettings.additional_languages,
-        llm: agentSettings.llm,
-        custom_llm_url: agentSettings.custom_llm_url,
-        custom_llm_model_id: agentSettings.custom_llm_model_id,
-        custom_llm_api_key: agentSettings.custom_llm_api_key,
-        custom_llm_headers: agentSettings.custom_llm_headers,
-        temperature: agentSettings.temperature,
-        token_limit: agentSettings.token_limit,
+        language_code: updatedAgentSettings.language,
+        additional_languages: updatedAgentSettings.additional_languages,
+        llm: updatedAgentSettings.llm,
+        custom_llm_url: updatedAgentSettings.custom_llm_url,
+        custom_llm_model_id: updatedAgentSettings.custom_llm_model_id,
+        custom_llm_api_key: updatedAgentSettings.custom_llm_api_key,
+        custom_llm_headers: updatedAgentSettings.custom_llm_headers,
+        temperature: updatedAgentSettings.temperature,
+        token_limit: updatedAgentSettings.token_limit,
         first_message: firstMessage,
         system_prompt: systemPrompt,
-        language_id: languages.find(l => l.code === agentSettings.language)?.id || null,
+        language_id: languages.find(l => l.code === updatedAgentSettings.language)?.id || null,
       };
       // Build ElevenLabs payload, including custom LLM fields if selected
       const elevenLabsPayload = buildElevenLabsPayload({
-        agentSettings,
+        agentSettings: updatedAgentSettings,
         widgetConfig,
         voiceConfig,
         advancedConfig,
@@ -1228,14 +1288,14 @@ export default function AgentDetailsPage() {
         elevenLabsAgent,
         allTools
       });
-      if (agentSettings.llm === 'custom-llm') {
+      if (updatedAgentSettings.llm === 'custom-llm') {
         if (!elevenLabsPayload.conversation_config.agent.prompt.custom_llm) {
           elevenLabsPayload.conversation_config.agent.prompt.custom_llm = {};
         }
-        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.url = agentSettings.custom_llm_url;
-        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.model_id = agentSettings.custom_llm_model_id;
-        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.api_key = agentSettings.custom_llm_api_key;
-        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.headers = agentSettings.custom_llm_headers;
+        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.url = updatedAgentSettings.custom_llm_url;
+        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.model_id = updatedAgentSettings.custom_llm_model_id;
+        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.api_key = updatedAgentSettings.custom_llm_api_key;
+        elevenLabsPayload.conversation_config.agent.prompt.custom_llm.headers = updatedAgentSettings.custom_llm_headers;
       }
       // Clean the payload to remove null/undefined
       const cleanedPayload = cleanPayload(elevenLabsPayload);
@@ -1251,6 +1311,45 @@ export default function AgentDetailsPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        // Save knowledge base mappings to database
+        console.log(`[Client Admin Agent Details] Saving knowledge base mappings to database for agent ${agentId}:`, {
+          agentId,
+          selectedDocs,
+          timestamp: new Date().toISOString()
+        });
+        
+        try {
+          const dbResponse = await fetch(`/api/agents/${agentId}/knowledge-base-db`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              knowledgeBaseItems: selectedDocs
+            })
+          });
+          
+          const dbData = await dbResponse.json();
+          
+          if (dbResponse.ok && dbData.success) {
+            console.log(`[Client Admin Agent Details] Successfully saved knowledge base mappings to database for agent ${agentId}:`, {
+              agentId,
+              dbResponse: dbData,
+              timestamp: new Date().toISOString()
+            });
+          } else {
+            console.error(`[Client Admin Agent Details] Failed to save knowledge base mappings to database for agent ${agentId}:`, {
+              agentId,
+              dbError: dbData.error,
+              timestamp: new Date().toISOString()
+            });
+          }
+        } catch (dbError) {
+          console.error(`[Client Admin Agent Details] Error saving knowledge base mappings to database for agent ${agentId}:`, {
+            agentId,
+            dbError: dbError instanceof Error ? dbError.message : dbError,
+            timestamp: new Date().toISOString()
+          });
+        }
+        
         // Also save advanced settings to local DB
         await fetch(`/api/agents/${agentId}/advanced-settings`, {
           method: 'POST',
@@ -2750,6 +2849,21 @@ export default function AgentDetailsPage() {
                           <span>{doc.icon || (doc.type === 'web' ? '🌐' : doc.type === 'text' ? '📝' : '📄')}</span>
                           <span className="font-medium">{doc.name || doc.title || doc.id}</span>
                           <span className="text-xs text-gray-500">{doc.id}</span>
+                          <button
+                            type="button"
+                            className="ml-auto text-red-500 hover:text-red-700 text-sm"
+                            onClick={() => {
+                              console.log(`[Client Admin Agent Details] Removing knowledge base item from agent ${agentId}:`, {
+                                agentId,
+                                docId: doc.id,
+                                docName: doc.name,
+                                timestamp: new Date().toISOString()
+                              });
+                              setSelectedDocs(prev => prev.filter(d => d.id !== doc.id));
+                            }}
+                          >
+                            Remove
+                          </button>
                         </div>
                       ))}
                     </div>

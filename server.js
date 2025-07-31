@@ -185,6 +185,54 @@ db.connect(err => {
           }
         });
 
+        // Create agent knowledge base mapping table (drop if exists to avoid foreign key issues)
+        const dropAgentKnowledgeBaseTable = `DROP TABLE IF EXISTS agent_knowledge_base`;
+        const createAgentKnowledgeBaseTable = `
+          CREATE TABLE IF NOT EXISTS agent_knowledge_base (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            agent_id VARCHAR(255) NOT NULL UNIQUE,
+            knowledge_base_items JSON NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_agent_id (agent_id)
+          ) ENGINE=InnoDB;
+        `;
+        
+        // Drop and recreate to ensure clean schema
+        tempDb.query(dropAgentKnowledgeBaseTable, (dropErr) => {
+          if (dropErr) {
+            console.error("Failed to drop agent knowledge base table:", dropErr);
+          } else {
+            console.log("✅ Dropped existing agent knowledge base table");
+          }
+          
+          // Also try to drop any foreign key constraints that might exist
+          tempDb.query('SET FOREIGN_KEY_CHECKS = 0', (fkErr) => {
+            if (fkErr) {
+              console.error("Failed to disable foreign key checks:", fkErr);
+            } else {
+              console.log("✅ Disabled foreign key checks");
+            }
+            
+            tempDb.query(createAgentKnowledgeBaseTable, (createErr) => {
+              if (createErr) {
+                console.error("Failed to create agent knowledge base table:", createErr);
+              } else {
+                console.log("✅ Agent knowledge base table ready");
+              }
+              
+              // Re-enable foreign key checks
+              tempDb.query('SET FOREIGN_KEY_CHECKS = 1', (fkErr2) => {
+                if (fkErr2) {
+                  console.error("Failed to re-enable foreign key checks:", fkErr2);
+                } else {
+                  console.log("✅ Re-enabled foreign key checks");
+                }
+              });
+            });
+          });
+        });
+
         const createCriteriaTable = `
          CREATE TABLE IF NOT EXISTS agent_analysis_criteria (
           id INT AUTO_INCREMENT PRIMARY KEY,
@@ -2546,4 +2594,291 @@ app.delete('/api/agents/:agentId', authenticateJWT, async (req, res) => {
     console.error('Delete agent error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
+});
+
+// --- AGENT KNOWLEDGE BASE API ENDPOINTS ---
+
+// POST /api/agents/:agentId/knowledge-base-db - Save knowledge base mappings to database
+app.post('/api/agents/:agentId/knowledge-base-db', async (req, res) => {
+  const agentId = req.params.agentId;
+  const { knowledgeBaseItems } = req.body;
+  
+  console.log(`[API] Saving knowledge base to database for agent ID: ${agentId}`, {
+    agentId,
+    requestBody: req.body,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    if (!Array.isArray(knowledgeBaseItems)) {
+      return res.status(400).json({
+        success: false,
+        error: 'knowledgeBaseItems must be an array',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Check if the agent exists in the agents table
+    console.log(`[API] Checking if agent ${agentId} exists in agents table`);
+    db.query('SELECT agent_id FROM agents WHERE agent_id = ?', [agentId], (checkErr, checkRows) => {
+      if (checkErr) {
+        console.error(`[API] Error checking if agent exists:`, checkErr);
+        return res.status(500).json({
+          success: false,
+          agentId,
+          error: 'Failed to check if agent exists',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      if (checkRows.length === 0) {
+        console.error(`[API] Agent ${agentId} not found in agents table`);
+        return res.status(404).json({
+          success: false,
+          agentId,
+          error: `Agent ${agentId} not found in agents table`,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      console.log(`[API] Agent ${agentId} found in agents table, proceeding with knowledge base update`);
+      
+      // Prepare knowledge base items as JSON array
+      const knowledgeBaseItemsJson = knowledgeBaseItems.map(item => ({
+        id: String(item.id),
+        name: item.name,
+        type: item.type,
+        url: item.url,
+        usage_mode: item.usage_mode || 'auto',
+        rag_enabled: item.usage_mode === 'auto'
+      }));
+      
+      console.log(`[API] Preparing to save knowledge base items for agent ${agentId}:`, {
+        agentId,
+        itemCount: knowledgeBaseItemsJson.length,
+        items: knowledgeBaseItemsJson,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Insert or update the single row for this agent
+      const insertOrUpdateSQL = `
+        INSERT INTO agent_knowledge_base (agent_id, knowledge_base_items) 
+        VALUES (?, ?) 
+        ON DUPLICATE KEY UPDATE 
+          knowledge_base_items = VALUES(knowledge_base_items),
+          updated_at = NOW()
+      `;
+      
+      db.query(insertOrUpdateSQL, [agentId, JSON.stringify(knowledgeBaseItemsJson)], (insertErr) => {
+        if (insertErr) {
+          console.error(`[API] Error saving knowledge base items for agent ${agentId}:`, insertErr);
+          console.error(`[API] Insert values:`, [agentId, JSON.stringify(knowledgeBaseItemsJson)]);
+          return res.status(500).json({
+            success: false,
+            agentId,
+            error: insertErr.message || 'Failed to save knowledge base items',
+            timestamp: new Date().toISOString()
+          });
+        }
+        
+        console.log(`[API] Successfully saved knowledge base items for agent ${agentId}`, {
+          agentId,
+          itemCount: knowledgeBaseItemsJson.length,
+          items: knowledgeBaseItemsJson.map(item => ({
+            id: item.id,
+            name: item.name,
+            type: item.type,
+            usage_mode: item.usage_mode
+          })),
+          timestamp: new Date().toISOString()
+        });
+
+        res.json({
+          success: true,
+          agentId,
+          message: `Successfully saved ${knowledgeBaseItemsJson.length} knowledge base items`,
+          timestamp: new Date().toISOString()
+        });
+      });
+    });
+  } catch (error) {
+    console.error(`[API] Error in knowledge base save operation for agent ${agentId}:`, {
+      agentId,
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(500).json({
+      success: false,
+      agentId,
+      error: error.message || 'Unknown error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// GET /api/agents/:agentId/knowledge-base-db - Get knowledge base mappings from database
+app.get('/api/agents/:agentId/knowledge-base-db', async (req, res) => {
+  const agentId = req.params.agentId;
+  
+  console.log(`[API] Fetching knowledge base from database for agent ID: ${agentId}`, {
+    agentId,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    db.query('SELECT * FROM agent_knowledge_base WHERE agent_id = ?', [agentId], (err, rows) => {
+      if (err) {
+        console.error(`[API] Error fetching knowledge base items for agent ${agentId}:`, {
+          agentId,
+          error: err.message,
+          timestamp: new Date().toISOString()
+        });
+
+        return res.status(500).json({
+          success: false,
+          agentId,
+          error: err.message || 'Failed to fetch knowledge base items',
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      let knowledgeBaseItems = [];
+      if (rows.length > 0 && rows[0].knowledge_base_items) {
+        try {
+          knowledgeBaseItems = JSON.parse(rows[0].knowledge_base_items);
+        } catch (parseErr) {
+          console.error(`[API] Error parsing knowledge base items JSON for agent ${agentId}:`, parseErr);
+          knowledgeBaseItems = [];
+        }
+      }
+      
+      console.log(`[API] Found knowledge base items for agent ${agentId}:`, {
+        agentId,
+        itemCount: knowledgeBaseItems.length,
+        items: knowledgeBaseItems,
+        timestamp: new Date().toISOString()
+      });
+
+      res.json({
+        success: true,
+        agentId,
+        knowledgeBaseItems: knowledgeBaseItems,
+        timestamp: new Date().toISOString()
+      });
+    });
+  } catch (error) {
+    console.error(`[API] Error in knowledge base fetch operation for agent ${agentId}:`, {
+      agentId,
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+
+    res.status(500).json({
+      success: false,
+      agentId,
+      error: error.message || 'Unknown error occurred',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// Debug endpoint to check database schema
+app.get('/api/debug/agent-knowledge-base-schema', (req, res) => {
+  db.query('DESCRIBE agent_knowledge_base', (err, rows) => {
+    if (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+    
+    db.query('SELECT COUNT(*) as count FROM agent_knowledge_base', (countErr, countRows) => {
+      if (countErr) {
+        return res.status(500).json({ success: false, error: countErr.message });
+      }
+      
+      res.json({
+        success: true,
+        schema: rows,
+        recordCount: countRows[0].count
+      });
+    });
+  });
+});
+
+// Debug endpoint to check if agent exists
+app.get('/api/debug/agent/:agentId', (req, res) => {
+  const agentId = req.params.agentId;
+  
+  db.query('SELECT agent_id, name FROM agents WHERE agent_id = ?', [agentId], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+    
+    res.json({
+      success: true,
+      agentExists: rows.length > 0,
+      agent: rows[0] || null
+    });
+  });
+});
+
+// Cleanup endpoint to fix agent_knowledge_base table
+app.post('/api/debug/fix-agent-knowledge-base-table', (req, res) => {
+  console.log('[API] Starting agent_knowledge_base table cleanup...');
+  
+  // Disable foreign key checks
+  db.query('SET FOREIGN_KEY_CHECKS = 0', (fkErr) => {
+    if (fkErr) {
+      console.error('[API] Failed to disable foreign key checks:', fkErr);
+      return res.status(500).json({ success: false, error: fkErr.message });
+    }
+    
+    console.log('[API] Disabled foreign key checks');
+    
+    // Drop the table completely
+    db.query('DROP TABLE IF EXISTS agent_knowledge_base', (dropErr) => {
+      if (dropErr) {
+        console.error('[API] Failed to drop table:', dropErr);
+        return res.status(500).json({ success: false, error: dropErr.message });
+      }
+      
+      console.log('[API] Dropped agent_knowledge_base table');
+      
+      // Create the table with correct schema
+      const createTableSQL = `
+        CREATE TABLE agent_knowledge_base (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          agent_id VARCHAR(255) NOT NULL UNIQUE,
+          knowledge_base_items JSON NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          INDEX idx_agent_id (agent_id)
+        ) ENGINE=InnoDB;
+      `;
+      
+      db.query(createTableSQL, (createErr) => {
+        if (createErr) {
+          console.error('[API] Failed to create table:', createErr);
+          return res.status(500).json({ success: false, error: createErr.message });
+        }
+        
+        console.log('[API] Created agent_knowledge_base table with correct schema');
+        
+        // Re-enable foreign key checks
+        db.query('SET FOREIGN_KEY_CHECKS = 1', (fkErr2) => {
+          if (fkErr2) {
+            console.error('[API] Failed to re-enable foreign key checks:', fkErr2);
+          } else {
+            console.log('[API] Re-enabled foreign key checks');
+          }
+          
+          res.json({
+            success: true,
+            message: 'Agent knowledge base table has been fixed successfully'
+          });
+        });
+      });
+    });
+  });
 });
