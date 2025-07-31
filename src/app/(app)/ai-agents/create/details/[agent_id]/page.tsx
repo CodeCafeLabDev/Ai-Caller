@@ -446,6 +446,7 @@ function buildElevenLabsPayload({
   // Determine TTS model_id for English and non-English agents
   let ttsModelId = voiceConfig.model_id;
   let lang = agentSettings.language || '';
+  // Always extract the base language code for ElevenLabs (e.g., "en-US" -> "en")
   if (lang && lang.includes('-')) {
     lang = lang.split('-')[0];
   }
@@ -535,6 +536,22 @@ function buildElevenLabsPayload({
     prompt.timezone = agentSettings.timezone;
   }
 
+  // Build language_presets from additional_languages
+  const language_presets: any = {};
+  if (agentSettings.additional_languages && Array.isArray(agentSettings.additional_languages)) {
+    agentSettings.additional_languages.forEach((langCode: string) => {
+      const cleanLangCode = langCode.split('-')[0]; // Remove country code if present
+      language_presets[cleanLangCode] = {
+        first_message_translation: {
+          text: firstMessage, // Use the same first message for all languages
+          source_hash: "" // Required field by ElevenLabs API
+        },
+        overrides: {} // Required field for language presets
+      };
+    });
+  }
+  console.log('[DEBUG] Building language_presets for ElevenLabs:', language_presets);
+
   return {
     agent_id: elevenLabsAgent.agent_id,
     name: agentSettings.name || elevenLabsAgent.name,
@@ -542,7 +559,6 @@ function buildElevenLabsPayload({
       agent: {
         first_message: firstMessage,
         language: lang,
-        additional_languages: (agentSettings.additional_languages || []).map((l: string) => l.split('-')[0]),
         dynamic_variables: advancedConfig.dynamic_variables,
         prompt,
       },
@@ -572,7 +588,7 @@ function buildElevenLabsPayload({
         max_duration_seconds: advancedConfig.max_conversation_duration,
         client_events: advancedConfig.client_events,
       },
-      language_presets: advancedConfig.language_presets,
+      language_presets: language_presets,
     },
     platform_settings: {
       widget: {
@@ -944,7 +960,7 @@ export default function AgentDetailsPage() {
     fetchTools();
   }, [fetchTools]);
 
-  // Fetch agent details from backend (which fetches from ElevenLabs and local DB)
+    // Fetch agent details from backend (which fetches from ElevenLabs and local DB)
   useEffect(() => {
     setLoading(true);
     fetch(`/api/agents/${agentId}/details`)
@@ -970,10 +986,31 @@ export default function AgentDetailsPage() {
         const call_limits = (el.platform_settings && el.platform_settings.call_limits) || {};
         const auth = (el.platform_settings && el.platform_settings.auth) || {};
         const evaluation = (el.platform_settings && el.platform_settings.evaluation) || {};
+        // Parse language_presets from ElevenLabs to get additional languages
+        const language_presets = data.elevenlabs.conversation_config?.language_presets || {};
+        console.log('[DEBUG] Language presets from ElevenLabs:', language_presets);
+        const additional_languages = Object.keys(language_presets).map(langCode => {
+          // Find the full language code by matching first two letters (only if languages are loaded)
+          const fullLang = languages.length > 0 ? 
+            languages.find(l => l.code.substring(0, 2).toLowerCase() === langCode.toLowerCase()) : 
+            null;
+          return fullLang ? fullLang.code : langCode;
+        });
+        console.log('[DEBUG] Parsed additional languages:', additional_languages);
+        
+        // Also check if there are any first_message_translations we should use
+        const firstMessageFromPresets = Object.values(language_presets).find((preset: any) => 
+          (preset as any).first_message_translation?.text
+        );
+        if ((firstMessageFromPresets as any)?.first_message_translation?.text) {
+          console.log('[DEBUG] Found first message from language presets:', (firstMessageFromPresets as any).first_message_translation.text);
+        }
+
+        // Map ElevenLabs language code to full language code from our languages list
         setAgentSettings(prev => ({
           ...prev,
-          language: data.elevenlabs.conversation_config?.agent?.language || data?.local?.language_code || prev.language || 'en',
-          additional_languages: data.elevenlabs.conversation_config?.agent?.additional_languages || data?.local?.additional_languages || prev.additional_languages || [],
+          language: data?.local?.language_code || prev.language || 'en-US',
+          additional_languages: additional_languages.length > 0 ? additional_languages : (data?.local?.additional_languages || prev.additional_languages || []),
           llm: data.elevenlabs.conversation_config?.agent?.prompt?.llm || data?.local?.llm || prev.llm || '',
           temperature: (typeof data.elevenlabs.conversation_config?.agent?.prompt?.temperature === 'number' ? data.elevenlabs.conversation_config.agent.prompt.temperature : undefined)
             ?? (typeof data?.local?.temperature === 'number' ? data.local.temperature : undefined)
@@ -1135,8 +1172,32 @@ export default function AgentDetailsPage() {
     // Fetch languages from backend
     fetch('/api/languages')
       .then(res => res.json())
-      .then(data => setLanguages(data.data || []));
+      .then(data => {
+        console.log('Languages API response:', data);
+        setLanguages(data.data || []);
+      })
+      .catch(err => console.error('Error fetching languages:', err));
   }, [agentId]);
+
+  // Handle language mapping when languages are loaded
+  useEffect(() => {
+    if (languages.length > 0 && elevenLabsAgent?.conversation_config?.agent?.language) {
+      const elevenLabsLangCode = elevenLabsAgent.conversation_config.agent.language;
+      console.log('ElevenLabs code:', elevenLabsLangCode);
+      console.log('Languages state length:', languages.length);
+      
+      // Use languages state to find matching code by first two letters
+      const fullLanguageCode = languages.find((l: any) => l.code.substring(0, 2).toLowerCase() === elevenLabsLangCode.toLowerCase())?.code;
+      console.log('Found language code:', fullLanguageCode);
+      
+      if (fullLanguageCode) {
+        setAgentSettings(prev => ({
+          ...prev,
+          language: fullLanguageCode
+        }));
+      }
+    }
+  }, [languages, elevenLabsAgent]);
 
   // Add variable handlers
   const addVar = (input: string, setInput: any, vars: string[], setVars: any) => {

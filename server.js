@@ -470,15 +470,19 @@ app.patch('/api/agents/:id/details', async (req, res) => {
         });
       }
       // Persist language_code and additional_languages from ElevenLabs agent config if present
-      if (elevenlabs && elevenlabs.conversation_config && elevenlabs.conversation_config.agent) {
+      if (elevenlabs && elevenlabs.conversation_config) {
         const agent = elevenlabs.conversation_config.agent;
-        if (agent.language) {
+        if (agent && agent.language) {
           updateFields.push(`language_code = ?`);
           updateValues.push(agent.language);
         }
-        if (agent.additional_languages) {
-          updateFields.push(`additional_languages = ?`);
-          updateValues.push(JSON.stringify(agent.additional_languages));
+        // Extract additional languages from language_presets
+        if (elevenlabs.conversation_config.language_presets) {
+          const additional_languages = Object.keys(elevenlabs.conversation_config.language_presets);
+          if (additional_languages.length > 0) {
+            updateFields.push(`additional_languages = ?`);
+            updateValues.push(JSON.stringify(additional_languages));
+          }
         }
       }
       if (updateFields.length > 0) {
