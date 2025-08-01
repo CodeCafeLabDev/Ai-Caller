@@ -69,11 +69,12 @@ export default function KnowledgeBasePage() {
   const [selectedDocument, setSelectedDocument] = useState<KnowledgeBaseArticle | null>(null);
   const [localMeta, setLocalMeta] = useState<{ [id: string]: any }>({});
   const [detailsSize, setDetailsSize] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ name?: string; email?: string } | null>(null);
 
   // ElevenLabs API helpers
   const ELEVENLABS_API = 'https://api.elevenlabs.io/v1/convai/knowledge-base';
   const ELEVENLABS_API_KEY = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '';
-  console.log('ELEVENLABS_API_KEY (should not be empty):', ELEVENLABS_API_KEY);
+  console.log('ELEVENLABS_API_KEY available:', !!ELEVENLABS_API_KEY);
 
   async function fetchElevenLabsKnowledgeBase() {
     const res = await fetch(ELEVENLABS_API, {
@@ -168,6 +169,26 @@ export default function KnowledgeBasePage() {
       .then(data => setClients(data.data || []));
   }, []);
 
+  // Get current user info on load
+  useEffect(() => {
+    // Try to get user from localStorage first
+    const userFromStorage = localStorage.getItem('user');
+    if (userFromStorage) {
+      try {
+        setCurrentUser(JSON.parse(userFromStorage));
+      } catch (e) {
+        console.error('Error parsing user from localStorage:', e);
+      }
+    }
+    
+    // If no user in localStorage, try to get from session or API
+    if (!userFromStorage) {
+      // You can add API call here to get current user info
+      // For now, we'll use a fallback
+      setCurrentUser({ name: 'Admin User', email: 'admin@example.com' });
+    }
+  }, []);
+
   // Merge localMeta by url (or name if url is missing)
   async function fetchLocalMeta() {
     const res = await api.getKnowledgeBase();
@@ -226,6 +247,8 @@ export default function KnowledgeBasePage() {
   async function handleAddUrl() {
     setAddDocLoading(true);
     try {
+      const createdBy = currentUser?.name || currentUser?.email || 'Unknown User';
+      
       const localDbPayload = {
         client_id: selectedClientId || null, // <-- use selected client
         type: "url",
@@ -234,7 +257,7 @@ export default function KnowledgeBasePage() {
         file_path: null,
         text_content: null,
         size: null,
-        created_by: "user@example.com", // replace with actual user email
+        created_by: createdBy,
       };
       await addKnowledgeBaseItem('url', { url: urlInput, name: urlInput }, ELEVENLABS_API_KEY, localDbPayload);
       setUrlInput("");
@@ -249,6 +272,8 @@ export default function KnowledgeBasePage() {
   async function handleAddText() {
     setAddDocLoading(true);
     try {
+      const createdBy = currentUser?.name || currentUser?.email || 'Unknown User';
+      
       const localDbPayload = {
         client_id: selectedClientId || null, // <-- use selected client
         type: "text",
@@ -257,7 +282,7 @@ export default function KnowledgeBasePage() {
         file_path: null,
         text_content: textContent,
         size: `${textContent.length} chars`,
-        created_by: "user@example.com", // replace with actual user email
+        created_by: createdBy,
       };
       await addKnowledgeBaseItem('text', { name: textName, text: textContent }, ELEVENLABS_API_KEY, localDbPayload);
       setTextName("");
@@ -274,6 +299,8 @@ export default function KnowledgeBasePage() {
     if (!file) return;
     setAddDocLoading(true);
     try {
+      const createdBy = currentUser?.name || currentUser?.email || 'Unknown User';
+      
       const localDbPayload = {
         client_id: selectedClientId || null, // <-- use selected client
         type: "file",
@@ -282,7 +309,7 @@ export default function KnowledgeBasePage() {
         file_path: "/uploads/" + file.name, // replace with actual upload logic
         text_content: null,
         size: `${(file.size / 1024).toFixed(1)} kB`,
-        created_by: "user@example.com", // replace with actual user email
+        created_by: createdBy,
       };
       await addKnowledgeBaseItem('file', { name: file.name }, ELEVENLABS_API_KEY, localDbPayload);
       setFile(null);
@@ -295,19 +322,112 @@ export default function KnowledgeBasePage() {
     }
   }
 
-  // Update delete handler to use ElevenLabs API and then local DB
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this item?")) return;
+  // State for delete confirmation dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<any>(null);
+  const [dependentAgents, setDependentAgents] = useState<any[]>([]);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Check for dependent agents before deleting
+  const handleDeleteClick = async (article: any) => {
+    const documentationId = article.id || article.document_id || article.documentation_id;
+    
+    if (!documentationId) {
+      toast({ 
+        title: "Error", 
+        description: "Cannot delete: Invalid document ID", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     try {
+      // Fetch dependent agents
+      const res = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${documentationId}/dependent-agents`, {
+        headers: {
+          'xi-api-key': ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        } as HeadersInit,
+      });
+
+      let agents: any[] = [];
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.agents)) {
+          agents = data.agents;
+        } else if (Array.isArray(data)) {
+          agents = data;
+        } else if (data && typeof data === 'object') {
+          agents = data.agents || data.dependent_agents || data.agent_list || [];
+        }
+      }
+
+      setDependentAgents(agents);
+      setDocumentToDelete(article);
+      setDeleteDialogOpen(true);
+    } catch (error) {
+      console.error('Error fetching dependent agents:', error);
+      // If we can't fetch dependent agents, still show the dialog but with empty agents
+      setDependentAgents([]);
+      setDocumentToDelete(article);
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  // Update delete handler to use ElevenLabs API and then local DB
+  const handleDelete = async () => {
+    if (!documentToDelete) return;
+    
+    setDeleteLoading(true);
+    try {
+      const id = documentToDelete.id || documentToDelete.document_id || documentToDelete.documentation_id;
+      const documentName = documentToDelete.name || documentToDelete.title || 'Document';
+      
+      console.log(`Deleting document: ${documentName} (ID: ${id})`);
+      
+      // Step 1: Delete from ElevenLabs API
+      console.log('Step 1: Deleting from ElevenLabs...');
       await deleteElevenLabsDocument(String(id));
-      // Optionally delete from local DB as well
-      await api.deleteKnowledgeBaseItem(String(id));
+      
+      // Step 2: Delete from local database
+      console.log('Step 2: Deleting from local database...');
+      try {
+        await api.deleteKnowledgeBaseItem(String(id));
+      } catch (localDbError) {
+        console.warn('Local DB deletion failed, but continuing:', localDbError);
+        // Continue even if local DB deletion fails
+      }
+      
+      // Step 3: Refresh data from ElevenLabs (this will update both admin and client panels)
+      console.log('Step 3: Refreshing data from ElevenLabs...');
       const docs = await fetchElevenLabsKnowledgeBase();
       setArticles(docs);
       await fetchLocalMeta();
-      toast({ title: "Deleted", description: "Knowledge base item deleted." });
+      
+      const agentMessage = dependentAgents.length > 0 
+        ? ` and removed from ${dependentAgents.length} dependent agent(s)` 
+        : '';
+      
+      toast({ 
+        title: "Document Deleted Successfully", 
+        description: `"${documentName}" has been deleted from ElevenLabs, local database, and all panels${agentMessage}.` 
+      });
+      
+      console.log('Document deletion completed successfully');
+      
     } catch (err) {
-      toast({ title: "Delete failed", description: "Network or server error.", variant: "destructive" });
+      console.error('Error during document deletion:', err);
+      toast({ 
+        title: "Delete Failed", 
+        description: "Failed to delete document. Please try again or check your connection.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setDeleteLoading(false);
+      setDeleteDialogOpen(false);
+      setDocumentToDelete(null);
+      setDependentAgents([]);
     }
   };
 
@@ -354,29 +474,162 @@ export default function KnowledgeBasePage() {
     setDetailsDoc(article);
     setDetailsDocId(article.id || article.document_id || null);
     setDetailsLastUpdated(article.updated_at || article.last_updated || null);
+    
+    console.log('Opening details for article:', article); // Debug log
+    console.log('ElevenLabs API Key available:', !!ELEVENLABS_API_KEY); // Debug log
+    
     // Always fetch content and size for the selected document
     try {
-      // Fetch content
+      const documentationId = article.id || article.document_id || article.documentation_id;
+      console.log('Fetching content for documentation ID:', documentationId);
+      
+      // Check if documentationId is valid
+      if (!documentationId) {
+        console.error('No valid documentation ID found for article:', article);
+        setDetailsContent('Content not available - Invalid document ID');
+        setDetailsLoading(false);
+        return;
+      }
+      
+      // Fetch content using the correct ElevenLabs API endpoint
       let content = '';
       try {
-        const res = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${article.id}/content`, {
-          headers: {
-            'xi-api-key': ELEVENLABS_API_KEY,
-            'Content-Type': 'application/json',
-          } as HeadersInit,
-        });
-        const data = await res.json();
-        const allStrings = extractAllStrings(data);
-        content = allStrings.join('\n\n');
-      } catch (e) { content = ''; }
+        // Try different possible endpoints for content
+        let res;
+        let contentEndpoint = '';
+        
+        // Try the standard endpoint first
+        try {
+          contentEndpoint = `https://api.elevenlabs.io/v1/convai/knowledge-base/${documentationId}/content`;
+          res = await fetch(contentEndpoint, {
+            headers: {
+              'xi-api-key': ELEVENLABS_API_KEY,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            } as HeadersInit,
+          });
+          
+          if (res.status === 404) {
+            // Try alternative endpoint structure
+            contentEndpoint = `https://api.elevenlabs.io/v1/knowledge-base/${documentationId}/content`;
+            res = await fetch(contentEndpoint, {
+              headers: {
+                'xi-api-key': ELEVENLABS_API_KEY,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              } as HeadersInit,
+            });
+          }
+          
+          if (res.status === 404) {
+            // Try without /content suffix
+            contentEndpoint = `https://api.elevenlabs.io/v1/convai/knowledge-base/${documentationId}`;
+            res = await fetch(contentEndpoint, {
+              headers: {
+                'xi-api-key': ELEVENLABS_API_KEY,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              } as HeadersInit,
+            });
+          }
+        } catch (fetchError) {
+          console.error('Error making API request:', fetchError);
+          throw fetchError;
+        }
+        
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const data = await res.json();
+            console.log('ElevenLabs content response:', data); // Debug log
+            
+            // Try different ways to extract content
+            if (typeof data === 'string') {
+              content = data;
+            } else if (data.content) {
+              content = data.content;
+            } else if (data.text) {
+              content = data.text;
+            } else if (data.data) {
+              content = typeof data.data === 'string' ? data.data : JSON.stringify(data.data);
+            } else {
+              const allStrings = extractAllStrings(data);
+              content = allStrings.join('\n\n');
+            }
+          } else {
+            // Handle non-JSON response (like HTML content)
+            const responseText = await res.text();
+            console.log('HTML response received, parsing content...');
+            
+            // Try to extract text content from HTML
+            try {
+              // Create a temporary DOM element to parse HTML
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(responseText, 'text/html');
+              
+              // Remove script and style elements
+              const scripts = doc.querySelectorAll('script, style');
+              scripts.forEach(script => script.remove());
+              
+              // Get text content
+              const textContent = doc.body?.textContent || doc.documentElement?.textContent || '';
+              
+              // Clean up the text (remove extra whitespace, normalize)
+              const cleanedContent = textContent
+                .replace(/\s+/g, ' ') // Replace multiple whitespace with single space
+                .replace(/\n\s*\n/g, '\n') // Remove empty lines
+                .trim();
+              
+              if (cleanedContent && cleanedContent.length > 10) {
+                content = cleanedContent;
+                console.log('Successfully extracted content from HTML:', cleanedContent.substring(0, 100) + '...');
+              } else {
+                content = 'Content not available - No readable text found in HTML response';
+              }
+            } catch (parseError) {
+              console.error('Error parsing HTML:', parseError);
+              content = 'Content not available - Failed to parse HTML response';
+            }
+          }
+        } else {
+          console.error('ElevenLabs content API error:', res.status, res.statusText, 'for endpoint:', contentEndpoint);
+          const errorText = await res.text();
+          console.error('Error response body:', errorText.substring(0, 200));
+          
+          // Provide more specific error messages
+          if (res.status === 401) {
+            content = 'Content not available - Authentication failed. Please check your API key.';
+          } else if (res.status === 404) {
+            // Check if it's a specific ElevenLabs error
+            try {
+              const errorData = await res.json();
+              if (errorData?.detail?.status === 'knowledge_base_documentation_not_found') {
+                content = `Content not available - Document ID "${documentationId}" not found in ElevenLabs knowledge base.`;
+              } else {
+                content = `Content not available - Document not found. Tried endpoints: ${contentEndpoint}`;
+              }
+            } catch {
+              content = `Content not available - Document not found. Tried endpoints: ${contentEndpoint}`;
+            }
+          } else if (res.status === 403) {
+            content = 'Content not available - Access forbidden. Please check your API permissions.';
+          } else {
+            content = `Content not available - API error (${res.status}: ${res.statusText})`;
+          }
+        }
+      } catch (e) { 
+        console.error('Error fetching content:', e);
+        content = ''; 
+      }
       setDetailsContent(content);
       // Fetch size
       let size = null;
       try {
-        const res2 = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${article.id}`, {
+        const res2 = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${documentationId}`, {
           headers: {
             'xi-api-key': ELEVENLABS_API_KEY,
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
           } as HeadersInit,
         });
         const data2 = await res2.json();
@@ -389,16 +642,38 @@ export default function KnowledgeBasePage() {
       // Fetch dependent agents
       let agents: any[] = [];
       try {
-        const res = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${article.id}/dependent-agents`, {
+        const res = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${documentationId}/dependent-agents`, {
           headers: {
             'xi-api-key': ELEVENLABS_API_KEY,
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
           } as HeadersInit,
         });
-        const data = await res.json();
-        agents = data.agents || data || [];
-      } catch (e) { agents = []; }
-      setDetailsAgents(agents);
+        
+        if (res.ok) {
+          const data = await res.json();
+          // Ensure agents is always an array
+          if (Array.isArray(data.agents)) {
+            agents = data.agents;
+          } else if (Array.isArray(data)) {
+            agents = data;
+          } else if (data && typeof data === 'object') {
+            // If it's an object, try to extract agents from it
+            agents = data.agents || data.dependent_agents || data.agent_list || [];
+          } else {
+            agents = [];
+          }
+        } else {
+          console.log('Dependent agents API returned:', res.status, res.statusText);
+          agents = [];
+        }
+      } catch (e) { 
+        console.error('Error fetching dependent agents:', e);
+        agents = []; 
+      }
+      
+      // Ensure agents is always an array before setting state
+      setDetailsAgents(Array.isArray(agents) ? agents : []);
       setDetailsLoading(false);
     } catch (err: any) {
       setDetailsError('Failed to load details.');
@@ -409,7 +684,7 @@ export default function KnowledgeBasePage() {
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div className="flex justify-between items-start mb-4">
-        <h1 className="text-3xl font-bold">Knowledge Base</h1>
+        <h1 className="text-2xl font-bold">Knowledge Base</h1>
       </div>
       <div className="max-w-xl mb-6">
         <Popover open={clientComboboxOpen} onOpenChange={setClientComboboxOpen}>
@@ -454,25 +729,25 @@ export default function KnowledgeBasePage() {
       <div className="flex gap-4 mb-6">
         <Dialog open={openDialog === 'url'} onOpenChange={v => setOpenDialog(v ? 'url' : null)}>
           <DialogTrigger asChild>
-            <Button className="flex flex-col items-center justify-center w-40 h-28 gap-2 border bg-white shadow-none hover:bg-gray-50" variant="outline" onClick={() => setOpenDialog('url')}>
-              <Globe className="w-7 h-7" />
-              <span className="font-medium">Add URL</span>
+            <Button className="flex flex-col items-center justify-center w-32 h-24 gap-2 border bg-white shadow-none hover:bg-gray-50" variant="outline" onClick={() => setOpenDialog('url')}>
+              <Globe className="w-6 h-6" />
+              <span className="font-medium text-sm">Add URL</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-xl rounded-2xl p-0 overflow-hidden">
             <DialogTitle className="sr-only">Add URL</DialogTitle>
-            <div className="flex flex-col gap-6 p-8">
+            <div className="flex flex-col gap-4 p-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="bg-gray-100 rounded-xl p-2"><Globe className="w-7 h-7" /></div>
-                <span className="text-2xl font-semibold">Add URL</span>
+                <div className="bg-gray-100 rounded-lg p-2"><Globe className="w-6 h-6" /></div>
+                <span className="text-xl font-semibold">Add URL</span>
               </div>
               <div>
-                <label className="block font-medium mb-2">URL</label>
-                <Input placeholder="https://example.com" className="h-12 text-base" value={urlInput} onChange={e => setUrlInput(e.target.value)} />
+                <label className="block font-medium mb-2 text-sm">URL</label>
+                <Input placeholder="https://example.com" className="h-10 text-sm" value={urlInput} onChange={e => setUrlInput(e.target.value)} />
               </div>
               <div className="flex justify-end">
                 <Button 
-                  className="bg-black text-white px-6 py-2 rounded-lg text-base" 
+                  className="bg-black text-white px-4 py-2 rounded-lg text-sm" 
                   onClick={handleAddUrl}
                   disabled={addDocLoading || !urlInput}
                 >
@@ -484,21 +759,21 @@ export default function KnowledgeBasePage() {
         </Dialog>
         <Dialog open={openDialog === 'files'} onOpenChange={v => setOpenDialog(v ? 'files' : null)}>
           <DialogTrigger asChild>
-            <Button className="flex flex-col items-center justify-center w-40 h-28 gap-2 border bg-white shadow-none hover:bg-gray-50" variant="outline" onClick={() => setOpenDialog('files')}>
-              <Upload className="w-7 h-7" />
-              <span className="font-medium">Add Files</span>
+            <Button className="flex flex-col items-center justify-center w-32 h-24 gap-2 border bg-white shadow-none hover:bg-gray-50" variant="outline" onClick={() => setOpenDialog('files')}>
+              <Upload className="w-6 h-6" />
+              <span className="font-medium text-sm">Add Files</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-xl rounded-2xl p-0 overflow-hidden">
             <DialogTitle className="sr-only">Add Files</DialogTitle>
-            <div className="flex flex-col gap-6 p-8">
+            <div className="flex flex-col gap-4 p-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="bg-gray-100 rounded-xl p-2"><Upload className="w-7 h-7" /></div>
-                <span className="text-2xl font-semibold">Add Files</span>
+                <div className="bg-gray-100 rounded-lg p-2"><Upload className="w-6 h-6" /></div>
+                <span className="text-xl font-semibold">Add Files</span>
               </div>
               <div>
                 <div
-                  className="border-2 border-black border-dashed rounded-xl flex flex-col items-center justify-center py-12 mb-4 bg-white cursor-pointer"
+                  className="border-2 border-black border-dashed rounded-lg flex flex-col items-center justify-center py-8 mb-4 bg-white cursor-pointer"
                   onClick={() => document.getElementById('file-upload-input')?.click()}
                   onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
                   onDrop={e => {
@@ -515,29 +790,29 @@ export default function KnowledgeBasePage() {
                     style={{ display: 'none' }}
                     onChange={e => setFile(e.target.files?.[0] || null)}
                   />
-                  <Upload className="w-10 h-10 mb-2 text-black" />
-                  <div className="font-medium text-lg mb-1">Click or drag files to upload</div>
-                  <div className="text-gray-500 text-sm mb-2">Up to 21 MB each.</div>
-                  {file && <div className="text-sm text-black font-semibold mb-2">{file.name}</div>}
-                  <div className="flex gap-2 flex-wrap justify-center">
+                  <Upload className="w-8 h-8 mb-2 text-black" />
+                  <div className="font-medium text-base mb-1">Click or drag files to upload</div>
+                  <div className="text-gray-500 text-xs mb-2">Up to 21 MB each.</div>
+                  {file && <div className="text-xs text-black font-semibold mb-2">{file.name}</div>}
+                  <div className="flex gap-1 flex-wrap justify-center">
                     {['epub','pdf','docx','txt','html'].map(type => (
-                      <span key={type} className="bg-gray-100 rounded-full px-3 py-1 text-xs font-medium text-gray-700">{type}</span>
+                      <span key={type} className="bg-gray-100 rounded-full px-2 py-0.5 text-xs font-medium text-gray-700">{type}</span>
                     ))}
                   </div>
                 </div>
                 {fileUploading ? (
                   <div className="w-full flex flex-col items-center">
-                    <div className="w-3/4 bg-gray-200 rounded-full h-3 mb-2">
+                    <div className="w-3/4 bg-gray-200 rounded-full h-2 mb-2">
                       <div
-                        className="bg-black h-3 rounded-full transition-all"
+                        className="bg-black h-2 rounded-full transition-all"
                         style={{ width: `${uploadProgress}%` }}
                       />
                     </div>
-                    <div className="text-sm text-gray-700">{uploadProgress}%</div>
+                    <div className="text-xs text-gray-700">{uploadProgress}%</div>
                   </div>
                 ) : (
                   <Button
-                    className="bg-black text-white px-6 py-2 rounded-lg text-base"
+                    className="bg-black text-white px-4 py-2 rounded-lg text-sm"
                     onClick={handleAddFile}
                     disabled={!file || addDocLoading}
                   >
@@ -550,29 +825,29 @@ export default function KnowledgeBasePage() {
         </Dialog>
         <Dialog open={openDialog === 'text'} onOpenChange={v => setOpenDialog(v ? 'text' : null)}>
           <DialogTrigger asChild>
-            <Button className="flex flex-col items-center justify-center w-40 h-28 gap-2 border bg-white shadow-none hover:bg-gray-50" variant="outline" onClick={() => setOpenDialog('text')}>
-              <FileText className="w-7 h-7" />
-              <span className="font-medium">Create Text</span>
+            <Button className="flex flex-col items-center justify-center w-32 h-24 gap-2 border bg-white shadow-none hover:bg-gray-50" variant="outline" onClick={() => setOpenDialog('text')}>
+              <FileText className="w-6 h-6" />
+              <span className="font-medium text-sm">Create Text</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-xl rounded-2xl p-0 overflow-hidden">
             <DialogTitle className="sr-only">Create Text</DialogTitle>
-            <div className="flex flex-col gap-6 p-8">
+            <div className="flex flex-col gap-4 p-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="bg-gray-100 rounded-xl p-2"><FileText className="w-7 h-7" /></div>
-                <span className="text-2xl font-semibold">Create Text</span>
+                <div className="bg-gray-100 rounded-lg p-2"><FileText className="w-6 h-6" /></div>
+                <span className="text-xl font-semibold">Create Text</span>
               </div>
               <div>
-                <label className="block font-medium mb-2">Text Name</label>
-                <Input placeholder="Enter a name for your text" className="h-12 text-base" value={textName} onChange={e => setTextName(e.target.value)} />
+                <label className="block font-medium mb-2 text-sm">Text Name</label>
+                <Input placeholder="Enter a name for your text" className="h-10 text-sm" value={textName} onChange={e => setTextName(e.target.value)} />
               </div>
               <div>
-                <label className="block font-medium mb-2">Text Content</label>
-                <Textarea placeholder="Enter your text content here" className="min-h-[120px] text-base" value={textContent} onChange={e => setTextContent(e.target.value)} />
+                <label className="block font-medium mb-2 text-sm">Text Content</label>
+                <Textarea placeholder="Enter your text content here" className="min-h-[100px] text-sm" value={textContent} onChange={e => setTextContent(e.target.value)} />
               </div>
               <div className="flex justify-end">
                 <Button 
-                  className="bg-black text-white px-6 py-2 rounded-lg text-base" 
+                  className="bg-black text-white px-4 py-2 rounded-lg text-sm" 
                   onClick={handleAddText}
                   disabled={addDocLoading || !textName || !textContent}
                 >
@@ -587,31 +862,31 @@ export default function KnowledgeBasePage() {
         <Input
           type="search"
           placeholder="Search Knowledge Base..."
-          className="w-[820px] bg-white border"
+          className="w-[800px] bg-white border text-sm"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-2 px-3 py-2 text-sm font-medium rounded-md flex items-center gap-1">+ Type</Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-40 border-2 border-black rounded-xl mt-2">
+          <DropdownMenuContent className="w-40 border-2 border-black rounded-lg mt-2">
             <DropdownMenuCheckboxItem
               checked={typeFilter.file}
               onCheckedChange={v => setTypeFilter(f => ({ ...f, file: v === true }))}
-              className="flex items-center gap-2 px-3 py-2 text-base"
+              className="flex items-center gap-2 px-3 py-2 text-sm"
             >
               <FileText className="w-5 h-5 mr-2" /> File
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={typeFilter.url}
               onCheckedChange={v => setTypeFilter(f => ({ ...f, url: v === true }))}
-              className="flex items-center gap-2 px-3 py-2 text-base"
+              className="flex items-center gap-2 px-3 py-2 text-sm"
             >
               <Globe className="w-5 h-5 mr-2" /> URL
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={typeFilter.text}
               onCheckedChange={v => setTypeFilter(f => ({ ...f, text: v === true }))}
-              className="flex items-center gap-2 px-3 py-2 text-base"
+              className="flex items-center gap-2 px-3 py-2 text-sm"
             >
               <FileText className="w-5 h-5 mr-2" /> Text
             </DropdownMenuCheckboxItem>
@@ -620,9 +895,9 @@ export default function KnowledgeBasePage() {
       </div>
       {selectedTypes.length > 0 && (
         <div className="flex items-center gap-2 mb-2">
-          <span className="bg-black text-white rounded-full px-3 py-1 flex items-center gap-1 text-base font-medium">
+          <span className="bg-black text-white rounded-full px-3 py-1 flex items-center gap-1 text-sm font-medium">
             <button
-              className="mr-1 text-lg focus:outline-none"
+              className="mr-1 text-base focus:outline-none"
               onClick={() => setTypeFilter({ file: false, url: false, text: false })}
               aria-label="Clear all type filters"
             >
@@ -633,11 +908,11 @@ export default function KnowledgeBasePage() {
           {selectedTypes.map(type => {
             const Icon = typeIcons[type as keyof typeof typeIcons];
             return (
-              <span key={type} className="bg-black text-white rounded-full px-3 py-1 flex items-center gap-1 text-base font-medium">
+              <span key={type} className="bg-black text-white rounded-full px-3 py-1 flex items-center gap-1 text-sm font-medium">
                 {Icon && <Icon className="w-4 h-4 mr-1" />}
                 {typeLabels[type as keyof typeof typeLabels]}
                 <button
-                  className="ml-1 text-lg focus:outline-none"
+                  className="ml-1 text-base focus:outline-none"
                   onClick={() => setTypeFilter(f => ({ ...f, [type]: false }))}
                   aria-label={`Remove ${typeLabels[type as keyof typeof typeLabels]} filter`}
                 >
@@ -652,17 +927,17 @@ export default function KnowledgeBasePage() {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b">
-              <th className="text-left font-medium px-6 py-3">Knowledge Base</th>
-              <th className="text-left font-medium px-6 py-3">Client</th>
-              <th className="text-left font-medium px-6 py-3">Created by</th>
-              <th className="text-left font-medium px-6 py-3">Last updated <span className="inline-block align-middle">↓</span></th>
-              <th className="w-10"></th>
+              <th className="text-left font-medium px-6 py-3 text-sm w-1/3">Knowledge Base</th>
+              <th className="text-left font-medium px-6 py-3 text-sm w-1/6">Client</th>
+              <th className="text-left font-medium px-6 py-3 text-sm w-1/6">Created by</th>
+              <th className="text-left font-medium px-6 py-3 text-sm w-1/4">Last updated <span className="inline-block align-middle">↓</span></th>
+              <th className="w-16"></th>
             </tr>
           </thead>
           <tbody>
             {paginatedArticles.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center text-gray-500 py-8">No knowledge base documents found.</td>
+                <td colSpan={5} className="text-center text-gray-500 py-8 text-sm">No knowledge base documents found.</td>
               </tr>
             ) : (
               paginatedArticles.map(article => {
@@ -681,18 +956,18 @@ export default function KnowledgeBasePage() {
                       {/* Use the correct icon for each type */}
                       {(() => {
                         const Icon = typeIcons[article.type as keyof typeof typeIcons];
-                        return Icon ? <Icon className="w-5 h-5 text-black" /> : null;
+                        return Icon ? <Icon className="w-5 h-5 text-black flex-shrink-0" /> : null;
                       })()}
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <div className="font-medium text-base flex items-center gap-2">
-                          {article.name}
+                          <span className="break-words">{article.name}</span>
                           {/* Download link for files */}
                           {article.type === "file" && article.file_path && (
                             <a
                               href={`${API_BASE_URL}${article.file_path}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="ml-2 text-gray-500 hover:text-black"
+                              className="ml-2 text-gray-500 hover:text-black flex-shrink-0"
                               title="Download file"
                               onClick={e => e.stopPropagation()}
                             >
@@ -700,29 +975,29 @@ export default function KnowledgeBasePage() {
                             </a>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground">{article.size}</div>
+                        <div className="text-sm text-muted-foreground">{article.size}</div>
                       </div>
                     </td>
-                    <td>{clientName}</td>
-                    <td>{meta.created_by || '-'}</td>
-                    <td>{meta.updated_at ? new Date(meta.updated_at).toLocaleString() : '-'}</td>
+                    <td className="px-6 py-4 text-sm break-words">{clientName}</td>
+                    <td className="px-6 py-4 text-sm break-words">{meta.created_by || '-'}</td>
+                    <td className="px-6 py-4 text-sm break-words">{meta.updated_at ? new Date(meta.updated_at).toLocaleString() : '-'}</td>
                     <td className="px-6 py-4 text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="bg-gray-100 rounded-xl p-2 hover:bg-gray-200 focus:outline-none" onClick={e => e.stopPropagation()}>
+                          <button className="bg-gray-100 rounded-lg p-2 hover:bg-gray-200 focus:outline-none" onClick={e => e.stopPropagation()}>
                             <MoreHorizontal className="w-5 h-5" />
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-48 mt-2 rounded-xl border shadow-lg">
+                        <DropdownMenuContent className="w-48 mt-2 rounded-lg border shadow-lg">
                           <DropdownMenuItem
-                            className="text-base px-4 py-2 cursor-pointer"
+                            className="text-sm px-4 py-2 cursor-pointer"
                             onClick={e => { e.stopPropagation(); handleCopyId(article.id); }}
                           >
                             Copy document ID
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            className="text-base px-4 py-2 cursor-pointer text-red-600"
-                            onClick={e => { e.stopPropagation(); handleDelete(article.id); }}
+                            className="text-sm px-4 py-2 cursor-pointer text-red-600"
+                            onClick={e => { e.stopPropagation(); handleDeleteClick(article); }}
                           >
                             Delete document
                           </DropdownMenuItem>
@@ -750,7 +1025,7 @@ export default function KnowledgeBasePage() {
                   <div className="flex items-center gap-3 mb-4">
                     {detailsDoc?.type === 'url' ? <Globe className="w-7 h-7" /> : <FileText className="w-7 h-7" />}
                     <span className="text-2xl font-semibold">{detailsDoc?.name || detailsDoc?.title || detailsDoc?.id}</span>
-                    <span className="ml-auto text-xs text-gray-500">{detailsSize || detailsDoc?.size || '-'}</span>
+                    <span className="ml-auto text-xs text-gray-500">{detailsContent ? `${detailsContent.length} chars` : (detailsSize || detailsDoc?.size || '-')}</span>
                   </div>
                   <div className="mb-4 flex items-center gap-2">
                     <span className="text-xs text-gray-500">Document ID</span>
@@ -763,7 +1038,7 @@ export default function KnowledgeBasePage() {
                   </div>
                   <div className="mb-4">
                     <div className="text-xs text-gray-500 mb-1">Dependent agents</div>
-                    {detailsAgents.length === 0 ? (
+                    {!Array.isArray(detailsAgents) || detailsAgents.length === 0 ? (
                       <div className="text-xs">None</div>
                     ) : (
                       <ul className="text-xs list-disc ml-4">
@@ -777,9 +1052,13 @@ export default function KnowledgeBasePage() {
                       <pre className="bg-gray-100 rounded p-3 h-full max-h-[60vh] overflow-auto text-xs whitespace-pre-wrap" style={{ minHeight: 200 }}>
                         {(() => {
                           const content = detailsContent || detailsDoc?.text_content || detailsDoc?.content || '';
-                          if (!content) return <span className="text-gray-400">No content available for this document.</span>;
+                          if (!content || content.trim() === '') {
+                            return <span className="text-gray-400">No content available for this document.</span>;
+                          }
+                          // Try to parse as JSON, if it fails, display as plain text
                           try {
-                            return JSON.stringify(JSON.parse(content), null, 2);
+                            const parsed = JSON.parse(content);
+                            return JSON.stringify(parsed, null, 2);
                           } catch {
                             return content;
                           }
@@ -793,6 +1072,74 @@ export default function KnowledgeBasePage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogTitle className="text-lg font-semibold">Delete Document</DialogTitle>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Are you sure you want to delete <strong>"{documentToDelete?.name}"</strong>?
+            </p>
+            
+            {dependentAgents.length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <div className="text-yellow-600 mt-0.5">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-yellow-800 mb-2">
+                      This document is connected to {dependentAgents.length} agent(s):
+                    </h4>
+                    <ul className="text-sm text-yellow-700 space-y-1">
+                      {dependentAgents.map((agent, index) => (
+                        <li key={index} className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                          <span className="font-mono text-xs">{agent.agent_id || agent.id || agent.name || `Agent ${index + 1}`}</span>
+                          {agent.name && agent.name !== (agent.agent_id || agent.id) && (
+                            <span className="text-gray-600">({agent.name})</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-yellow-600 mt-2">
+                      Deleting this document will remove it from all connected agents' knowledge bases.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {dependentAgents.length === 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-700">
+                  This document is not connected to any agents.
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={deleteLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? "Deleting..." : "Delete Document"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

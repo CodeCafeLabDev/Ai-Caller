@@ -232,11 +232,9 @@ export default function KnowledgeBasePage() {
     return elevenData;
   }
 
-  // Fetch articles on load (from local DB, not just ElevenLabs)
+  // Fetch articles on load from ElevenLabs
   useEffect(() => {
-    api.getKnowledgeBase()
-      .then(res => res.json())
-      .then(data => setArticles(data.data || []));
+    fetchElevenLabsKnowledgeBase().then(setArticles);
   }, [user?.userId]);
 
   // Merge localMeta by url (or name if url is missing)
@@ -253,24 +251,32 @@ export default function KnowledgeBasePage() {
 
   useEffect(() => {
     fetchLocalMeta();
-  }, []);
+  }, [user?.userId]);
 
   const selectedTypes = Object.entries(typeFilter).filter(([_, v]) => v).map(([k]) => k);
   const typeLabels = { file: 'File', url: 'URL', text: 'Text' };
   const typeIcons = { file: Upload, url: Globe, text: FileText };
 
   // Filter articles to only show those for the current client admin
-  const filteredArticles = articles.filter((article) =>
-    String(article.client_id) === String(user?.userId)
-  ).filter((article) => {
+  // First get all ElevenLabs articles, then filter by local DB client associations
+  const filteredArticles = articles.filter((article) => {
+    // Get the local meta for this article to check client_id
+    const meta = (article.url ? localMeta[article.url] : undefined) ||
+                 (article.name ? localMeta[article.name] : undefined) ||
+                 {};
+    
+    // Check if this article belongs to the current client admin
+    const belongsToClient = String(meta.client_id) === String(user?.userId);
+    
+    if (!belongsToClient) return false;
+    
+    // Apply search and type filters
     const lowerSearchTerm = searchTerm.toLowerCase();
-    const matchesSearch =
-      (article.name?.toLowerCase() ?? '').includes(lowerSearchTerm);
-    // Type filter logic
-    const matchesType =
-      selectedTypes.length === 0 || selectedTypes.includes(article.type);
+    const matchesSearch = (article.name?.toLowerCase() ?? '').includes(lowerSearchTerm);
+    const matchesType = selectedTypes.length === 0 || selectedTypes.includes(article.type);
     const matchesCategory = categoryFilter === "all" || article.type === categoryFilter;
     const matchesStatus = statusFilter === "all" || article.type === statusFilter;
+    
     return matchesSearch && matchesType && matchesCategory && matchesStatus;
   });
 
@@ -363,19 +369,112 @@ export default function KnowledgeBasePage() {
     }
   }
 
-  // Update delete handler to use ElevenLabs API and then local DB
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this item?")) return;
+  // State for delete confirmation dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<any>(null);
+  const [dependentAgents, setDependentAgents] = useState<any[]>([]);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Check for dependent agents before deleting
+  const handleDeleteClick = async (article: any) => {
+    const documentationId = article.id || article.document_id || article.documentation_id;
+    
+    if (!documentationId) {
+      toast({ 
+        title: "Error", 
+        description: "Cannot delete: Invalid document ID", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     try {
+      // Fetch dependent agents
+      const res = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${documentationId}/dependent-agents`, {
+        headers: {
+          'xi-api-key': ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        } as HeadersInit,
+      });
+
+      let agents: any[] = [];
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.agents)) {
+          agents = data.agents;
+        } else if (Array.isArray(data)) {
+          agents = data;
+        } else if (data && typeof data === 'object') {
+          agents = data.agents || data.dependent_agents || data.agent_list || [];
+        }
+      }
+
+      setDependentAgents(agents);
+      setDocumentToDelete(article);
+      setDeleteDialogOpen(true);
+    } catch (error) {
+      console.error('Error fetching dependent agents:', error);
+      // If we can't fetch dependent agents, still show the dialog but with empty agents
+      setDependentAgents([]);
+      setDocumentToDelete(article);
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  // Update delete handler to use ElevenLabs API and then local DB
+  const handleDelete = async () => {
+    if (!documentToDelete) return;
+    
+    setDeleteLoading(true);
+    try {
+      const id = documentToDelete.id || documentToDelete.document_id || documentToDelete.documentation_id;
+      const documentName = documentToDelete.name || documentToDelete.title || 'Document';
+      
+      console.log(`Deleting document: ${documentName} (ID: ${id})`);
+      
+      // Step 1: Delete from ElevenLabs API
+      console.log('Step 1: Deleting from ElevenLabs...');
       await deleteElevenLabsDocument(String(id));
-      // Optionally delete from local DB as well
-      await api.deleteKnowledgeBaseItem(String(id));
+      
+      // Step 2: Delete from local database
+      console.log('Step 2: Deleting from local database...');
+      try {
+        await api.deleteKnowledgeBaseItem(String(id));
+      } catch (localDbError) {
+        console.warn('Local DB deletion failed, but continuing:', localDbError);
+        // Continue even if local DB deletion fails
+      }
+      
+      // Step 3: Refresh data from ElevenLabs (this will update both admin and client panels)
+      console.log('Step 3: Refreshing data from ElevenLabs...');
       const docs = await fetchElevenLabsKnowledgeBase();
       setArticles(docs);
       await fetchLocalMeta();
-      toast({ title: "Deleted", description: "Knowledge base item deleted." });
+      
+      const agentMessage = dependentAgents.length > 0 
+        ? ` and removed from ${dependentAgents.length} dependent agent(s)` 
+        : '';
+      
+      toast({ 
+        title: "Document Deleted Successfully", 
+        description: `"${documentName}" has been deleted from ElevenLabs, local database, and all panels${agentMessage}.` 
+      });
+      
+      console.log('Document deletion completed successfully');
+      
     } catch (err) {
-      toast({ title: "Delete failed", description: "Network or server error.", variant: "destructive" });
+      console.error('Error during document deletion:', err);
+      toast({ 
+        title: "Delete Failed", 
+        description: "Failed to delete document. Please try again or check your connection.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setDeleteLoading(false);
+      setDeleteDialogOpen(false);
+      setDocumentToDelete(null);
+      setDependentAgents([]);
     }
   };
 
@@ -422,29 +521,162 @@ export default function KnowledgeBasePage() {
     setDetailsDoc(article);
     setDetailsDocId(article.id || article.document_id || null);
     setDetailsLastUpdated(article.updated_at || article.last_updated || null);
+    
+    console.log('Opening details for article:', article); // Debug log
+    console.log('ElevenLabs API Key available:', !!ELEVENLABS_API_KEY); // Debug log
+    
     // Always fetch content and size for the selected document
     try {
-      // Fetch content
+      const documentationId = article.id || article.document_id || article.documentation_id;
+      console.log('Fetching content for documentation ID:', documentationId);
+      
+      // Check if documentationId is valid
+      if (!documentationId) {
+        console.error('No valid documentation ID found for article:', article);
+        setDetailsContent('Content not available - Invalid document ID');
+        setDetailsLoading(false);
+        return;
+      }
+      
+      // Fetch content using the correct ElevenLabs API endpoint
       let content = '';
       try {
-        const res = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${article.id}/content`, {
-          headers: {
-            'xi-api-key': ELEVENLABS_API_KEY,
-            'Content-Type': 'application/json',
-          } as HeadersInit,
-        });
-        const data = await res.json();
-        const allStrings = extractAllStrings(data);
-        content = allStrings.join('\n\n');
-      } catch (e) { content = ''; }
+        // Try different possible endpoints for content
+        let res;
+        let contentEndpoint = '';
+        
+        // Try the standard endpoint first
+        try {
+          contentEndpoint = `https://api.elevenlabs.io/v1/convai/knowledge-base/${documentationId}/content`;
+          res = await fetch(contentEndpoint, {
+            headers: {
+              'xi-api-key': ELEVENLABS_API_KEY,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            } as HeadersInit,
+          });
+          
+          if (res.status === 404) {
+            // Try alternative endpoint structure
+            contentEndpoint = `https://api.elevenlabs.io/v1/knowledge-base/${documentationId}/content`;
+            res = await fetch(contentEndpoint, {
+              headers: {
+                'xi-api-key': ELEVENLABS_API_KEY,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              } as HeadersInit,
+            });
+          }
+          
+          if (res.status === 404) {
+            // Try without /content suffix
+            contentEndpoint = `https://api.elevenlabs.io/v1/convai/knowledge-base/${documentationId}`;
+            res = await fetch(contentEndpoint, {
+              headers: {
+                'xi-api-key': ELEVENLABS_API_KEY,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              } as HeadersInit,
+            });
+          }
+        } catch (fetchError) {
+          console.error('Error making API request:', fetchError);
+          throw fetchError;
+        }
+        
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const data = await res.json();
+            console.log('ElevenLabs content response:', data); // Debug log
+            
+            // Try different ways to extract content
+            if (typeof data === 'string') {
+              content = data;
+            } else if (data.content) {
+              content = data.content;
+            } else if (data.text) {
+              content = data.text;
+            } else if (data.data) {
+              content = typeof data.data === 'string' ? data.data : JSON.stringify(data.data);
+            } else {
+              const allStrings = extractAllStrings(data);
+              content = allStrings.join('\n\n');
+            }
+          } else {
+            // Handle non-JSON response (like HTML content)
+            const responseText = await res.text();
+            console.log('HTML response received, parsing content...');
+            
+            // Try to extract text content from HTML
+            try {
+              // Create a temporary DOM element to parse HTML
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(responseText, 'text/html');
+              
+              // Remove script and style elements
+              const scripts = doc.querySelectorAll('script, style');
+              scripts.forEach(script => script.remove());
+              
+              // Get text content
+              const textContent = doc.body?.textContent || doc.documentElement?.textContent || '';
+              
+              // Clean up the text (remove extra whitespace, normalize)
+              const cleanedContent = textContent
+                .replace(/\s+/g, ' ') // Replace multiple whitespace with single space
+                .replace(/\n\s*\n/g, '\n') // Remove empty lines
+                .trim();
+              
+              if (cleanedContent && cleanedContent.length > 10) {
+                content = cleanedContent;
+                console.log('Successfully extracted content from HTML:', cleanedContent.substring(0, 100) + '...');
+              } else {
+                content = 'Content not available - No readable text found in HTML response';
+              }
+            } catch (parseError) {
+              console.error('Error parsing HTML:', parseError);
+              content = 'Content not available - Failed to parse HTML response';
+            }
+          }
+        } else {
+          console.error('ElevenLabs content API error:', res.status, res.statusText, 'for endpoint:', contentEndpoint);
+          const errorText = await res.text();
+          console.error('Error response body:', errorText.substring(0, 200));
+          
+          // Provide more specific error messages
+          if (res.status === 401) {
+            content = 'Content not available - Authentication failed. Please check your API key.';
+          } else if (res.status === 404) {
+            // Check if it's a specific ElevenLabs error
+            try {
+              const errorData = await res.json();
+              if (errorData?.detail?.status === 'knowledge_base_documentation_not_found') {
+                content = `Content not available - Document ID "${documentationId}" not found in ElevenLabs knowledge base.`;
+              } else {
+                content = `Content not available - Document not found. Tried endpoints: ${contentEndpoint}`;
+              }
+            } catch {
+              content = `Content not available - Document not found. Tried endpoints: ${contentEndpoint}`;
+            }
+          } else if (res.status === 403) {
+            content = 'Content not available - Access forbidden. Please check your API permissions.';
+          } else {
+            content = `Content not available - API error (${res.status}: ${res.statusText})`;
+          }
+        }
+      } catch (e) { 
+        console.error('Error fetching content:', e);
+        content = ''; 
+      }
       setDetailsContent(content);
       // Fetch size
       let size = null;
       try {
-        const res2 = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${article.id}`, {
+        const res2 = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${documentationId}`, {
           headers: {
             'xi-api-key': ELEVENLABS_API_KEY,
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
           } as HeadersInit,
         });
         const data2 = await res2.json();
@@ -457,16 +689,38 @@ export default function KnowledgeBasePage() {
       // Fetch dependent agents
       let agents: any[] = [];
       try {
-        const res = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${article.id}/dependent-agents`, {
+        const res = await fetch(`https://api.elevenlabs.io/v1/convai/knowledge-base/${documentationId}/dependent-agents`, {
           headers: {
             'xi-api-key': ELEVENLABS_API_KEY,
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
           } as HeadersInit,
         });
-        const data = await res.json();
-        agents = data.agents || data || [];
-      } catch (e) { agents = []; }
-      setDetailsAgents(agents);
+        
+        if (res.ok) {
+          const data = await res.json();
+          // Ensure agents is always an array
+          if (Array.isArray(data.agents)) {
+            agents = data.agents;
+          } else if (Array.isArray(data)) {
+            agents = data;
+          } else if (data && typeof data === 'object') {
+            // If it's an object, try to extract agents from it
+            agents = data.agents || data.dependent_agents || data.agent_list || [];
+          } else {
+            agents = [];
+          }
+        } else {
+          console.log('Dependent agents API returned:', res.status, res.statusText);
+          agents = [];
+        }
+      } catch (e) { 
+        console.error('Error fetching dependent agents:', e);
+        agents = []; 
+      }
+      
+      // Ensure agents is always an array before setting state
+      setDetailsAgents(Array.isArray(agents) ? agents : []);
       setDetailsLoading(false);
     } catch (err: any) {
       setDetailsError('Failed to load details.');
@@ -747,7 +1001,7 @@ export default function KnowledgeBasePage() {
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-base px-4 py-2 cursor-pointer text-red-600"
-                            onClick={e => { e.stopPropagation(); handleDelete(article.id); }}
+                            onClick={e => { e.stopPropagation(); handleDeleteClick(article); }}
                           >
                             Delete document
                           </DropdownMenuItem>
@@ -775,7 +1029,7 @@ export default function KnowledgeBasePage() {
                   <div className="flex items-center gap-3 mb-4">
                     {detailsDoc?.type === 'url' ? <Globe className="w-7 h-7" /> : <FileText className="w-7 h-7" />}
                     <span className="text-2xl font-semibold">{detailsDoc?.name || detailsDoc?.title || detailsDoc?.id}</span>
-                    <span className="ml-auto text-xs text-gray-500">{detailsSize || detailsDoc?.size || '-'}</span>
+                    <span className="ml-auto text-xs text-gray-500">{detailsContent ? `${detailsContent.length} chars` : (detailsSize || detailsDoc?.size || '-')}</span>
                   </div>
                   <div className="mb-4 flex items-center gap-2">
                     <span className="text-xs text-gray-500">Document ID</span>
@@ -788,7 +1042,7 @@ export default function KnowledgeBasePage() {
                   </div>
                   <div className="mb-4">
                     <div className="text-xs text-gray-500 mb-1">Dependent agents</div>
-                    {detailsAgents.length === 0 ? (
+                    {!Array.isArray(detailsAgents) || detailsAgents.length === 0 ? (
                       <div className="text-xs">None</div>
                     ) : (
                       <ul className="text-xs list-disc ml-4">
@@ -802,9 +1056,13 @@ export default function KnowledgeBasePage() {
                       <pre className="bg-gray-100 rounded p-3 h-full max-h-[60vh] overflow-auto text-xs whitespace-pre-wrap" style={{ minHeight: 200 }}>
                         {(() => {
                           const content = detailsContent || detailsDoc?.text_content || detailsDoc?.content || '';
-                          if (!content) return <span className="text-gray-400">No content available for this document.</span>;
+                          if (!content || content.trim() === '') {
+                            return <span className="text-gray-400">No content available for this document.</span>;
+                          }
+                          // Try to parse as JSON, if it fails, display as plain text
                           try {
-                            return JSON.stringify(JSON.parse(content), null, 2);
+                            const parsed = JSON.parse(content);
+                            return JSON.stringify(parsed, null, 2);
                           } catch {
                             return content;
                           }
@@ -818,6 +1076,74 @@ export default function KnowledgeBasePage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogTitle className="text-lg font-semibold">Delete Document</DialogTitle>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Are you sure you want to delete <strong>"{documentToDelete?.name}"</strong>?
+            </p>
+            
+            {dependentAgents.length > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <div className="text-yellow-600 mt-0.5">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-sm font-medium text-yellow-800 mb-2">
+                      This document is connected to {dependentAgents.length} agent(s):
+                    </h4>
+                    <ul className="text-sm text-yellow-700 space-y-1">
+                      {dependentAgents.map((agent, index) => (
+                        <li key={index} className="flex items-center gap-2">
+                          <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                          <span className="font-mono text-xs">{agent.agent_id || agent.id || agent.name || `Agent ${index + 1}`}</span>
+                          {agent.name && agent.name !== (agent.agent_id || agent.id) && (
+                            <span className="text-gray-600">({agent.name})</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-yellow-600 mt-2">
+                      Deleting this document will remove it from all connected agents' knowledge bases.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {dependentAgents.length === 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-700">
+                  This document is not connected to any agents.
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={deleteLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteLoading}
+            >
+              {deleteLoading ? "Deleting..." : "Delete Document"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

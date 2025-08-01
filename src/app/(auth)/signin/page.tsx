@@ -49,8 +49,21 @@ export default function SignInPage() {
         console.log('Attempting login with:', values.email);
         // Call backend login endpoint
         const loginRes = await api.login(values);
+        
+        // Check if the response is ok
+        if (!loginRes.ok) {
+          console.error('Login API error:', loginRes.status, loginRes.statusText);
+          throw new Error(`Server error: ${loginRes.status} ${loginRes.statusText}`);
+        }
+        
         const loginData = await loginRes.json();
         console.log('Login response:', loginData);
+        
+        // Check if loginData is empty or invalid
+        if (!loginData || typeof loginData !== 'object') {
+          console.error('Invalid login response:', loginData);
+          throw new Error('Invalid response from server');
+        }
 
         if (loginData.success) {
           // Fetch user profile using cookie
@@ -104,15 +117,16 @@ export default function SignInPage() {
           console.error('Login failed:', loginData);
           toast({
             title: "Sign In Failed",
-            description: loginData.message || "Invalid credentials",
+            description: loginData?.message || "Invalid credentials or server error",
             variant: "destructive",
           });
         }
       } catch (error) {
         console.error('Error during login:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         toast({
           title: "Sign In Error",
-          description: "An unexpected error occurred",
+          description: errorMessage,
           variant: "destructive",
         });
       }
