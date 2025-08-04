@@ -162,6 +162,21 @@ interface ImportedAgentDetails {
   agentData?: CompleteAgent;
 }
 
+interface Client {
+  id: string;
+  name: string;
+  contactPerson: string;
+  email: string;
+  phone: string;
+  clientId: string;
+  status: "Active" | "Suspended" | "Trial";
+  plan: string;
+  totalCallsMade: number;
+  monthlyCallLimit: number;
+  joinedDate: string;
+  avatarUrl?: string;
+}
+
 // Sample agent template for import
 const sampleAgentTemplate = {
   name: "Sample Agent",
@@ -294,13 +309,55 @@ export default function AiAgentImportExportPage() {
   const [editName, setEditName] = React.useState("");
   const [editCategory, setEditCategory] = React.useState(""); 
   const [editStatus, setEditStatus] = React.useState<"Draft" | "Published">("Draft");
+  
+  // Client selection state
+  const [clients, setClients] = React.useState<Client[]>([]);
+  const [selectedClientId, setSelectedClientId] = React.useState<string>("");
+  const [isLoadingClients, setIsLoadingClients] = React.useState(false);
 
   // Load available agents for export
   React.useEffect(() => {
     if (user?.userId) {
       loadAvailableAgents();
+      loadClients();
     }
   }, [user?.userId]);
+
+  const loadClients = async () => {
+    setIsLoadingClients(true);
+    try {
+      console.log('Loading clients...');
+      const response = await api.getClients();
+      const data = await response.json();
+      console.log('Clients response:', data);
+      if (data.success) {
+        const mappedClients = data.data.map((c: any) => ({
+          id: c.id,
+          name: c.companyName,
+          contactPerson: c.contactPersonName,
+          email: c.companyEmail,
+          phone: c.phoneNumber,
+          clientId: String(c.id),
+          status: c.status || "Active",
+          plan: c.planName || "",
+          totalCallsMade: c.totalCallsMade || 0,
+          monthlyCallLimit: c.monthlyCallLimit || 0,
+          joinedDate: c.created_at || new Date().toISOString(),
+          avatarUrl: "",
+        }));
+        console.log('Mapped clients:', mappedClients);
+        setClients(mappedClients);
+      } else {
+        console.error('Failed to fetch clients:', data);
+        toast({ title: 'Error', description: 'Failed to fetch clients', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error loading clients:', error);
+      toast({ title: 'Error', description: 'Failed to load clients', variant: 'destructive' });
+    } finally {
+      setIsLoadingClients(false);
+    }
+  };
 
   const loadAvailableAgents = async () => {
     // Prevent multiple simultaneous calls
@@ -813,165 +870,208 @@ export default function AiAgentImportExportPage() {
     setImportProgress(0);
     setShowImportConfirmation(false);
     setImportedAgentDetails(null);
+    setSelectedClientId("");
+    setEditName("");
+    setEditCategory("");
+    setEditStatus("Draft");
   };
 
     const handleFinalizeImport = async (status: "Draft" | "Published") => {
     if (!importedAgentDetails?.agentData) return;
     
+    if (!selectedClientId) {
+      toast({
+        title: "Client Required",
+        description: "Please select a client for this agent.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const finalName = editName || importedAgentDetails.name;
     const finalCategory = editCategory || importedAgentDetails.category || 'Other';
 
     try {
-      // Prepare the import payload based on the source
-      let importPayload: any = {
-        name: finalName,
-        description: finalCategory,
-        status: status,
-        client_id: user?.userId,
-        language_id: 4, // Default to English (US)
-        first_message: importedAgentDetails.agentData.firstMessage || importedAgentDetails.agentData.agentSettings?.first_message || '',
-        system_prompt: importedAgentDetails.agentData.systemPrompt || '',
-        llm: importedAgentDetails.agentData.agentSettings?.llm || 'gpt-4.1-nano',
-        temperature: importedAgentDetails.agentData.agentSettings?.temperature || 0.5,
-        token_limit: importedAgentDetails.agentData.agentSettings?.token_limit || -1,
-        tags: JSON.stringify(importedAgentDetails.agentData.tags || []),
-        additional_languages: JSON.stringify(importedAgentDetails.agentData.agentSettings?.additional_languages || []),
-        custom_llm_url: importedAgentDetails.agentData.agentSettings?.custom_llm_url || '',
-        custom_llm_model_id: importedAgentDetails.agentData.agentSettings?.custom_llm_model_id || '',
-        custom_llm_api_key: importedAgentDetails.agentData.agentSettings?.custom_llm_api_key || '',
-        custom_llm_headers: JSON.stringify(importedAgentDetails.agentData.agentSettings?.custom_llm_headers || []),
-      };
-
-      // Prepare platform_settings from the imported data
-      const platformSettings = {
-        auth: {
-          enable_auth: importedAgentDetails.agentData.securityConfig?.enable_authentication || false,
-          allowlist: importedAgentDetails.agentData.securityConfig?.allowlist || [],
-          shareable_token: null
-        },
-        evaluation: {
-          criteria: importedAgentDetails.agentData.analysisConfig?.evaluation_criteria || []
-        },
-        widget: {
-          variant: "full",
-          placement: importedAgentDetails.agentData.widgetConfig?.placement || "bottom-right",
-          expandable: "never",
-          avatar: {
-            type: importedAgentDetails.agentData.widgetConfig?.voice || "orb",
-            color_1: "#2792dc",
-            color_2: "#9ce6e6"
-          },
-          feedback_mode: importedAgentDetails.agentData.widgetConfig?.feedback_collection || "during",
-          bg_color: "#ffffff",
-          text_color: "#000000",
-          btn_color: "#000000",
-          btn_text_color: "#ffffff",
-          border_color: "#e1e1e1",
-          focus_color: "#000000",
-          border_radius: null,
-          btn_radius: null,
-          action_text: null,
-          start_call_text: null,
-          end_call_text: null,
-          expand_text: null,
-          listening_text: null,
-          speaking_text: null,
-          shareable_page_text: null,
-          shareable_page_show_terms: importedAgentDetails.agentData.widgetConfig?.require_terms || true,
-          terms_text: "#### Terms and conditions\n\nBy clicking \"Agree,\" and each time I interact with this AI agent, I consent to the recording, storage, and sharing of my communications with third-party service providers, and as described in the Privacy Policy.\nIf you do not wish to have your conversations recorded, please refrain from using this service.",
-          terms_html: null,
-          terms_key: null,
-          show_avatar_when_collapsed: false,
-          disable_banner: false,
-          override_link: null,
-          mic_muting_enabled: importedAgentDetails.agentData.widgetConfig?.enable_muting || false,
-          transcript_enabled: importedAgentDetails.agentData.widgetConfig?.conversation_transcript || false,
-          text_input_enabled: importedAgentDetails.agentData.widgetConfig?.text_input || true,
-          language_selector: importedAgentDetails.agentData.widgetConfig?.language_dropdown || false,
-          supports_text_only: importedAgentDetails.agentData.widgetConfig?.switch_to_text_only || true,
-          custom_avatar_path: null,
-          language_presets: {}
-        },
-        data_collection: {},
-        overrides: {
-          conversation_config_override: {
-            tts: {
-              voice_id: false
-            },
-            conversation: {
-              text_only: importedAgentDetails.agentData.advancedConfig?.text_only || true
-            },
-            agent: {
-              first_message: false,
-              language: false,
-              prompt: {
-                prompt: false
-              }
-            }
-          },
-          custom_llm_extra_body: false,
-          enable_conversation_initiation_client_data_from_webhook: importedAgentDetails.agentData.securityConfig?.fetch_initiation_client_data || false
-        },
-        call_limits: {
-          agent_concurrency_limit: importedAgentDetails.agentData.securityConfig?.concurrent_calls_limit || -1,
-          daily_limit: importedAgentDetails.agentData.securityConfig?.daily_calls_limit || 100000,
-          bursting_enabled: importedAgentDetails.agentData.securityConfig?.enable_bursting || true
-        },
-        ban: null,
-        privacy: {
-          record_voice: importedAgentDetails.agentData.advancedConfig?.privacy_settings?.store_call_audio || true,
-          retention_days: importedAgentDetails.agentData.advancedConfig?.conversations_retention_period || -1,
-          delete_transcript_and_pii: importedAgentDetails.agentData.advancedConfig?.delete_transcript_and_derived_fields || false,
-          delete_audio: importedAgentDetails.agentData.advancedConfig?.delete_audio || false,
-          apply_to_existing_conversations: false,
-          zero_retention_mode: importedAgentDetails.agentData.advancedConfig?.privacy_settings?.zero_ppi_retention_mode || false
-        },
-        workspace_overrides: {
-          conversation_initiation_client_data_webhook: null,
-          webhooks: {
-            post_call_webhook_id: importedAgentDetails.agentData.securityConfig?.post_call_webhook || null,
-            send_audio: false
+      // First, create the agent in ElevenLabs with the selected client ID
+      const elevenLabsPayload = {
+        conversation_config: {
+          agent: {
+            name: finalName,
+            description: finalCategory,
+            first_message: importedAgentDetails.agentData.firstMessage || importedAgentDetails.agentData.agentSettings?.first_message || '',
+            system_prompt: importedAgentDetails.agentData.systemPrompt || '',
+            llm: importedAgentDetails.agentData.agentSettings?.llm || 'gpt-4.1-nano',
+            temperature: importedAgentDetails.agentData.agentSettings?.temperature || 0.5,
+            token_limit: importedAgentDetails.agentData.agentSettings?.token_limit || -1,
+            custom_llm_url: importedAgentDetails.agentData.agentSettings?.custom_llm_url || '',
+            custom_llm_model_id: importedAgentDetails.agentData.agentSettings?.custom_llm_model_id || '',
+            custom_llm_api_key: importedAgentDetails.agentData.agentSettings?.custom_llm_api_key || '',
+            custom_llm_headers: importedAgentDetails.agentData.agentSettings?.custom_llm_headers || [],
+            additional_languages: importedAgentDetails.agentData.agentSettings?.additional_languages || [],
           }
         },
-        testing: {
-          test_ids: []
-        },
-        safety: {
-          is_blocked_ivc: false,
-          is_blocked_non_ivc: false,
-          ignore_safety_evaluation: false
-        }
+        name: finalName,
+        client_id: parseInt(selectedClientId),
       };
 
-      importPayload.platform_settings = JSON.stringify(platformSettings);
-
-      console.log('Importing agent:', importPayload);
-
-      // Make API call to create the agent
-      const response = await fetch('/api/agents', {
+      // Create agent in ElevenLabs
+      const elevenLabsResponse = await fetch('/api/elevenlabs/create-agent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(importPayload),
+        body: JSON.stringify(elevenLabsPayload),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-
-    toast({
-          title: `Import Complete`,
-          description: `Agent "${finalName}" imported as ${status}. Category: ${finalCategory}.`,
-    });
-        
-    resetImportState();
-        
-        // Reload agents list to show the new agent
-        await loadAvailableAgents();
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create agent');
+      if (!elevenLabsResponse.ok) {
+        const errorData = await elevenLabsResponse.json();
+        throw new Error(errorData.error || 'Failed to create agent in ElevenLabs');
       }
+
+      const elevenLabsResult = await elevenLabsResponse.json();
+      const agentId = elevenLabsResult.agent_id;
+
+      // Now update the agent in ElevenLabs with all the imported configuration
+      const updatePayload = {
+        // Agent Settings
+        agent_settings: {
+          language: importedAgentDetails.agentData.agentSettings?.language || 'en',
+          additional_languages: importedAgentDetails.agentData.agentSettings?.additional_languages || [],
+          first_message: importedAgentDetails.agentData.firstMessage || importedAgentDetails.agentData.agentSettings?.first_message || '',
+          llm: importedAgentDetails.agentData.agentSettings?.llm || 'gpt-4.1-nano',
+          temperature: importedAgentDetails.agentData.agentSettings?.temperature || 0.5,
+          token_limit: importedAgentDetails.agentData.agentSettings?.token_limit || -1,
+          tool_ids: importedAgentDetails.agentData.agentSettings?.tool_ids || [],
+          built_in_tools: importedAgentDetails.agentData.agentSettings?.built_in_tools || {},
+          mcp_server_ids: importedAgentDetails.agentData.agentSettings?.mcp_server_ids || [],
+          native_mcp_server_ids: importedAgentDetails.agentData.agentSettings?.native_mcp_server_ids || [],
+          knowledge_base: importedAgentDetails.agentData.agentSettings?.knowledge_base || [],
+          custom_llm: importedAgentDetails.agentData.agentSettings?.custom_llm || null,
+          ignore_default_personality: importedAgentDetails.agentData.agentSettings?.ignore_default_personality || false,
+          rag: importedAgentDetails.agentData.agentSettings?.rag || {},
+          timezone: importedAgentDetails.agentData.agentSettings?.timezone || null,
+          tools: importedAgentDetails.agentData.agentSettings?.tools || [],
+          custom_llm_url: importedAgentDetails.agentData.agentSettings?.custom_llm_url || '',
+          custom_llm_model_id: importedAgentDetails.agentData.agentSettings?.custom_llm_model_id || '',
+          custom_llm_api_key: importedAgentDetails.agentData.agentSettings?.custom_llm_api_key || '',
+          custom_llm_headers: importedAgentDetails.agentData.agentSettings?.custom_llm_headers || [],
+          enable_overrides: importedAgentDetails.agentData.agentSettings?.enable_overrides || {},
+        },
+        
+        // Voice Config
+        voice_config: {
+          model_id: importedAgentDetails.agentData.voiceConfig?.model_id || 'eleven_turbo_v2',
+          voice: importedAgentDetails.agentData.voiceConfig?.voice || importedAgentDetails.agentData.widgetConfig?.voice || "Eric",
+          multi_voice: importedAgentDetails.agentData.voiceConfig?.multi_voice || false,
+          use_flash: importedAgentDetails.agentData.voiceConfig?.use_flash || false,
+          tts_output_format: importedAgentDetails.agentData.voiceConfig?.tts_output_format || "PCM 16000 Hz",
+          pronunciation_dictionaries: importedAgentDetails.agentData.voiceConfig?.pronunciation_dictionaries || [],
+          latency: importedAgentDetails.agentData.voiceConfig?.latency || 0.5,
+          stability: importedAgentDetails.agentData.voiceConfig?.stability || 0.5,
+          speed: importedAgentDetails.agentData.voiceConfig?.speed || 0.5,
+          similarity: importedAgentDetails.agentData.voiceConfig?.similarity || 0.5,
+          multi_voice_ids: importedAgentDetails.agentData.voiceConfig?.multi_voice_ids || [],
+        },
+        
+        // Widget Config
+        widget_config: {
+          voice: importedAgentDetails.agentData.widgetConfig?.voice || "Eric",
+          multi_voice: importedAgentDetails.agentData.widgetConfig?.multi_voice || false,
+          use_flash: importedAgentDetails.agentData.widgetConfig?.use_flash || false,
+          tts_output_format: importedAgentDetails.agentData.widgetConfig?.tts_output_format || "PCM 16000 Hz",
+          pronunciation_dictionaries: importedAgentDetails.agentData.widgetConfig?.pronunciation_dictionaries || [],
+          latency: importedAgentDetails.agentData.widgetConfig?.latency || 0.5,
+          stability: importedAgentDetails.agentData.widgetConfig?.stability || 0.5,
+          speed: importedAgentDetails.agentData.widgetConfig?.speed || 0.5,
+          similarity: importedAgentDetails.agentData.widgetConfig?.similarity || 0.5,
+          feedback_collection: importedAgentDetails.agentData.widgetConfig?.feedback_collection || "during",
+          text_input: importedAgentDetails.agentData.widgetConfig?.text_input || true,
+          switch_to_text_only: importedAgentDetails.agentData.widgetConfig?.switch_to_text_only || true,
+          conversation_transcript: importedAgentDetails.agentData.widgetConfig?.conversation_transcript || false,
+          language_dropdown: importedAgentDetails.agentData.widgetConfig?.language_dropdown || false,
+          enable_muting: importedAgentDetails.agentData.widgetConfig?.enable_muting || false,
+          placement: importedAgentDetails.agentData.widgetConfig?.placement || "bottom-right",
+          require_terms: importedAgentDetails.agentData.widgetConfig?.require_terms || true,
+          require_visitor_terms: importedAgentDetails.agentData.widgetConfig?.require_visitor_terms || false,
+        },
+        
+        // Security Config
+        security_config: {
+          enable_authentication: importedAgentDetails.agentData.securityConfig?.enable_authentication || false,
+          allowlist: importedAgentDetails.agentData.securityConfig?.allowlist || [],
+          enable_overrides: importedAgentDetails.agentData.securityConfig?.enable_overrides || {},
+          fetch_initiation_client_data: importedAgentDetails.agentData.securityConfig?.fetch_initiation_client_data || false,
+          post_call_webhook: importedAgentDetails.agentData.securityConfig?.post_call_webhook || "",
+          enable_bursting: importedAgentDetails.agentData.securityConfig?.enable_bursting || false,
+          concurrent_calls_limit: importedAgentDetails.agentData.securityConfig?.concurrent_calls_limit || -1,
+          daily_calls_limit: importedAgentDetails.agentData.securityConfig?.daily_calls_limit || 100000,
+        },
+        
+        // Advanced Config
+        advanced_config: {
+          max_conversation_duration: importedAgentDetails.agentData.advancedConfig?.max_conversation_duration || 300,
+          keywords: importedAgentDetails.agentData.advancedConfig?.keywords || [],
+          text_only: importedAgentDetails.agentData.advancedConfig?.text_only || false,
+          user_input_audio_format: importedAgentDetails.agentData.advancedConfig?.user_input_audio_format || "pcm_16000",
+          client_events: importedAgentDetails.agentData.advancedConfig?.client_events || ["audio", "interruption", "user_transcript", "agent_response", "agent_response_correction"],
+          privacy_settings: {
+            store_call_audio: importedAgentDetails.agentData.advancedConfig?.privacy_settings?.store_call_audio || true,
+            zero_ppi_retention_mode: importedAgentDetails.agentData.advancedConfig?.privacy_settings?.zero_ppi_retention_mode || false,
+          },
+          conversations_retention_period: importedAgentDetails.agentData.advancedConfig?.conversations_retention_period || 730,
+          delete_transcript_and_derived_fields: importedAgentDetails.agentData.advancedConfig?.delete_transcript_and_derived_fields || false,
+          delete_audio: importedAgentDetails.agentData.advancedConfig?.delete_audio || false,
+        },
+        
+        // Analysis Config
+        analysis_config: {
+          evaluation_criteria: importedAgentDetails.agentData.analysisConfig?.evaluation_criteria || [],
+          data_collection: importedAgentDetails.agentData.analysisConfig?.data_collection || [],
+        },
+        
+        // Messages
+        first_message: importedAgentDetails.agentData.firstMessage || importedAgentDetails.agentData.agentSettings?.first_message || '',
+        system_prompt: importedAgentDetails.agentData.systemPrompt || '',
+        
+        // Variables
+        first_message_vars: importedAgentDetails.agentData.first_message_vars || [],
+        system_prompt_vars: importedAgentDetails.agentData.system_prompt_vars || [],
+        dynamic_vars: importedAgentDetails.agentData.dynamic_vars || [],
+        
+        // Tags
+        tags: importedAgentDetails.agentData.tags || [],
+        
+        // Status
+        status: status.toLowerCase(),
+      };
+
+      // Update the agent in ElevenLabs with all configuration
+      const updateResponse = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatePayload),
+      });
+
+      if (!updateResponse.ok) {
+        console.warn('Failed to update agent configuration in ElevenLabs, but agent was created');
+      }
+
+      // The agent is already saved in local DB with client_id mapping from the create-agent endpoint
+      const selectedClient = clients.find(c => c.id === selectedClientId);
+      const clientName = selectedClient ? selectedClient.name : 'Unknown Client';
+
+      toast({
+        title: `Import Complete`,
+        description: `Agent "${finalName}" imported as ${status} for client "${clientName}". Category: ${finalCategory}.`,
+      });
+        
+      resetImportState();
+        
+      // Reload agents list to show the new agent
+      await loadAvailableAgents();
       
     } catch (error) {
       console.error('Import error:', error);
@@ -1081,7 +1181,7 @@ export default function AiAgentImportExportPage() {
               <UploadCloud className="mr-3 h-6 w-6 text-primary" /> Import Agent
             </CardTitle>
             <CardDescription>
-              Upload a JSON file to import a complete AI agent configuration.
+              Upload a JSON file to import a complete AI agent configuration. You can assign the imported agent to a specific client.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -1100,6 +1200,39 @@ export default function AiAgentImportExportPage() {
               </Label>
               {fileName && !isImporting && !showImportConfirmation && (
                 <p className="text-xs text-muted-foreground mt-1">Selected: {fileName}</p>
+              )}
+            </div>
+
+            {/* Client Selection - Always visible */}
+            <div className="space-y-2">
+              <Label htmlFor="select-client-preview">Assign to Client*</Label>
+              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                <SelectTrigger id="select-client-preview">
+                  <SelectValue placeholder={isLoadingClients ? "Loading clients..." : "Choose a client..."} />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      <div className="flex items-center justify-between w-full">
+                        <span>{client.name}</span>
+                        <div className="flex items-center gap-2 ml-2">
+                          <Badge variant="outline" className="text-xs">
+                            {client.status}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {client.contactPerson}
+                          </span>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {clients.length === 0 && !isLoadingClients && (
+                <p className="text-sm text-muted-foreground">No clients available. Please create a client first.</p>
+              )}
+              {clients.length > 0 && (
+                <p className="text-xs text-muted-foreground">Select a client before uploading your agent file.</p>
               )}
             </div>
 
@@ -1132,6 +1265,23 @@ export default function AiAgentImportExportPage() {
                       onChange={e => setEditCategory(e.target.value)} 
                       placeholder="e.g., Lead Generation" 
                     />
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="selected-client-display">Selected Client</Label>
+                            <div className="p-3 bg-muted rounded-md">
+                                {selectedClientId ? (
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-medium">
+                                            {clients.find(c => c.id === selectedClientId)?.name || 'Unknown Client'}
+                                        </span>
+                                        <Badge variant="outline" className="text-xs">
+                                            {clients.find(c => c.id === selectedClientId)?.status || 'Unknown'}
+                                        </Badge>
+                                    </div>
+                                ) : (
+                                    <span className="text-muted-foreground">No client selected</span>
+                                )}
+                            </div>
                         </div>
                          <div className="space-y-1">
                             <Label htmlFor="edit-status">Set Status*</Label>
@@ -1167,18 +1317,35 @@ export default function AiAgentImportExportPage() {
            <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4">
             {showImportConfirmation ? (
               <>
-                <Button onClick={() => handleFinalizeImport("Draft")} variant="secondary" className="w-full sm:w-auto">
+                <Button 
+                  onClick={() => handleFinalizeImport("Draft")} 
+                  variant="secondary" 
+                  className="w-full sm:w-auto"
+                  disabled={!selectedClientId}
+                >
                   <Edit3 className="mr-2 h-4 w-4" /> Import & Save as Draft
                 </Button>
-                <Button onClick={() => handleFinalizeImport("Published")} className="w-full sm:w-auto">
+                <Button 
+                  onClick={() => handleFinalizeImport("Published")} 
+                  className="w-full sm:w-auto"
+                  disabled={!selectedClientId}
+                >
                   <CheckCircle className="mr-2 h-4 w-4" /> Import & Publish
                 </Button>
               </>
             ) : (
-                 <Button onClick={() => document.getElementById('file-upload')?.click()} disabled={isImporting} className="w-full text-base py-3">
+                 <Button 
+                   onClick={() => document.getElementById('file-upload')?.click()} 
+                   disabled={isImporting || !selectedClientId} 
+                   className="w-full text-base py-3"
+                 >
                     {isImporting ? (
                         <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Importing...
+                        </>
+                    ) : !selectedClientId ? (
+                        <>
+                         <AlertCircle className="mr-2 h-5 w-5" /> Select Client First
                         </>
                     ) : (
                         <>
@@ -1199,7 +1366,8 @@ export default function AiAgentImportExportPage() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
           <p><strong>Exporting:</strong> Select one of your existing agents from the dropdown. The system will export the complete agent configuration including all settings, voice config, widget settings, security settings, and conversation flows. This creates a comprehensive backup or sharing file.</p>
-          <p><strong>Importing:</strong> Upload a JSON file containing a complete agent configuration. The system automatically maps all fields to their corresponding settings in the agent details page. You can review and modify basic details like name and category before finalizing the import.</p>
+          <p><strong>Importing:</strong> Upload a JSON file containing a complete agent configuration. The system automatically maps all fields to their corresponding settings in the agent details page. You can review and modify basic details like name, category, and assign the agent to a specific client before finalizing the import.</p>
+          <p><strong>Client Mapping:</strong> When importing an agent, you must select a client from the dropdown. The imported agent will be created in ElevenLabs with the selected client ID and stored in the local database with the proper client mapping. This ensures proper organization and access control.</p>
           <p><strong>JSON Structure:</strong> The exported JSON contains all agent fields including <code>agentSettings</code>, <code>voiceConfig</code>, <code>widgetConfig</code>, <code>securityConfig</code>, <code>advancedConfig</code>, <code>firstMessage</code>, <code>systemPrompt</code>, and all associated variables and tools.</p>
         </CardContent>
       </Card>
