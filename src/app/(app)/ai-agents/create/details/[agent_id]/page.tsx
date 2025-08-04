@@ -10,6 +10,7 @@ import languages from '@/data/languages.json';
 import { FaBrain, FaTrash } from 'react-icons/fa';
 import WebhookModal from '@/components/ui/WebhookModal';
 import { useToast } from '@/components/ui/use-toast';
+import { Edit2, Copy, Check, ChevronsUpDown } from 'lucide-react';
 
 const LANGUAGES = [
   { code: "en", label: "English", flag: "🇺🇸" },
@@ -771,6 +772,15 @@ export default function AgentDetailsPage() {
   // Add these state hooks at the top of the component
   const [firstMessage, setFirstMessage] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
+
+  // New state variables for rename, copy ID, and client change functionality
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newAgentName, setNewAgentName] = useState("");
+  const [copiedId, setCopiedId] = useState(false);
+  const [clients, setClients] = useState<any[]>([]);
+  const [isLoadingClients, setIsLoadingClients] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [isChangingClient, setIsChangingClient] = useState(false);
   
   // Widget settings state
   const [widgetSettings, setWidgetSettings] = useState({
@@ -2259,17 +2269,282 @@ export default function AgentDetailsPage() {
     }
   };
 
+  // Load clients for the dropdown
+  const loadClients = async () => {
+    if (isLoadingClients) return;
+    
+    setIsLoadingClients(true);
+    try {
+      const response = await api.getClients();
+      const data = await response.json();
+      
+      if (data.success) {
+        const mappedClients = data.data.map((client: any) => ({
+          id: client.id,
+          name: client.companyName,
+          contactPerson: client.contactPersonName,
+          email: client.companyEmail,
+          phone: client.phoneNumber,
+          clientId: String(client.id),
+          status: client.status || "Active",
+          plan: client.planName || "",
+          totalCallsMade: client.totalCallsMade || 0,
+          monthlyCallLimit: client.monthlyCallLimit || 0,
+          joinedDate: client.created_at || new Date().toISOString(),
+          avatarUrl: "",
+        }));
+        setClients(mappedClients);
+      } else {
+        toast({ title: 'Error', description: 'Failed to fetch clients', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error loading clients:', error);
+      toast({ title: 'Error', description: 'Failed to load clients', variant: 'destructive' });
+    } finally {
+      setIsLoadingClients(false);
+    }
+  };
+
+  // Handle agent rename
+  const handleRename = async () => {
+    if (!newAgentName.trim()) {
+      toast({ title: 'Error', description: 'Please enter a valid agent name', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      // Update in ElevenLabs
+      const elevenLabsResponse = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newAgentName.trim()
+        }),
+      });
+
+      if (!elevenLabsResponse.ok) {
+        throw new Error('Failed to update agent name in ElevenLabs');
+      }
+
+      // Update in local database
+      const localResponse = await fetch(`/api/agents/${agentId}/details`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          local: {
+            name: newAgentName.trim()
+          }
+        }),
+      });
+
+      if (!localResponse.ok) {
+        throw new Error('Failed to update agent name in local database');
+      }
+
+      // Update local state
+      setLocalAgent((prev: any) => ({ ...prev, name: newAgentName.trim() }));
+      setIsRenaming(false);
+      setNewAgentName("");
+
+      toast({ title: 'Success', description: 'Agent name updated successfully' });
+    } catch (error) {
+      console.error('Error renaming agent:', error);
+      toast({ 
+        title: 'Error', 
+        description: error instanceof Error ? error.message : 'Failed to rename agent', 
+        variant: 'destructive' 
+      });
+    }
+  };
+
+  // Handle copy agent ID
+  const handleCopyId = async () => {
+    try {
+      await navigator.clipboard.writeText(agentId as string);
+      setCopiedId(true);
+      toast({ title: 'Success', description: 'Agent ID copied to clipboard' });
+      setTimeout(() => setCopiedId(false), 2000);
+    } catch (error) {
+      console.error('Error copying agent ID:', error);
+      toast({ title: 'Error', description: 'Failed to copy agent ID', variant: 'destructive' });
+    }
+  };
+
+  // Handle client change
+  const handleClientChange = async () => {
+    if (!selectedClientId) {
+      toast({ title: 'Error', description: 'Please select a client', variant: 'destructive' });
+      return;
+    }
+
+    setIsChangingClient(true);
+    try {
+      // Update in local database
+      const localResponse = await fetch(`/api/agents/${agentId}/details`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          local: {
+            client_id: parseInt(selectedClientId)
+          }
+        }),
+      });
+
+      if (!localResponse.ok) {
+        throw new Error('Failed to update client assignment in local database');
+      }
+
+      // Update in ElevenLabs
+      const elevenLabsResponse = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: parseInt(selectedClientId)
+        }),
+      });
+
+      if (!elevenLabsResponse.ok) {
+        console.warn('Failed to update client assignment in ElevenLabs, but local update succeeded');
+      }
+
+      // Update local state
+      setLocalAgent((prev: any) => ({ ...prev, client_id: parseInt(selectedClientId) }));
+
+      const selectedClient = clients.find(client => client.id === selectedClientId);
+      toast({ 
+        title: 'Success', 
+        description: `Agent assigned to ${selectedClient?.name || 'selected client'} successfully` 
+      });
+    } catch (error) {
+      console.error('Error changing client assignment:', error);
+      toast({ 
+        title: 'Error', 
+        description: error instanceof Error ? error.message : 'Failed to change client assignment', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsChangingClient(false);
+    }
+  };
+
+  // Load clients on component mount
+  useEffect(() => {
+    loadClients();
+  }, []);
+
+  // Set selected client when localAgent data is loaded
+  useEffect(() => {
+    if (localAgent.client_id && clients.length > 0) {
+      setSelectedClientId(String(localAgent.client_id));
+    }
+  }, [localAgent.client_id, clients]);
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="mb-4">
-          <div className="text-xs text-gray-500 mb-1">Agents &gt; {agentName}</div>
+          <div className="text-xs text-gray-500 mb-1">Agents &gt; {localAgent.name || 'Loading...'}</div>
           <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold">{agentName}</h1>
+            {isRenaming ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newAgentName}
+                  onChange={(e) => setNewAgentName(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleRename()}
+                  className="text-2xl font-bold border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter new name"
+                  autoFocus
+                />
+                <button
+                  onClick={handleRename}
+                  className="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setIsRenaming(false);
+                    setNewAgentName("");
+                  }}
+                  className="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <h1 className="text-2xl font-bold">{localAgent.name || 'Loading...'}</h1>
+            )}
             <span className="bg-gray-200 text-xs px-2 py-1 rounded">Public</span>
+            {!isRenaming && (
+              <button
+                onClick={() => {
+                  setIsRenaming(true);
+                  setNewAgentName(localAgent.name || '');
+                }}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+                title="Rename agent"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
-          <div className="text-sm text-gray-500 mb-2">{agentId}</div>
+          <div className="flex items-center gap-4 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Agent ID:</span>
+              <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">{agentId as string}</span>
+              <button
+                onClick={handleCopyId}
+                className={`text-gray-500 hover:text-gray-700 transition-colors ${copiedId ? 'text-green-500' : ''}`}
+                title="Copy agent ID"
+              >
+                {copiedId ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Client:</span>
+              <div className="relative">
+                <select
+                  value={selectedClientId}
+                  onChange={(e) => setSelectedClientId(e.target.value)}
+                  disabled={isLoadingClients || isChangingClient}
+                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                >
+                  <option value="">Select client...</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name} ({client.status})
+                    </option>
+                  ))}
+                </select>
+                {isLoadingClients && (
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                  </div>
+                )}
+              </div>
+              {selectedClientId && (
+                <button
+                  onClick={handleClientChange}
+                  disabled={isChangingClient}
+                  className="bg-black text-white px-3 py-1 rounded text-sm hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {isChangingClient ? 'Updating...' : 'Update Client'}
+                </button>
+              )}
+            </div>
+          </div>
           {/* Replace the tab navigation block with a flex row, underline for active tab, and correct badge placement */}
           <div className="flex items-center gap-6 border-b border-gray-200 mb-6">
             {[

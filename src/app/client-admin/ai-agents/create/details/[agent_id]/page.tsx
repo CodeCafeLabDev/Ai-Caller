@@ -12,6 +12,7 @@ import { useUser } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { FaBrain, FaTrash } from 'react-icons/fa';
 import WebhookModal from '@/components/ui/WebhookModal';
+import { Edit2, Copy, Check } from 'lucide-react';
 
 const LANGUAGES = [
   { code: "en", label: "English", flag: "🇺🇸" },
@@ -943,6 +944,11 @@ export default function AgentDetailsPage() {
     updateTool,
     deleteTool,
   } = useElevenLabsTools(apiKey);
+
+  // State for rename and copy functionality
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newAgentName, setNewAgentName] = useState("");
+  const [copiedId, setCopiedId] = useState(false);
 
   // Fetch tools on mount
   useEffect(() => {
@@ -2519,6 +2525,71 @@ export default function AgentDetailsPage() {
     }
   };
 
+  // Handler functions for rename and copy functionality
+  const handleRename = async () => {
+    if (!newAgentName.trim()) {
+      toast({ title: 'Error', description: 'Please enter a valid agent name', variant: 'destructive' });
+      return;
+    }
+
+    setIsRenaming(true);
+    try {
+      // Update in ElevenLabs
+      const elevenLabsResponse = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newAgentName.trim()
+        }),
+      });
+
+      if (!elevenLabsResponse.ok) {
+        throw new Error('Failed to update agent name in ElevenLabs');
+      }
+
+      // Update in local database
+      const localResponse = await fetch(`/api/agents/${agentId}/details`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          local: {
+            name: newAgentName.trim()
+          }
+        }),
+      });
+
+      if (!localResponse.ok) {
+        throw new Error('Failed to update agent name in local database');
+      }
+
+      // Update local state
+      setLocalAgent((prev: any) => ({ ...prev, name: newAgentName.trim() }));
+      setNewAgentName("");
+      setIsRenaming(false);
+      
+      toast({ title: 'Success', description: 'Agent name updated successfully' });
+    } catch (error) {
+      console.error('Error updating agent name:', error);
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to update agent name', variant: 'destructive' });
+      setIsRenaming(false);
+    }
+  };
+
+  const handleCopyId = async () => {
+    try {
+      await navigator.clipboard.writeText(agentId as string);
+      setCopiedId(true);
+      toast({ title: 'Success', description: 'Agent ID copied to clipboard' });
+      setTimeout(() => setCopiedId(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy agent ID:', error);
+      toast({ title: 'Error', description: 'Failed to copy agent ID', variant: 'destructive' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Overlay for Add Criteria */}
@@ -2574,12 +2645,65 @@ export default function AgentDetailsPage() {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="mb-4">
-          <div className="text-xs text-gray-500 mb-1">Agents &gt; {agentName}</div>
+          <div className="text-xs text-gray-500 mb-1">Agents &gt; {localAgent.name || agentName}</div>
           <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold">{agentName}</h1>
+            <h1 className="text-2xl font-bold">{localAgent.name || agentName}</h1>
             <span className="bg-gray-200 text-xs px-2 py-1 rounded">Public</span>
           </div>
-          <div className="text-sm text-gray-500 mb-2">{agentId}</div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="text-sm text-gray-500">{agentId}</div>
+            <button
+              onClick={handleCopyId}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+              title="Copy Agent ID"
+            >
+              {copiedId ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            </button>
+          </div>
+          {/* Rename functionality */}
+          <div className="flex items-center gap-2 mb-4">
+            {isRenaming ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={newAgentName}
+                  onChange={(e) => setNewAgentName(e.target.value)}
+                  placeholder="Enter new name"
+                  className="px-3 py-1 border rounded text-sm"
+                  onKeyPress={(e) => e.key === 'Enter' && handleRename()}
+                  autoFocus
+                />
+                <button
+                  onClick={handleRename}
+                  disabled={!newAgentName.trim()}
+                  className="px-3 py-1 bg-black text-white text-xs rounded hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setIsRenaming(false);
+                    setNewAgentName("");
+                  }}
+                  className="px-3 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setIsRenaming(true);
+                  setNewAgentName(localAgent.name || agentName);
+                }}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                title="Rename Agent"
+              >
+                <Edit2 className="w-3 h-3" />
+                Rename
+              </button>
+            )}
+          </div>
           {/* Replace the tab navigation block with a flex row, underline for active tab, and correct badge placement */}
           <div className="flex items-center gap-6 border-b border-gray-200 mb-6">
             {[
