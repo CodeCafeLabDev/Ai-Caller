@@ -12,7 +12,7 @@ import { useUser } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { FaBrain, FaTrash } from 'react-icons/fa';
 import WebhookModal from '@/components/ui/WebhookModal';
-import { Edit2, Copy, Check } from 'lucide-react';
+import { Edit2, Copy, Check, Lock, X } from 'lucide-react';
 
 const LANGUAGES = [
   { code: "en", label: "English", flag: "🇺🇸" },
@@ -949,6 +949,13 @@ export default function AgentDetailsPage() {
   const [isRenaming, setIsRenaming] = useState(false);
   const [newAgentName, setNewAgentName] = useState("");
   const [copiedId, setCopiedId] = useState(false);
+
+  // Workspace secrets state
+  const [showAddSecretModal, setShowAddSecretModal] = useState(false);
+  const [secretName, setSecretName] = useState("");
+  const [secretValue, setSecretValue] = useState("");
+  const [isAddingSecret, setIsAddingSecret] = useState(false);
+  const [workspaceSecrets, setWorkspaceSecrets] = useState<any[]>([]);
 
   // Fetch tools on mount
   useEffect(() => {
@@ -2590,6 +2597,161 @@ export default function AgentDetailsPage() {
     }
   };
 
+  // Workspace secrets handler functions
+  const handleAddSecret = async () => {
+    if (!secretName.trim() || !secretValue.trim()) {
+      toast({ title: 'Error', description: 'Please enter both name and value for the secret', variant: 'destructive' });
+      return;
+    }
+
+    setIsAddingSecret(true);
+    try {
+      console.log('Adding secret:', { name: secretName.trim(), value: secretValue.trim() });
+      
+      // Add secret to ElevenLabs
+      const response = await fetch(`/api/elevenlabs/secrets`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: secretName.trim(),
+          value: secretValue.trim()
+        }),
+      });
+
+      console.log('Add secret response status:', response.status);
+      console.log('Add secret response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Secret added successfully:', result);
+        
+        // Refresh secrets list from ElevenLabs
+        await fetchWorkspaceSecrets();
+        
+        // Reset form
+        setSecretName("");
+        setSecretValue("");
+        setShowAddSecretModal(false);
+        
+        toast({ title: 'Success', description: 'Secret added successfully' });
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to add secret:', response.status, errorText);
+        let errorMessage = 'Unknown error';
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorData.details || 'Unknown error';
+        } catch (e) {
+          errorMessage = errorText;
+        }
+        toast({ title: 'Error', description: `Failed to add secret to ElevenLabs: ${errorMessage}`, variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Error adding secret:', error);
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to add secret', variant: 'destructive' });
+    } finally {
+      setIsAddingSecret(false);
+    }
+  };
+
+  const handleDeleteSecret = async (secretName: string) => {
+    // Find the secret to check if it's in use
+    const secret = workspaceSecrets.find(s => (s.id || s.name) === secretName);
+    if (secret && isSecretInUse(secret)) {
+      toast({ 
+        title: 'Cannot Delete', 
+        description: 'This secret is currently in use and cannot be deleted. Remove it from all tools, agents, or phone numbers first.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    try {
+      // Delete secret from ElevenLabs
+      const response = await fetch(`/api/elevenlabs/secrets/${encodeURIComponent(secretName)}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete secret from ElevenLabs');
+      }
+
+      // Refresh secrets list from ElevenLabs
+      await fetchWorkspaceSecrets();
+      
+      toast({ title: 'Success', description: 'Secret deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting secret:', error);
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to delete secret', variant: 'destructive' });
+    }
+  };
+
+  // Check if a secret is in use
+  const isSecretInUse = (secret: any) => {
+    if (!secret.used_by) return false;
+    
+    const { tools, agents, others, phone_numbers } = secret.used_by;
+    return (
+      (tools && tools.length > 0) ||
+      (agents && agents.length > 0) ||
+      (others && others.length > 0) ||
+      (phone_numbers && phone_numbers.length > 0)
+    );
+  };
+
+  const fetchWorkspaceSecrets = async () => {
+    try {
+      console.log('Fetching workspace secrets...');
+      const response = await fetch(`/api/elevenlabs/secrets`);
+      console.log('Secrets response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('ElevenLabs secrets API response:', data);
+        
+        // Handle different possible response structures
+        let secrets = [];
+        if (Array.isArray(data)) {
+          secrets = data;
+        } else if (data && Array.isArray(data.secrets)) {
+          secrets = data.secrets;
+        } else if (data && Array.isArray(data.data)) {
+          secrets = data.data;
+        } else if (data && typeof data === 'object') {
+          // If it's an object with secret properties, convert to array
+          secrets = Object.keys(data).map(key => ({
+            id: key,
+            name: key,
+            ...data[key]
+          }));
+        }
+        
+        // Ensure each secret has the correct structure
+        secrets = secrets.map((secret: any) => ({
+          id: secret.secret_id || secret.id,
+          name: secret.name,
+          type: secret.type,
+          used_by: secret.used_by
+        }));
+        
+        console.log('Processed secrets:', secrets);
+        setWorkspaceSecrets(secrets);
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to fetch secrets:', response.status, response.statusText, errorText);
+      }
+    } catch (error) {
+      console.error('Error fetching workspace secrets:', error);
+    }
+  };
+
+  // Fetch workspace secrets on component mount and after agent data is loaded
+  useEffect(() => {
+    fetchWorkspaceSecrets();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Overlay for Add Criteria */}
@@ -2641,6 +2803,67 @@ export default function AgentDetailsPage() {
           </div>
         </div>
       )}
+      {/* Add Secret Modal */}
+      {showAddSecretModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-6 border-b">
+              <div className="flex items-center gap-2">
+                <Lock className="w-5 h-5 text-gray-600" />
+                <h2 className="text-lg font-semibold">Add secret</h2>
+              </div>
+              <button
+                onClick={() => setShowAddSecretModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-600 mb-4">
+                Securely store a value that can be used by the tools. Once added the value cannot be retrieved.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={secretName}
+                    onChange={(e) => setSecretName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter secret name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                  <textarea
+                    value={secretValue}
+                    onChange={(e) => setSecretValue(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                    placeholder="Enter secret value"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-6 border-t">
+              <button
+                onClick={() => setShowAddSecretModal(false)}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddSecret}
+                disabled={!secretName.trim() || !secretValue.trim() || isAddingSecret}
+                className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {isAddingSecret ? 'Adding...' : 'Add secret'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Main content continues... */}
       <div className="max-w-3xl mx-auto">
         {/* Header */}
@@ -3221,10 +3444,65 @@ export default function AgentDetailsPage() {
                   </div>
                 </div>
                 {/* Workspace Secrets */}
-                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
-                  <div className="font-semibold">Workspace Secrets</div>
-                  <div className="text-gray-500 text-sm mb-2">Create and manage secure secrets that can be accessed across your workspace.</div>
-                  <button type="button" className="bg-gray-200 px-3 py-2 rounded w-fit">Add secret</button>
+                <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-lg">Workspace Secrets</div>
+                      <div className="text-xs text-gray-500">Create and manage authentication connections that can be used by workspace tools.</div>
+                    </div>
+                    <button
+                      onClick={() => setShowAddSecretModal(true)}
+                      className="bg-black text-white px-4 py-2 rounded text-sm hover:bg-gray-800 transition-colors"
+                    >
+                      Add Secret
+                    </button>
+                  </div>
+                  
+                  {workspaceSecrets.length > 0 ? (
+                    <div className="space-y-2">
+                      {workspaceSecrets.map((secret, index) => (
+                        <div key={secret.id || secret.name || index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center gap-2">
+                            <Lock className="w-4 h-4 text-gray-500" />
+                            <div>
+                              <span className="font-medium text-sm">{secret.name || secret.id}</span>
+                              {secret.used_by && (
+                                <div className="text-xs text-gray-500">
+                                  {secret.used_by.phone_numbers && secret.used_by.phone_numbers.length > 0 && (
+                                    <div>Used by {secret.used_by.phone_numbers.length} phone number{secret.used_by.phone_numbers.length === 1 ? '' : 's'}</div>
+                                  )}
+                                  {secret.used_by.tools && secret.used_by.tools.length > 0 && (
+                                    <div>Used by {secret.used_by.tools.length} tool{secret.used_by.tools.length === 1 ? '' : 's'}</div>
+                                  )}
+                                  {secret.used_by.agents && secret.used_by.agents.length > 0 && (
+                                    <div>Used by {secret.used_by.agents.length} agent{secret.used_by.agents.length === 1 ? '' : 's'}</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                                              <button
+                      onClick={() => handleDeleteSecret(secret.id || secret.name)}
+                      className={`transition-colors ${
+                        isSecretInUse(secret) 
+                          ? 'text-gray-400 cursor-not-allowed' 
+                          : 'text-red-500 hover:text-red-700'
+                      }`}
+                      title={isSecretInUse(secret) ? "Cannot delete - secret is in use" : "Delete secret"}
+                      disabled={isSecretInUse(secret)}
+                    >
+                      <FaTrash className="w-4 h-4" />
+                    </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <Lock className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">No secrets added yet</p>
+                      <p className="text-xs">Add secrets to securely store values that can be used by tools</p>
+                    </div>
+                  )}
                 </div>
                 {/* Workspace Auth Connections */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2">
@@ -3573,6 +3851,7 @@ export default function AgentDetailsPage() {
               <div className="text-gray-500 text-sm mb-2">Set the number of days to keep conversations (-1 for unlimited).</div>
               <input type="number" className="border rounded px-2 py-1 w-32" value={advancedConfig.conversations_retention_period} onChange={e => setAdvancedConfig(prev => ({ ...prev, conversations_retention_period: Number(e.target.value) }))} placeholder="730" />
             </div>
+
             {/* Save button */}
             <div className="flex items-center gap-4 mt-4">
               <button type="button" onClick={handleSave} disabled={saveLoading} className="bg-black text-white px-6 py-2 rounded-lg font-medium">

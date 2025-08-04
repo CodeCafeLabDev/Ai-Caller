@@ -285,6 +285,29 @@ db.connect(err => {
     return;
   }
   console.log("✅ MySQL Connected");
+  
+  // Create workspace secrets table
+  const createWorkspaceSecretsTable = `
+    CREATE TABLE IF NOT EXISTS workspace_secrets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      secret_id VARCHAR(255) NOT NULL UNIQUE,
+      name VARCHAR(255) NOT NULL,
+      type VARCHAR(50) NOT NULL DEFAULT 'new',
+      used_by JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_secret_id (secret_id),
+      INDEX idx_name (name)
+    );
+  `;
+  
+  db.query(createWorkspaceSecretsTable, (err) => {
+    if (err) {
+      console.error("Failed to create workspace secrets table:", err);
+    } else {
+      console.log("✅ Workspace secrets table ready");
+    }
+  });
 });
 
 // Add error handler for lost connections
@@ -2782,6 +2805,346 @@ app.get('/api/agents/:agentId/knowledge-base-db', async (req, res) => {
       error: error.message || 'Unknown error occurred',
       timestamp: new Date().toISOString()
     });
+  }
+});
+
+// --- ElevenLabs Secrets Proxy Endpoints ---
+
+// GET /api/workspace-secrets/local - Get secrets from local database
+app.get('/api/workspace-secrets/local', (req, res) => {
+  try {
+    const query = 'SELECT * FROM workspace_secrets ORDER BY created_at DESC';
+    db.query(query, (err, rows) => {
+      if (err) {
+        console.error('Error fetching secrets from local database:', err);
+        return res.status(500).json({ error: 'Failed to fetch secrets from local database' });
+      }
+      
+      // Parse used_by JSON for each secret
+      const secrets = rows.map(row => ({
+        ...row,
+        used_by: row.used_by ? JSON.parse(row.used_by) : null
+      }));
+      
+      res.json({ secrets });
+    });
+  } catch (error) {
+    console.error('Error in local secrets endpoint:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/elevenlabs/secrets - Get all workspace secrets
+app.get('/api/elevenlabs/secrets', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'ElevenLabs API key not configured' });
+    }
+
+    console.log('Fetching secrets from ElevenLabs...');
+    
+    // Try different possible endpoints
+    const endpoints = [
+      'https://api.elevenlabs.io/v1/convai/secrets',
+      'https://api.elevenlabs.io/v1/secrets',
+      'https://api.elevenlabs.io/v1/workspace/secrets'
+    ];
+
+    let response = null;
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`Trying GET endpoint: ${endpoint}`);
+        response = await fetch(endpoint, {
+          headers: {
+            'xi-api-key': apiKey,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        console.log(`GET endpoint ${endpoint} response status:`, response.status);
+        
+        if (response.ok) {
+          console.log(`GET success with endpoint: ${endpoint}`);
+          break;
+        } else {
+          const errorText = await response.text();
+          console.log(`GET endpoint ${endpoint} failed:`, response.status, errorText);
+          lastError = { status: response.status, text: errorText };
+        }
+      } catch (error) {
+        console.log(`GET endpoint ${endpoint} error:`, error.message);
+        lastError = { error: error.message };
+      }
+    }
+
+    if (!response || !response.ok) {
+      console.error('All GET endpoints failed. Last error:', lastError);
+      return res.status(lastError?.status || 500).json({ 
+        error: 'Failed to fetch secrets from ElevenLabs', 
+        details: lastError?.text || lastError?.error || 'All endpoints failed'
+      });
+    }
+
+    console.log('ElevenLabs secrets response status:', response.status);
+    console.log('ElevenLabs secrets response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('ElevenLabs secrets API error:', response.status, errorText);
+      return res.status(response.status).json({ 
+        error: 'Failed to fetch secrets from ElevenLabs', 
+        details: errorText 
+      });
+    }
+
+    const secrets = await response.json();
+    console.log('ElevenLabs secrets response:', JSON.stringify(secrets, null, 2));
+    
+    // Sync secrets with local database
+    try {
+      const secretsArray = secrets.secrets || secrets.data || (Array.isArray(secrets) ? secrets : []);
+      
+      for (const secret of secretsArray) {
+        const insertQuery = `
+          INSERT INTO workspace_secrets (secret_id, name, type, used_by) 
+          VALUES (?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE 
+          name = VALUES(name), 
+          type = VALUES(type), 
+          used_by = VALUES(used_by),
+          updated_at = CURRENT_TIMESTAMP
+        `;
+        
+        const usedByJson = secret.used_by ? JSON.stringify(secret.used_by) : null;
+        
+        db.query(insertQuery, [
+          secret.secret_id || secret.id,
+          secret.name,
+          secret.type || 'new',
+          usedByJson
+        ], (dbErr, result) => {
+          if (dbErr) {
+            console.error('Failed to sync secret to local database:', dbErr);
+          }
+        });
+      }
+      
+      console.log('Secrets synced with local database');
+    } catch (dbError) {
+      console.error('Error syncing secrets with local database:', dbError);
+    }
+    
+    res.json(secrets);
+  } catch (error) {
+    console.error('Error fetching secrets:', error);
+    res.status(500).json({ error: 'Failed to fetch secrets', details: error.message });
+  }
+});
+
+// POST /api/elevenlabs/secrets - Create a new secret
+app.post('/api/elevenlabs/secrets', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'ElevenLabs API key not configured' });
+    }
+
+    const { name, value } = req.body;
+    console.log('Creating secret with:', { name, value: value ? '[HIDDEN]' : 'undefined' });
+    
+    if (!name || !value) {
+      return res.status(400).json({ error: 'Name and value are required' });
+    }
+
+    const requestBody = { name, value, type: 'new' };
+    console.log('Request body:', { name, value: '[HIDDEN]', type: 'new' });
+
+    // Try different possible endpoints
+    const endpoints = [
+      'https://api.elevenlabs.io/v1/convai/secrets',
+      'https://api.elevenlabs.io/v1/secrets',
+      'https://api.elevenlabs.io/v1/workspace/secrets'
+    ];
+
+    let response = null;
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`Trying endpoint: ${endpoint}`);
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        console.log(`Endpoint ${endpoint} response status:`, response.status);
+        
+        if (response.ok) {
+          console.log(`Success with endpoint: ${endpoint}`);
+          break;
+        } else {
+          const errorText = await response.text();
+          console.log(`Endpoint ${endpoint} failed:`, response.status, errorText);
+          lastError = { status: response.status, text: errorText };
+        }
+      } catch (error) {
+        console.log(`Endpoint ${endpoint} error:`, error.message);
+        lastError = { error: error.message };
+      }
+    }
+
+    if (!response || !response.ok) {
+      console.error('All endpoints failed. Last error:', lastError);
+      return res.status(lastError?.status || 500).json({ 
+        error: 'Failed to create secret in ElevenLabs', 
+        details: lastError?.text || lastError?.error || 'All endpoints failed'
+      });
+    }
+
+    console.log('ElevenLabs response status:', response.status);
+    console.log('ElevenLabs response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('ElevenLabs create secret API error:', response.status, errorText);
+      return res.status(response.status).json({ 
+        error: 'Failed to create secret in ElevenLabs', 
+        details: errorText 
+      });
+    }
+
+    const secret = await response.json();
+    console.log('Successfully created secret:', secret);
+    
+    // Save secret to local database
+    try {
+      const insertQuery = `
+        INSERT INTO workspace_secrets (secret_id, name, type, used_by) 
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE 
+        name = VALUES(name), 
+        type = VALUES(type), 
+        used_by = VALUES(used_by),
+        updated_at = CURRENT_TIMESTAMP
+      `;
+      
+      const usedByJson = secret.used_by ? JSON.stringify(secret.used_by) : null;
+      
+      db.query(insertQuery, [
+        secret.secret_id || secret.id,
+        secret.name,
+        secret.type || 'new',
+        usedByJson
+      ], (dbErr, result) => {
+        if (dbErr) {
+          console.error('Failed to save secret to local database:', dbErr);
+          // Still return success since ElevenLabs creation was successful
+        } else {
+          console.log('Secret saved to local database successfully');
+        }
+      });
+    } catch (dbError) {
+      console.error('Error saving secret to local database:', dbError);
+      // Still return success since ElevenLabs creation was successful
+    }
+    
+    res.json(secret);
+  } catch (error) {
+    console.error('Error creating secret:', error);
+    res.status(500).json({ error: 'Failed to create secret', details: error.message });
+  }
+});
+
+// DELETE /api/elevenlabs/secrets/:secret_id - Delete a secret
+app.delete('/api/elevenlabs/secrets/:secret_id', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'ElevenLabs API key not configured' });
+    }
+
+    const { secret_id } = req.params;
+    const response = await fetch(`https://api.elevenlabs.io/v1/convai/secrets/${encodeURIComponent(secret_id)}`, {
+      method: 'DELETE',
+      headers: {
+        'xi-api-key': apiKey,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('ElevenLabs delete secret API error:', response.status, errorText);
+      return res.status(response.status).json({ 
+        error: 'Failed to delete secret from ElevenLabs', 
+        details: errorText 
+      });
+    }
+
+    // Delete secret from local database
+    try {
+      const deleteQuery = 'DELETE FROM workspace_secrets WHERE secret_id = ?';
+      db.query(deleteQuery, [secret_id], (dbErr, result) => {
+        if (dbErr) {
+          console.error('Failed to delete secret from local database:', dbErr);
+          // Still return success since ElevenLabs deletion was successful
+        } else {
+          console.log('Secret deleted from local database successfully');
+        }
+      });
+    } catch (dbError) {
+      console.error('Error deleting secret from local database:', dbError);
+      // Still return success since ElevenLabs deletion was successful
+    }
+
+    res.json({ success: true, message: 'Secret deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting secret:', error);
+    res.status(500).json({ error: 'Failed to delete secret', details: error.message });
+  }
+});
+
+// PATCH /api/elevenlabs/secrets/:secret_id - Update a secret
+app.patch('/api/elevenlabs/secrets/:secret_id', async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'ElevenLabs API key not configured' });
+    }
+
+    const { secret_id } = req.params;
+    const updateData = req.body;
+
+    const response = await fetch(`https://api.elevenlabs.io/v1/convai/secrets/${encodeURIComponent(secret_id)}`, {
+      method: 'PATCH',
+      headers: {
+        'xi-api-key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updateData),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('ElevenLabs update secret API error:', response.status, errorText);
+      return res.status(response.status).json({ 
+        error: 'Failed to update secret in ElevenLabs', 
+        details: errorText 
+      });
+    }
+
+    const secret = await response.json();
+    res.json(secret);
+  } catch (error) {
+    console.error('Error updating secret:', error);
+    res.status(500).json({ error: 'Failed to update secret', details: error.message });
   }
 });
 
