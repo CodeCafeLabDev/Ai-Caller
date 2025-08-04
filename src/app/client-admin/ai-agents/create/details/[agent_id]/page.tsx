@@ -13,6 +13,16 @@ import { useToast } from '@/components/ui/use-toast';
 import { FaBrain, FaTrash } from 'react-icons/fa';
 import WebhookModal from '@/components/ui/WebhookModal';
 import { Edit2, Copy, Check, Lock, X } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const LANGUAGES = [
   { code: "en", label: "English", flag: "🇺🇸" },
@@ -956,6 +966,9 @@ export default function AgentDetailsPage() {
   const [secretValue, setSecretValue] = useState("");
   const [isAddingSecret, setIsAddingSecret] = useState(false);
   const [workspaceSecrets, setWorkspaceSecrets] = useState<any[]>([]);
+  // Delete confirmation dialog state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [secretToDelete, setSecretToDelete] = useState<string>("");
 
   // Fetch tools on mount
   useEffect(() => {
@@ -2656,7 +2669,7 @@ export default function AgentDetailsPage() {
     }
   };
 
-  const handleDeleteSecret = async (secretName: string) => {
+  const handleDeleteSecret = (secretName: string) => {
     // Find the secret to check if it's in use
     const secret = workspaceSecrets.find(s => (s.id || s.name) === secretName);
     if (secret && isSecretInUse(secret)) {
@@ -2667,24 +2680,26 @@ export default function AgentDetailsPage() {
       });
       return;
     }
+    setSecretToDelete(secretName);
+    setShowDeleteDialog(true);
+  };
 
+  const confirmDeleteSecret = async () => {
     try {
-      // Delete secret from ElevenLabs
-      const response = await fetch(`/api/elevenlabs/secrets/${encodeURIComponent(secretName)}`, {
+      const response = await fetch(`/api/elevenlabs/secrets/${encodeURIComponent(secretToDelete)}`, {
         method: 'DELETE',
       });
-
       if (!response.ok) {
         throw new Error('Failed to delete secret from ElevenLabs');
       }
-
-      // Refresh secrets list from ElevenLabs
       await fetchWorkspaceSecrets();
-      
       toast({ title: 'Success', description: 'Secret deleted successfully' });
     } catch (error) {
       console.error('Error deleting secret:', error);
       toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to delete secret', variant: 'destructive' });
+    } finally {
+      setShowDeleteDialog(false);
+      setSecretToDelete("");
     }
   };
 
@@ -2803,62 +2818,76 @@ export default function AgentDetailsPage() {
           </div>
         </div>
       )}
-      {/* Add Secret Modal */}
+      {/* Add Secret Sidebar */}
       {showAddSecretModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-            <div className="flex items-center justify-between p-6 border-b">
-              <div className="flex items-center gap-2">
-                <Lock className="w-5 h-5 text-gray-600" />
-                <h2 className="text-lg font-semibold">Add secret</h2>
-              </div>
-              <button
-                onClick={() => setShowAddSecretModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6">
-              <p className="text-sm text-gray-600 mb-4">
-                Securely store a value that can be used by the tools. Once added the value cannot be retrieved.
-              </p>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={secretName}
-                    onChange={(e) => setSecretName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter secret name"
-                  />
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-30"
+            onClick={() => setShowAddSecretModal(false)}
+          />
+          
+          {/* Sidebar */}
+          <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-xl transform transition-transform duration-300 ease-in-out">
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-gray-600" />
+                  <h2 className="text-lg font-semibold">Add secret</h2>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
-                  <textarea
-                    value={secretValue}
-                    onChange={(e) => setSecretValue(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
-                    placeholder="Enter secret value"
-                  />
+                <button
+                  onClick={() => setShowAddSecretModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {/* Content */}
+              <div className="flex-1 p-6 overflow-y-auto">
+                <p className="text-sm text-gray-600 mb-6">
+                  Securely store a value that can be used by the tools. Once added the value cannot be retrieved.
+                </p>
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                    <input
+                      type="text"
+                      value={secretName}
+                      onChange={(e) => setSecretName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter secret name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Value</label>
+                    <textarea
+                      value={secretValue}
+                      onChange={(e) => setSecretValue(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-none"
+                      placeholder="Enter secret value"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex justify-end gap-3 p-6 border-t">
-              <button
-                onClick={() => setShowAddSecretModal(false)}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddSecret}
-                disabled={!secretName.trim() || !secretValue.trim() || isAddingSecret}
-                className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isAddingSecret ? 'Adding...' : 'Add secret'}
-              </button>
+              
+              {/* Footer */}
+              <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
+                <button
+                  onClick={() => setShowAddSecretModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddSecret}
+                  disabled={!secretName.trim() || !secretValue.trim() || isAddingSecret}
+                  className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {isAddingSecret ? 'Adding...' : 'Add secret'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -4261,6 +4290,21 @@ export default function AgentDetailsPage() {
         )}
         {/* New • Chat tab can be scaffolded similarly */}
       </div>
+      {/* Confirmation dialog for deleting secret */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Secret?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this secret? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteSecret} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 

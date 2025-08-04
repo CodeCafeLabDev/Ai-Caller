@@ -896,16 +896,16 @@ export default function AiAgentImportExportPage() {
       const elevenLabsPayload = {
         conversation_config: {
           agent: {
-            name: finalName,
-            description: finalCategory,
-            first_message: importedAgentDetails.agentData.firstMessage || importedAgentDetails.agentData.agentSettings?.first_message || '',
-            system_prompt: importedAgentDetails.agentData.systemPrompt || '',
-            llm: importedAgentDetails.agentData.agentSettings?.llm || 'gpt-4.1-nano',
-            temperature: importedAgentDetails.agentData.agentSettings?.temperature || 0.5,
-            token_limit: importedAgentDetails.agentData.agentSettings?.token_limit || -1,
-            custom_llm_url: importedAgentDetails.agentData.agentSettings?.custom_llm_url || '',
-            custom_llm_model_id: importedAgentDetails.agentData.agentSettings?.custom_llm_model_id || '',
-            custom_llm_api_key: importedAgentDetails.agentData.agentSettings?.custom_llm_api_key || '',
+        name: finalName,
+        description: finalCategory,
+        first_message: importedAgentDetails.agentData.firstMessage || importedAgentDetails.agentData.agentSettings?.first_message || '',
+        system_prompt: importedAgentDetails.agentData.systemPrompt || '',
+        llm: importedAgentDetails.agentData.agentSettings?.llm || 'gpt-4.1-nano',
+        temperature: importedAgentDetails.agentData.agentSettings?.temperature || 0.5,
+        token_limit: importedAgentDetails.agentData.agentSettings?.token_limit || -1,
+        custom_llm_url: importedAgentDetails.agentData.agentSettings?.custom_llm_url || '',
+        custom_llm_model_id: importedAgentDetails.agentData.agentSettings?.custom_llm_model_id || '',
+        custom_llm_api_key: importedAgentDetails.agentData.agentSettings?.custom_llm_api_key || '',
             custom_llm_headers: importedAgentDetails.agentData.agentSettings?.custom_llm_headers || [],
             additional_languages: importedAgentDetails.agentData.agentSettings?.additional_languages || [],
           }
@@ -1063,15 +1063,15 @@ export default function AiAgentImportExportPage() {
       const selectedClient = clients.find(c => c.id === selectedClientId);
       const clientName = selectedClient ? selectedClient.name : 'Unknown Client';
 
-      toast({
-        title: `Import Complete`,
+    toast({
+          title: `Import Complete`,
         description: `Agent "${finalName}" imported as ${status} for client "${clientName}". Category: ${finalCategory}.`,
-      });
+    });
         
-      resetImportState();
+    resetImportState();
         
-      // Reload agents list to show the new agent
-      await loadAvailableAgents();
+        // Reload agents list to show the new agent
+        await loadAvailableAgents();
       
     } catch (error) {
       console.error('Import error:', error);
