@@ -78,7 +78,24 @@ import {
   FileText,
   SheetIcon,
   CalendarDays as CalendarIcon,
+  MoreVertical,
 } from "lucide-react";
+import elevenLabsApi from "@/lib/elevenlabsApi";
+import { api } from '@/lib/apiConfig';
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent
+} from '@/components/ui/tabs';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetClose
+} from '@/components/ui/sheet';
 // Removed: import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
@@ -104,42 +121,10 @@ type FilterOption = {
   label: string;
 };
 
-const mockClients: FilterOption[] = [
-  { value: "all", label: "All Clients" },
-  { value: "client_1", label: "Innovate Corp" },
-  { value: "client_2", label: "Solutions Ltd" },
-  { value: "client_3", label: "Tech Ventures" },
-];
-
-const mockCampaigns: FilterOption[] = [
-  { value: "all", label: "All Campaigns" },
-  { value: "camp_1", label: "Q4 Lead Generation" },
-  { value: "camp_2", label: "New Product Launch" },
-  { value: "camp_3", label: "Feedback Drive" },
-];
-
-const callStatuses: CallStatus[] = ["All", "Completed", "Failed", "Missed", "Answered"];
-
-const mockReportData: ReportEntry[] = [
-  { id: "rep_1", date: subDays(new Date(), 1), clientName: "Innovate Corp", campaignName: "Q4 Lead Generation", totalCalls: 150, connectedRate: 85, avgDurationMinutes: 5, statusSummary: { Completed: 120, Failed: 20, Missed: 5, Answered: 125 } },
-  { id: "rep_2", date: subDays(new Date(), 1), clientName: "Solutions Ltd", campaignName: "New Product Launch", totalCalls: 90, connectedRate: 70, avgDurationMinutes: 3, statusSummary: { Completed: 60, Failed: 15, Missed: 15, Answered: 75 } },
-  { id: "rep_3", date: subDays(new Date(), 2), clientName: "Innovate Corp", campaignName: "Q4 Lead Generation", totalCalls: 160, connectedRate: 90, avgDurationMinutes: 6, statusSummary: { Completed: 140, Failed: 10, Missed: 10, Answered: 150 } },
-  { id: "rep_4", date: subDays(new Date(), 7), clientName: "Tech Ventures", campaignName: "Feedback Drive", totalCalls: 200, connectedRate: 95, avgDurationMinutes: 2, statusSummary: { Completed: 190, Failed: 5, Missed: 5, Answered: 195 } },
-   { id: "rep_5", date: subDays(new Date(), 30), clientName: "Solutions Ltd", campaignName: "Old Campaign", totalCalls: 500, connectedRate: 60, avgDurationMinutes: 4, statusSummary: { Completed: 300, Failed: 150, Missed: 50, Answered: 350 } },
-];
-
-const kpiData = {
-    totalCallsPlaced: 2350,
-    successfulCalls: 2100,
-    averageDuration: "4:15 min",
-    pickupRate: "89%",
-    aiConversationSuccessRate: "75%",
-    callsByLanguage: { English: 1800, Spanish: 450, French: 100 },
-};
-
 type ExportFormat = "CSV" | "Excel" | "PDF";
 type ReportPeriod = "Current View" | "Daily Summary" | "Weekly Summary" | "Monthly Summary";
 
+const callStatuses: CallStatus[] = ["All", "Completed", "Failed", "Missed", "Answered"];
 
 export default function CallReportsPage() {
   const { toast } = useToast();
@@ -147,31 +132,196 @@ export default function CallReportsPage() {
     from: subDays(new Date(), 7),
     to: new Date(),
   });
+  const [clients, setClients] = React.useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = React.useState<string>("all");
-  const [selectedCampaignId, setSelectedCampaignId] = React.useState<string>("all");
+  const [agents, setAgents] = React.useState<any[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = React.useState<string>("all");
   const [selectedStatus, setSelectedStatus] = React.useState<CallStatus>("All");
-
   const [clientOpen, setClientOpen] = React.useState(false);
-  const [campaignOpen, setCampaignOpen] = React.useState(false);
-  
+  const [agentOpen, setAgentOpen] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 10;
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [conversations, setConversations] = React.useState<any[]>([]);
+  const [usageDetails, setUsageDetails] = React.useState<any>(null);
+  const [conversationSheetOpen, setConversationSheetOpen] = React.useState(false);
+  const [selectedConversation, setSelectedConversation] = React.useState<any>(null);
+  const [conversationDetails, setConversationDetails] = React.useState<any>(null);
+  const [conversationAudioUrl, setConversationAudioUrl] = React.useState<string | null>(null);
+  const [conversationTab, setConversationTab] = React.useState('overview');
+  const [conversationLoading, setConversationLoading] = React.useState(false);
 
+  // Fetch clients on mount
+  React.useEffect(() => {
+    api.getClients()
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data)) {
+          setClients(data.data);
+        }
+      });
+  }, []);
+
+  // Fetch agents for selected client
+  React.useEffect(() => {
+    async function fetchAgents() {
+      setAgents([]);
+      setSelectedAgentId("all");
+      
+      try {
+        console.log("Fetching agents for client:", selectedClientId);
+        
+        // Get agent-client mappings from your local database
+        const localAgentsRes = await fetch('/api/agents');
+        const localAgentsData = await localAgentsRes.json();
+        
+        // Filter agents based on selection
+        let clientAgents;
+        if (selectedClientId === "all") {
+          // Show all agents that are assigned to any client
+          clientAgents = (localAgentsData.data || []).filter((agent: any) => 
+            agent.client_id != null && agent.client_id !== undefined
+          );
+        } else {
+          // Show only agents for the selected client
+          clientAgents = (localAgentsData.data || []).filter((agent: any) => 
+            String(agent.client_id) === String(selectedClientId)
+          );
+        }
+        
+        console.log("Local agents for client:", clientAgents);
+        
+        // Use local agent data directly since ElevenLabs API is returning 404s
+        // This ensures agents show up even if ElevenLabs API fails
+        const processedAgents = clientAgents.map((localAgent: any) => ({
+          agent_id: localAgent.agent_id,
+          agent_name: localAgent.name || localAgent.agent_name || `Agent ${localAgent.agent_id}`,
+          client_id: localAgent.client_id,
+          local_agent_id: localAgent.agent_id,
+          // Add other local fields as needed
+          description: localAgent.description,
+          status: localAgent.status || 'active'
+        }));
+        
+        console.log("Processed agents for client:", processedAgents);
+        setAgents(processedAgents);
+        
+      } catch (error) {
+        console.error("Error fetching agents:", error);
+        setError("Failed to fetch agents");
+      }
+    }
+    fetchAgents();
+  }, [selectedClientId]);
+
+  // Fetch agent data when agent is selected
+  React.useEffect(() => {
+    async function fetchAgentData() {
+      if (selectedAgentId === "all" || !selectedAgentId) {
+        setConversations([]);
+        setUsageDetails(null);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        console.log("Fetching data for agent:", selectedAgentId);
+        
+        // Convert date range to Unix timestamps (in seconds, not milliseconds)
+        const startUnix = Math.floor((dateRange?.from?.getTime() || Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
+        const endUnix = Math.floor((dateRange?.to?.getTime() || Date.now()) / 1000);
+
+        console.log("Date range:", { startUnix, endUnix, from: dateRange?.from, to: dateRange?.to });
+
+        // Fetch conversations
+        let conversationsData = [];
+        try {
+          const conversationsRes = await elevenLabsApi.listConversations({
+            agent_id: selectedAgentId,
+            call_start_after_unix: startUnix,
+            call_start_before_unix: endUnix,
+            page_size: 100,
+            summary_mode: "include"
+          });
+
+          if (conversationsRes.ok) {
+            const conversationsJson = await conversationsRes.json();
+            conversationsData = conversationsJson.conversations || [];
+            console.log("Conversations fetched:", conversationsData.length);
+          } else {
+            console.error("Failed to fetch conversations:", conversationsRes.status, conversationsRes.statusText);
+            // Continue with empty conversations data
+          }
+        } catch (error) {
+          console.error("Error fetching conversations:", error);
+          // Continue with empty conversations data
+        }
+
+        // Fetch usage stats
+        let usageData = null;
+        try {
+          const usageRes = await elevenLabsApi.getUsageStats({
+            start_unix: startUnix,
+            end_unix: endUnix
+          });
+
+          if (usageRes.ok) {
+            usageData = await usageRes.json();
+            console.log("Usage stats fetched:", usageData);
+          } else {
+            console.error("Failed to fetch usage stats:", usageRes.status, usageRes.statusText);
+            // Continue with null usage data
+          }
+        } catch (error) {
+          console.error("Error fetching usage stats:", error);
+          // Continue with null usage data
+        }
+
+        setConversations(conversationsData);
+        setUsageDetails(usageData);
+
+      } catch (error) {
+        console.error("Error in fetchAgentData:", error);
+        setError("Failed to fetch agent data");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchAgentData();
+  }, [selectedAgentId, dateRange]);
+
+  // Filter conversations by status
   const filteredData = React.useMemo(() => {
-    return mockReportData.filter(entry => {
-      const dateMatch = dateRange?.from && dateRange?.to ? 
-        entry.date >= dateRange.from && entry.date <= addDays(dateRange.to, 1) : true; 
-      const clientMatch = selectedClientId === "all" || mockClients.find(c=>c.label === entry.clientName)?.value === selectedClientId;
-      const campaignMatch = selectedCampaignId === "all" || mockCampaigns.find(c=>c.label === entry.campaignName)?.value === selectedCampaignId;
-      return dateMatch && clientMatch && campaignMatch;
+    return conversations.filter((conv: any) => {
+      const statusMatch = selectedStatus === "All" || conv.status === selectedStatus;
+      return statusMatch;
     });
-  }, [dateRange, selectedClientId, selectedCampaignId]);
+  }, [conversations, selectedStatus]);
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const paginatedData = filteredData.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // KPIs (example: total calls, successful calls, avg duration, etc.)
+  const kpiData = React.useMemo(() => {
+    const totalCallsPlaced = filteredData.length;
+    const successfulCalls = filteredData.filter((c: any) => c.call_successful === "success").length;
+    const avgDuration = totalCallsPlaced > 0 ?
+      (filteredData.reduce((sum: number, c: any) => sum + (c.call_duration_secs || 0), 0) / totalCallsPlaced) : 0;
+    const pickupRate = totalCallsPlaced > 0 ?
+      Math.round((filteredData.filter((c: any) => c.status === "Answered").length / totalCallsPlaced) * 100) : 0;
+    return {
+      totalCallsPlaced,
+      successfulCalls,
+      averageDuration: avgDuration ? `${(avgDuration / 60).toFixed(2)} min` : "0 min",
+      pickupRate: `${pickupRate}%`,
+      aiConversationSuccessRate: "-",
+      callsByLanguage: {},
+    };
+  }, [filteredData]);
 
   const handleApplyFilters = () => {
     setCurrentPage(1); 
@@ -181,7 +331,7 @@ export default function CallReportsPage() {
   const handleResetFilters = () => {
     setDateRange({ from: subDays(new Date(), 7), to: new Date() });
     setSelectedClientId("all");
-    setSelectedCampaignId("all");
+    setSelectedAgentId("all");
     setSelectedStatus("All");
     setCurrentPage(1);
     toast({ title: "Filters Reset", description: "Report filters have been reset to default." });
@@ -195,6 +345,52 @@ export default function CallReportsPage() {
     });
     console.log(`Simulating export of ${period} as ${format}. Intended fields: Call ID, Client Name, Campaign Name, Phone Number (masked), Status, Duration, Timestamp, AI Agent Used. Current filtered (summarized) data:`, filteredData);
   };
+
+  async function handleShowConversation(conversation: any) {
+    setSelectedConversation(conversation);
+    setConversationSheetOpen(true);
+    setConversationDetails(null);
+    setConversationAudioUrl(null);
+    setConversationTab('overview');
+    setConversationLoading(true);
+    try {
+      // Fetch conversation details
+      const detailsRes = await elevenLabsApi.getConversationDetails(conversation.conversation_id);
+      const details = await detailsRes.json();
+      console.log('ElevenLabs Conversation Details API response:', details);
+      setConversationDetails(details);
+      // Fetch audio (get signed URL if needed)
+      try {
+        const audioRes = await elevenLabsApi.getConversationAudio(conversation.conversation_id);
+        if (audioRes.ok) {
+          const audioBlob = await audioRes.blob();
+          setConversationAudioUrl(URL.createObjectURL(audioBlob));
+        } else {
+          setConversationAudioUrl(null);
+        }
+      } catch {
+        setConversationAudioUrl(null);
+      }
+    } catch (err) {
+      console.error('Error fetching conversation details:', err);
+      setConversationDetails(null);
+    } finally {
+      setConversationLoading(false);
+    }
+  }
+
+  async function handleDeleteConversation() {
+    if (!selectedConversation) return;
+    await elevenLabsApi.deleteConversation(selectedConversation.conversation_id);
+    setConversationSheetOpen(false);
+    // Optionally refresh data
+  }
+
+  // Compute clientOptions from clients state
+  const clientOptions = React.useMemo(() => [
+    { value: 'all', label: 'All Clients' },
+    ...clients.map((c: any) => ({ value: String(c.id), label: c.companyName }))
+  ], [clients]);
 
   return (
     <div className="container mx-auto py-8 space-y-8">
@@ -299,7 +495,7 @@ export default function CallReportsPage() {
               <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" aria-expanded={clientOpen} className="w-full justify-between h-9">
                   <Users className="mr-2 h-4 w-4 opacity-50 shrink-0" />
-                  {mockClients.find(client => client.value === selectedClientId)?.label || "Select Client"}
+                  {clientOptions.find(client => client.value === selectedClientId)?.label || "Select Client"}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -308,7 +504,7 @@ export default function CallReportsPage() {
                   <CommandInput placeholder="Search client..." />
                   <CommandList><CommandEmpty>No client found.</CommandEmpty>
                   <CommandGroup>
-                    {mockClients.map(client => (
+                    {clientOptions.map(client => (
                       <CommandItem key={client.value} value={client.label} onSelect={() => { setSelectedClientId(client.value); setClientOpen(false); }}>
                         <Check className={cn("mr-2 h-4 w-4", selectedClientId === client.value ? "opacity-100" : "opacity-0")} />
                         {client.label}
@@ -321,23 +517,23 @@ export default function CallReportsPage() {
           </div>
            <div className="flex flex-col space-y-1.5">
             <span className="text-sm font-medium">Campaign</span>
-            <Popover open={campaignOpen} onOpenChange={setCampaignOpen}>
+            <Popover open={agentOpen} onOpenChange={setAgentOpen}>
               <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={campaignOpen} className="w-full justify-between h-9">
-                  <Megaphone className="mr-2 h-4 w-4 opacity-50 shrink-0" />
-                  {mockCampaigns.find(campaign => campaign.value === selectedCampaignId)?.label || "Select Campaign"}
+                <Button variant="outline" role="combobox" aria-expanded={agentOpen} className="w-full justify-between h-9">
+                  <Users className="mr-2 h-4 w-4 opacity-50 shrink-0" />
+                  {agents.find(agent => agent.agent_id === selectedAgentId)?.agent_name || "Select Agent"}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                 <Command>
-                  <CommandInput placeholder="Search campaign..." />
-                  <CommandList><CommandEmpty>No campaign found.</CommandEmpty>
+                  <CommandInput placeholder="Search agent..." />
+                  <CommandList><CommandEmpty>No agent found.</CommandEmpty>
                   <CommandGroup>
-                    {mockCampaigns.map(campaign => (
-                      <CommandItem key={campaign.value} value={campaign.label} onSelect={() => { setSelectedCampaignId(campaign.value); setCampaignOpen(false); }}>
-                        <Check className={cn("mr-2 h-4 w-4", selectedCampaignId === campaign.value ? "opacity-100" : "opacity-0")} />
-                        {campaign.label}
+                    {agents.map(agent => (
+                      <CommandItem key={agent.agent_id} value={agent.agent_name} onSelect={() => { setSelectedAgentId(agent.agent_id); setAgentOpen(false); }}>
+                        <Check className={cn("mr-2 h-4 w-4", selectedAgentId === agent.agent_id ? "opacity-100" : "opacity-0")} />
+                        {agent.agent_name}
                       </CommandItem>
                     ))}
                   </CommandGroup></CommandList>
@@ -381,27 +577,6 @@ export default function CallReportsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="md:col-span-1">
-          <CardHeader><CardTitle className="flex items-center"><LineChart className="mr-2 h-5 w-5"/>Calls Over Time</CardTitle></CardHeader>
-          <CardContent>
-            <Image data-ai-hint="line chart calls" src="https://placehold.co/600x400.png?text=Calls/Day+Chart" alt="Placeholder: Line chart of calls per day" width={600} height={400} className="rounded-md w-full"/>
-          </CardContent>
-        </Card>
-        <Card className="md:col-span-1">
-          <CardHeader><CardTitle className="flex items-center"><PieChartIcon className="mr-2 h-5 w-5"/>Call Status Breakdown</CardTitle></CardHeader>
-          <CardContent>
-            <Image data-ai-hint="pie chart status" src="https://placehold.co/400x400.png?text=Status+Pie+Chart" alt="Placeholder: Pie chart of call status breakdown" width={400} height={400} className="rounded-md w-full aspect-square object-cover"/>
-          </CardContent>
-        </Card>
-        <Card className="md:col-span-1">
-          <CardHeader><CardTitle className="flex items-center"><BarChartBig className="mr-2 h-5 w-5"/>Calls by Client/Campaign</CardTitle></CardHeader>
-          <CardContent>
-             <Image data-ai-hint="bar chart clients" src="https://placehold.co/600x400.png?text=Calls+by+Client+Chart" alt="Placeholder: Bar chart of calls by client" width={600} height={400} className="rounded-md w-full"/>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Detailed Call Report Data</CardTitle>
@@ -413,36 +588,44 @@ export default function CallReportsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
+                  <TableHead>Agent</TableHead>
                   <TableHead>Client</TableHead>
-                  <TableHead>Campaign</TableHead>
-                  <TableHead className="text-right">Total Calls</TableHead>
-                  <TableHead className="text-right">Connected %</TableHead>
-                  <TableHead className="text-right">Avg. Duration (min)</TableHead>
-                  <TableHead>Status Summary (C/F/M/A)</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>Messages</TableHead>
+                  <TableHead>Evaluation result</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedData.length > 0 ? paginatedData.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell>{format(entry.date, "MMM dd, yyyy")}</TableCell>
-                    <TableCell>{entry.clientName}</TableCell>
-                    <TableCell>{entry.campaignName}</TableCell>
-                    <TableCell className="text-right">{entry.totalCalls}</TableCell>
-                    <TableCell className="text-right">{entry.connectedRate}%</TableCell>
-                    <TableCell className="text-right">{entry.avgDurationMinutes.toFixed(1)}</TableCell>
+                {paginatedData.length > 0 ? paginatedData.map((entry, index) => {
+                  const agent = agents.find((a: any) => a.agent_id === entry.agent_id);
+                  const clientName = agent?.client_name || clients.find((c: any) => String(c.id) === String(agent?.client_id))?.companyName || "N/A";
+                  return (
+                    <TableRow key={entry.conversation_id || entry.agent_id || `entry-${index}`}>
+                      <TableCell>{entry.start_time_unix_secs ? format(new Date(entry.start_time_unix_secs * 1000), "MMM dd, yyyy, hh:mm a") : "N/A"}</TableCell>
+                      <TableCell>{entry.agent_name || agent?.agent_name || "N/A"}</TableCell>
+                      <TableCell>{clientName}</TableCell>
+                      <TableCell>{entry.call_duration_secs ? `${Math.floor(entry.call_duration_secs / 60)}:${(entry.call_duration_secs % 60).toString().padStart(2, '0')}` : "0:00"}</TableCell>
+                      <TableCell>{entry.message_count ?? (entry.messages ? entry.messages.length : 0)}</TableCell>
+                      <TableCell><Badge variant="secondary" className="text-xs">{entry.evaluation_result || "Unknown"}</Badge></TableCell>
                     <TableCell>
-                        <div className="flex gap-1 flex-wrap">
-                            <Badge variant="secondary" className="text-xs">C: {entry.statusSummary.Completed}</Badge>
-                            <Badge variant="destructive" className="text-xs">F: {entry.statusSummary.Failed}</Badge>
-                            <Badge variant="outline" className="text-xs">M: {entry.statusSummary.Missed}</Badge>
-                            <Badge variant="default" className="text-xs bg-green-500 hover:bg-green-600">A: {entry.statusSummary.Answered}</Badge>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon"><span className="sr-only">Actions</span><ChevronsUpDown className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleShowConversation(entry)}>
+                              Show Conversation
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                )) : (
+                  );
+                }) : (
                   <TableRow>
                     <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                      No data available for the selected filters.
+                      {loading ? "Loading data..." : error ? error : "No data available for the selected filters."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -475,6 +658,180 @@ export default function CallReportsPage() {
            </div>
         </CardFooter>
       </Card>
+      
+      {/* ElevenLabs Raw Data Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>ElevenLabs Raw Data</CardTitle>
+          <CardDescription>Complete data fetched from ElevenLabs Usage API and Conversations API</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Usage Details */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3">Usage Details (ElevenLabs Usage API)</h3>
+            <div className="bg-muted p-4 rounded-lg">
+              <pre className="text-sm overflow-auto whitespace-pre-wrap">
+                {usageDetails ? JSON.stringify(usageDetails, null, 2) : "No usage data available"}
+              </pre>
+            </div>
+          </div>
+          
+          {/* Conversations Data */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3">Conversations Data (ElevenLabs Conversations API)</h3>
+            <div className="bg-muted p-4 rounded-lg">
+              <pre className="text-sm overflow-auto whitespace-pre-wrap">
+                {conversations.length > 0 ? JSON.stringify(conversations, null, 2) : "No conversations data available"}
+              </pre>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      <Sheet open={conversationSheetOpen} onOpenChange={setConversationSheetOpen}>
+        <SheetContent
+          side="right"
+          className="!w-[1000px] !max-w-none !min-w-[1000px] px-0"
+          style={{ width: '1000px', maxWidth: '1000px', minWidth: '1000px' }}
+        >
+          <SheetHeader>
+            <SheetTitle>
+              Conversation with {selectedConversation?.agent_name || 'Agent'}
+            </SheetTitle>
+            <SheetDescription>
+              {selectedConversation?.conversation_id}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-col md:flex-row gap-6 mt-4">
+            <div className="flex-1 min-w-0">
+              <Tabs value={conversationTab} onValueChange={setConversationTab} className="w-full">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="transcription">Transcription</TabsTrigger>
+                  <TabsTrigger value="clientdata">Client data</TabsTrigger>
+                </TabsList>
+                <TabsContent value="overview">
+                  {conversationLoading ? 'Loading...' : (
+                    <div className="space-y-6">
+                      {/* Summary */}
+                      <div>
+                        <div className="font-semibold text-base mb-2">Summary</div>
+                        <div className="text-sm text-gray-700 leading-relaxed">{conversationDetails?.transcript_summary || selectedConversation?.transcript_summary || 'N/A'}</div>
+                      </div>
+                      {/* Call status */}
+                      <div>
+                        <div className="font-semibold text-base mb-2">Call status</div>
+                        <div className="text-sm text-gray-700">{conversationDetails?.analysis?.call_successful || 'Unknown'}</div>
+                      </div>
+                      {/* User ID */}
+                      <div>
+                        <div className="font-semibold text-base mb-2">User ID</div>
+                        <div className="text-sm text-gray-700 font-mono">{conversationDetails?.user_id || 'Unknown'}</div>
+                      </div>
+                      {/* Criteria evaluation */}
+                      {conversationDetails?.analysis?.evaluation_criteria_results && (
+                        <div>
+                          <div className="font-semibold text-base mb-2">Criteria evaluation</div>
+                          <div className="text-sm text-gray-600 mb-3">0 of {Object.keys(conversationDetails.analysis.evaluation_criteria_results).length} successful</div>
+                          {Object.entries(conversationDetails.analysis.evaluation_criteria_results).map(([key, val]: [string, any]) => (
+                            <div key={key} className="mb-4">
+                              <div className="font-semibold text-sm text-gray-800 mb-1">{key.replace(/_/g, ' ')}</div>
+                              <div className="text-sm text-gray-700 mb-1">{val.value ?? 'unknown'}</div>
+                              {val.rationale && <div className="text-xs text-gray-500 leading-relaxed">{val.rationale}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* Data collection */}
+                      {conversationDetails?.analysis?.data_collection_results && (
+                        <div>
+                          <div className="font-semibold text-base mb-2">Data collection</div>
+                          {Object.entries(conversationDetails.analysis.data_collection_results).map(([key, val]: [string, any]) => (
+                            <div key={key} className="mb-4">
+                              <div className="font-semibold text-sm text-gray-800 mb-1">{key}</div>
+                              <div className="text-sm text-gray-700 mb-1">Type: {val.json_schema?.type || 'unknown'}</div>
+                              <div className="text-sm text-gray-700 mb-1">Value: {val.value === null ? 'null' : String(val.value)}</div>
+                              {val.rationale && <div className="text-xs text-gray-500 leading-relaxed">{val.rationale}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* Call summary title */}
+                      {conversationDetails?.analysis?.call_summary_title && (
+                        <div>
+                          <div className="font-semibold text-base mb-2">Call summary title</div>
+                          <div className="text-sm text-gray-700">{conversationDetails.analysis.call_summary_title}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent value="transcription">
+                  {conversationLoading ? 'Loading...' : (
+                    <div className="space-y-2">
+                      {(conversationDetails?.transcript || []).map((msg: any, i: number) => (
+                        <div key={i} className="text-sm">
+                          <span className="font-semibold">{msg.role || 'Speaker'}:</span> {msg.message || ''} <span className="text-xs text-muted-foreground">{msg.timestamp ? `(${msg.timestamp})` : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent value="clientdata">
+                  {conversationLoading ? 'Loading...' : (
+                    <div className="space-y-2">
+                      {conversationDetails?.conversation_initiation_client_data ? (
+                        Object.entries(conversationDetails.conversation_initiation_client_data).map(([key, value]: [string, any]) => (
+                          <div key={key} className="text-sm">
+                            <span className="font-semibold">{key}:</span> {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                          </div>
+                        ))
+                      ) : 'No client data'}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+              {/* Audio player */}
+              {conversationAudioUrl && (
+                <audio controls src={conversationAudioUrl} className="w-full mt-4" />
+              )}
+            </div>
+            {/* Metadata sidebar */}
+            <div className="w-full md:w-64 flex-shrink-0 border-l pl-4">
+              <div className="mb-4 text-sm font-semibold text-gray-800">Metadata</div>
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Date</div>
+                  <div className="text-sm text-gray-700">{conversationDetails?.metadata?.accepted_time_unix_secs ? format(new Date(conversationDetails.metadata.accepted_time_unix_secs * 1000), 'MMM dd, yyyy, hh:mm a') : 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Connection duration</div>
+                  <div className="text-sm text-gray-700">{conversationDetails?.metadata?.call_duration_secs ? `${Math.floor(conversationDetails.metadata.call_duration_secs / 60)}:${(conversationDetails.metadata.call_duration_secs % 60).toString().padStart(2, '0')}` : '0:00'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Credits (call)</div>
+                  <div className="text-sm text-gray-700">{conversationDetails?.metadata?.cost || 'N/A'}</div>
+                  {conversationDetails?.metadata?.charging?.dev_discount && (
+                    <div className="text-xs text-gray-500">Development discount applied</div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">Credits (LLM)</div>
+                  <div className="text-sm text-gray-700">{conversationDetails?.metadata?.charging?.llm_usage?.total_tokens || 'N/A'}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 mb-1">LLM Cost</div>
+                  <div className="text-sm text-gray-700">${conversationDetails?.metadata?.charging?.llm_price || '0.0000'} / min</div>
+                  <div className="text-sm text-gray-700">Total: ${conversationDetails?.metadata?.charging?.llm_cost || '0.0000'}</div>
+                </div>
+              </div>
+              {/* Actions */}
+              <div className="mt-6 space-y-2">
+                <Button variant="destructive" size="sm" onClick={handleDeleteConversation} className="w-full">Delete Conversation</Button>
+              </div>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

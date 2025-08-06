@@ -1,8 +1,11 @@
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1";
 
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+const ELEVENLABS_API_KEY = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY;
 
 function withApiKeyHeaders(headers: Record<string, string> = {}) {
+  if (!ELEVENLABS_API_KEY) {
+    console.warn("ElevenLabs API key not found. Please set NEXT_PUBLIC_ELEVENLABS_API_KEY environment variable.");
+  }
   return ELEVENLABS_API_KEY
     ? { ...headers, "xi-api-key": ELEVENLABS_API_KEY }
     : headers;
@@ -75,12 +78,62 @@ export const elevenLabsApi = {
   getConversations: (agentId: string): Promise<Response> => fetch(`${ELEVENLABS_BASE_URL}/agents/${agentId}/conversations`, {
     headers: withApiKeyHeaders(),
   }),
-  getConversationDetails: (agentId: string, conversationId: string): Promise<Response> => fetch(`${ELEVENLABS_BASE_URL}/agents/${agentId}/conversations/${conversationId}`, {
-    headers: withApiKeyHeaders(),
-  }),
-  getConversationAudio: (agentId: string, conversationId: string): Promise<Response> => fetch(`${ELEVENLABS_BASE_URL}/agents/${agentId}/conversations/${conversationId}/audio`, {
-    headers: withApiKeyHeaders(),
-  }),
+  deleteConversation: (conversationId: string): Promise<Response> =>
+    fetch(`${ELEVENLABS_BASE_URL}/convai/conversations/${conversationId}`, {
+      method: 'DELETE',
+      headers: withApiKeyHeaders(),
+    }),
+  getConversationDetails: (conversationId: string): Promise<Response> =>
+    fetch(`${ELEVENLABS_BASE_URL}/convai/conversations/${conversationId}`, {
+      headers: withApiKeyHeaders(),
+    }),
+  getConversationAudio: (conversationId: string): Promise<Response> =>
+    fetch(`${ELEVENLABS_BASE_URL}/convai/conversations/${conversationId}/audio`, {
+      headers: withApiKeyHeaders(),
+    }),
+  /**
+   * Get character usage metrics (https://elevenlabs.io/docs/api-reference/usage/get)
+   * @param params { start_unix: number, end_unix: number, breakdown_type?: string, include_workspace_metrics?: boolean, aggregation_interval?: string, metric?: string }
+   */
+  getUsageStats: (params: {
+    start_unix: number,
+    end_unix: number,
+    breakdown_type?: string,
+    include_workspace_metrics?: boolean,
+    aggregation_interval?: string,
+    metric?: string,
+  }): Promise<Response> => {
+    const url = new URL(`${ELEVENLABS_BASE_URL}/usage/character-stats`);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) url.searchParams.append(key, String(value));
+    });
+    return fetch(url.toString(), {
+      headers: withApiKeyHeaders(),
+    });
+  },
+
+  /**
+   * List conversations (https://elevenlabs.io/docs/api-reference/conversations/list)
+   * @param params { agent_id?: string, user_id?: string, call_successful?: string, call_start_before_unix?: number, call_start_after_unix?: number, page_size?: number, cursor?: string, summary_mode?: string }
+   */
+  listConversations: (params: {
+    agent_id?: string,
+    user_id?: string,
+    call_successful?: string,
+    call_start_before_unix?: number,
+    call_start_after_unix?: number,
+    page_size?: number,
+    cursor?: string,
+    summary_mode?: string,
+  } = {}): Promise<Response> => {
+    const url = new URL(`${ELEVENLABS_BASE_URL}/convai/conversations`);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) url.searchParams.append(key, String(value));
+    });
+    return fetch(url.toString(), {
+      headers: withApiKeyHeaders(),
+    });
+  },
 };
 
 export default elevenLabsApi; 
