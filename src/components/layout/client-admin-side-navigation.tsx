@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Megaphone, Users, CreditCard, UserCircle, ChevronDown, ChevronRight, ClipboardList, Bot, History, Languages, Volume2, BookOpen, Import, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, CreditCard, UserCircle, ChevronDown, ChevronRight, ClipboardList, Bot, History, Languages, Volume2, BookOpen, Import, UserPlus, BarChart2, AlertTriangle, FileText, TrendingUp, FileDown } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -58,6 +58,18 @@ const clientAdminNavItems: ClientAdminNavItem[] = [
     ]
   },
   // --- AI Agents Section End ---
+  {
+    label: 'Reports & Analytics',
+    icon: BarChart2,
+    basePath: '/client-admin/reports-analytics',
+    subItems: [
+      { href: '/client-admin/reports-analytics/call-reports', label: 'Call Reports', icon: FileText },
+      { href: '/client-admin/reports-analytics/system-usage-trends', label: 'System Usage Trends', icon: TrendingUp },
+      { href: '/client-admin/reports-analytics/error-logs', label: 'Error & System Logs', icon: AlertTriangle },
+      { href: '/client-admin/reports-analytics/failed-call-reports', label: 'Failed Call Reports', icon: FileText },
+      { href: '/client-admin/reports-analytics/export-data', label: 'Export Data', icon: FileDown },
+    ]
+  },
   { href: '/client-admin/users', label: 'Manage Users', icon: Users, basePath: '/client-admin/users' },
   { href: '/client-admin/billing', label: 'Billing & Invoices', icon: CreditCard, basePath: '/client-admin/billing' },
   { href: '/client-admin/profile', label: 'My Profile', icon: UserCircle, basePath: '/client-admin/profile' },

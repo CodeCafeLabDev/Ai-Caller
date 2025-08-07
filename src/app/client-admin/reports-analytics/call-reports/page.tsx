@@ -99,6 +99,7 @@ import {
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { useUser } from '@/components/UserHydrator';
 // Removed: import type { Metadata } from 'next';
 
 // export const metadata: Metadata = {
@@ -131,16 +132,14 @@ const callStatuses: CallStatus[] = ["All", "Completed", "Failed", "Missed", "Ans
 
 export default function CallReportsPage() {
   const { toast } = useToast();
+  const { user } = useUser();
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>({
     from: subDays(new Date(), 7),
     to: new Date(),
   });
-  const [clients, setClients] = React.useState<any[]>([]);
-  const [selectedClientId, setSelectedClientId] = React.useState<string>("all");
   const [agents, setAgents] = React.useState<any[]>([]);
   const [selectedAgentId, setSelectedAgentId] = React.useState<string>("all");
   const [selectedStatus, setSelectedStatus] = React.useState<CallStatus>("All");
-  const [clientOpen, setClientOpen] = React.useState(false);
   const [agentOpen, setAgentOpen] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 10;
@@ -155,40 +154,25 @@ export default function CallReportsPage() {
   const [conversationTab, setConversationTab] = React.useState('overview');
   const [conversationLoading, setConversationLoading] = React.useState(false);
   const [pendingFilters, setPendingFilters] = React.useState({
-    clientId: "all",
     agentId: "all",
     status: "All" as CallStatus,
     dateRange: { from: subDays(new Date(), 7), to: new Date() } as DateRange | undefined
   });
 
-  // Fetch clients on mount
-  React.useEffect(() => {
-    api.getClients()
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && Array.isArray(data.data)) {
-          setClients(data.data);
-        }
-      });
-  }, []);
-
-  // Fetch agents for selected client (now using pendingFilters.clientId)
+  // Fetch agents for the current client admin only
   React.useEffect(() => {
     async function fetchAgents() {
       setAgents([]);
       setSelectedAgentId("all");
       try {
-        const clientId = pendingFilters.clientId;
-        // Get agent-client mappings from your local database
+        const clientId = user?.clientId;
+        console.log("Fetching agents for client admin:", clientId);
         const localAgentsRes = await fetch('/api/agents');
         const localAgentsData = await localAgentsRes.json();
-        // Filter agents based on selection
-        let clientAgents;
-        if (clientId === "all") {
-          clientAgents = (localAgentsData.data || []).filter((agent: any) => agent.client_id != null && agent.client_id !== undefined);
-        } else {
-          clientAgents = (localAgentsData.data || []).filter((agent: any) => String(agent.client_id) === String(clientId));
-        }
+        console.log("All agents from API:", localAgentsData.data);
+        // Only show agents for the current client admin
+        const clientAgents = (localAgentsData.data || []).filter((agent: any) => String(agent.client_id) === String(clientId));
+        console.log("Filtered agents for client:", clientAgents);
         const processedAgents = clientAgents.map((localAgent: any) => ({
           agent_id: localAgent.agent_id,
           agent_name: localAgent.name || localAgent.agent_name || `Agent ${localAgent.agent_id}`,
@@ -197,13 +181,19 @@ export default function CallReportsPage() {
           description: localAgent.description,
           status: localAgent.status || 'active'
         }));
+        console.log("Processed agents:", processedAgents);
         setAgents(processedAgents);
       } catch (error) {
+        console.error("Error fetching agents:", error);
         setError("Failed to fetch agents");
       }
     }
-    fetchAgents();
-  }, [pendingFilters.clientId]);
+    if (user?.clientId) {
+      fetchAgents();
+    } else {
+      console.log("No clientId found in user:", user);
+    }
+  }, [user?.clientId]);
 
   // Fetch agent data when agent is selected
   React.useEffect(() => {
@@ -212,28 +202,34 @@ export default function CallReportsPage() {
       const endUnix = Math.floor((dateRange?.to?.getTime() || Date.now()) / 1000);
       setLoading(true);
       setError(null);
-      let conversationsData = [];
+      let conversationsData: any[] = [];
       let usageData = null;
       try {
         if (selectedAgentId === "all" || !selectedAgentId) {
-          // Fetch all conversations (no agent_id filter)
-          try {
-            const conversationsRes = await elevenLabsApi.listConversations({
-              call_start_after_unix: startUnix,
-              call_start_before_unix: endUnix,
-              page_size: 100,
-              summary_mode: "include"
-            });
-            if (conversationsRes.ok) {
-              const conversationsJson = await conversationsRes.json();
-              conversationsData = conversationsJson.conversations || [];
-            } else {
-              console.error("Failed to fetch all conversations:", conversationsRes.status, conversationsRes.statusText);
+          // For client admin: fetch conversations for all agents of the current client only
+          const clientAgentIds = agents.map(agent => agent.agent_id);
+          console.log("Fetching conversations for client agents:", clientAgentIds);
+          
+          // Fetch conversations for each agent of the current client
+          for (const agentId of clientAgentIds) {
+            try {
+              const conversationsRes = await elevenLabsApi.listConversations({
+                agent_id: agentId,
+                call_start_after_unix: startUnix,
+                call_start_before_unix: endUnix,
+                page_size: 100,
+                summary_mode: "include"
+              });
+              if (conversationsRes.ok) {
+                const conversationsJson = await conversationsRes.json();
+                conversationsData = [...conversationsData, ...(conversationsJson.conversations || [])];
+              }
+            } catch (error) {
+              console.error(`Error fetching conversations for agent ${agentId}:`, error);
             }
-          } catch (error) {
-            console.error("Error fetching all conversations:", error);
           }
-          // Optionally, fetch usage stats for all agents (if needed)
+          
+          // Fetch usage stats for the date range
           try {
             const usageRes = await elevenLabsApi.getUsageStats({
               start_unix: startUnix,
@@ -243,7 +239,7 @@ export default function CallReportsPage() {
               usageData = await usageRes.json();
             }
           } catch (error) {
-            console.error("Error fetching usage stats for all agents:", error);
+            console.error("Error fetching usage stats:", error);
           }
         } else {
           // Fetch conversations for selected agent only
@@ -285,7 +281,7 @@ export default function CallReportsPage() {
       }
     }
     fetchAgentData();
-  }, [selectedAgentId, dateRange]);
+  }, [selectedAgentId, dateRange, agents]);
 
   // Filter conversations by status
   const filteredData = React.useMemo(() => {
@@ -317,7 +313,6 @@ export default function CallReportsPage() {
   }, [filteredData]);
 
   const handleApplyFilters = () => {
-    setSelectedClientId(pendingFilters.clientId);
     setSelectedAgentId(pendingFilters.agentId);
     setSelectedStatus(pendingFilters.status);
     setDateRange(pendingFilters.dateRange);
@@ -327,13 +322,11 @@ export default function CallReportsPage() {
 
   const handleResetFilters = () => {
     const resetFilters = {
-      clientId: "all",
-      agentId: "all", 
+      agentId: "all",
       status: "All" as CallStatus,
       dateRange: { from: subDays(new Date(), 7), to: new Date() } as DateRange | undefined
     };
     setPendingFilters(resetFilters);
-    setSelectedClientId("all");
     setSelectedAgentId("all");
     setSelectedStatus("All");
     setDateRange({ from: subDays(new Date(), 7), to: new Date() });
@@ -345,11 +338,9 @@ export default function CallReportsPage() {
     // Prepare export data
     const exportData = filteredData.map((entry, index) => {
       const agent = agents.find((a: any) => a.agent_id === entry.agent_id);
-      const clientName = agent?.client_name || clients.find((c: any) => String(c.id) === String(agent?.client_id))?.companyName || "N/A";
       return {
         Date: entry.start_time_unix_secs ? formatDate(new Date(entry.start_time_unix_secs * 1000)) : "N/A",
         Agent: entry.agent_name || agent?.agent_name || "N/A",
-        Client: clientName,
         Duration: entry.call_duration_secs ? `${Math.floor(entry.call_duration_secs / 60)}:${(entry.call_duration_secs % 60).toString().padStart(2, '0')}` : "0:00",
         Messages: entry.message_count ?? (entry.messages ? entry.messages.length : 0),
         "Evaluation result": entry.evaluation_result || "Unknown"
@@ -454,11 +445,14 @@ export default function CallReportsPage() {
   // Compute clientOptions from clients state
   const clientOptions = React.useMemo(() => [
     { value: 'all', label: 'All Clients' },
-    ...clients.map((c: any) => ({ value: String(c.id), label: c.companyName }))
-  ], [clients]);
+    ...agents.map((c: any) => ({ value: String(c.client_id), label: c.agent_name }))
+  ], [agents]);
 
   return (
     <div className="container mx-auto py-8 space-y-8">
+      {/* Debug section - remove this after fixing */}
+      {/* Removed debug info card */}
+      
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold font-headline flex items-center">
@@ -513,7 +507,7 @@ export default function CallReportsPage() {
           <CardTitle className="flex items-center"><ListFilter className="mr-2 h-5 w-5"/>Filter Report Data</CardTitle>
           <CardDescription>Refine the report by date, client, campaign, or call status.</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-end">
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-end">
           <div className="flex flex-col space-y-1.5">
             <span className="text-sm font-medium">Date Range</span>
              <Popover>
@@ -555,33 +549,7 @@ export default function CallReportsPage() {
             </Popover>
           </div>
           <div className="flex flex-col space-y-1.5">
-            <span className="text-sm font-medium">Client</span>
-            <Popover open={clientOpen} onOpenChange={setClientOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={clientOpen} className="w-full justify-between h-9">
-                  <Users className="mr-2 h-4 w-4 opacity-50 shrink-0" />
-                  {clientOptions.find(client => client.value === pendingFilters.clientId)?.label || "Select Client"}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                <Command>
-                  <CommandInput placeholder="Search client..." />
-                  <CommandList><CommandEmpty>No client found.</CommandEmpty>
-                  <CommandGroup>
-                    {clientOptions.map(client => (
-                      <CommandItem key={client.value} value={client.label} onSelect={() => { setPendingFilters(prev => ({ ...prev, clientId: client.value })); setClientOpen(false); }}>
-                        <Check className={cn("mr-2 h-4 w-4", pendingFilters.clientId === client.value ? "opacity-100" : "opacity-0")} />
-                        {client.label}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup></CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
-           <div className="flex flex-col space-y-1.5">
-            <span className="text-sm font-medium">Campaign</span>
+            <span className="text-sm font-medium">Agent</span>
             <Popover open={agentOpen} onOpenChange={setAgentOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" aria-expanded={agentOpen} className="w-full justify-between h-9">
@@ -654,7 +622,6 @@ export default function CallReportsPage() {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Agent</TableHead>
-                  <TableHead>Client</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead>Messages</TableHead>
                   <TableHead>Evaluation result</TableHead>
@@ -664,12 +631,10 @@ export default function CallReportsPage() {
               <TableBody>
                 {paginatedData.length > 0 ? paginatedData.map((entry, index) => {
                   const agent = agents.find((a: any) => a.agent_id === entry.agent_id);
-                  const clientName = agent?.client_name || clients.find((c: any) => String(c.id) === String(agent?.client_id))?.companyName || "N/A";
                   return (
                     <TableRow key={entry.conversation_id || entry.agent_id || `entry-${index}`}>
                       <TableCell>{entry.start_time_unix_secs ? format(new Date(entry.start_time_unix_secs * 1000), "MMM dd, yyyy, hh:mm a") : "N/A"}</TableCell>
                       <TableCell>{entry.agent_name || agent?.agent_name || "N/A"}</TableCell>
-                      <TableCell>{clientName}</TableCell>
                       <TableCell>{entry.call_duration_secs ? `${Math.floor(entry.call_duration_secs / 60)}:${(entry.call_duration_secs % 60).toString().padStart(2, '0')}` : "0:00"}</TableCell>
                       <TableCell>{entry.message_count ?? (entry.messages ? entry.messages.length : 0)}</TableCell>
                       <TableCell><Badge variant="secondary" className="text-xs">{entry.evaluation_result || "Unknown"}</Badge></TableCell>
@@ -689,7 +654,7 @@ export default function CallReportsPage() {
                   );
                 }) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                       {loading ? "Loading data..." : error ? error : "No data available for the selected filters."}
                     </TableCell>
                   </TableRow>
@@ -804,10 +769,27 @@ export default function CallReportsPage() {
                 </TabsContent>
                 <TabsContent value="transcription">
                   {conversationLoading ? 'Loading...' : (
-                    <div className="space-y-2">
+                    <div className="space-y-4">
                       {(conversationDetails?.transcript || []).map((msg: any, i: number) => (
-                        <div key={i} className="text-sm">
-                          <span className="font-semibold">{msg.role || 'Speaker'}:</span> {msg.message || ''} <span className="text-xs text-muted-foreground">{msg.timestamp ? `(${msg.timestamp})` : ''}</span>
+                        <div key={i} className={cn(
+                          "flex flex-col items-start gap-1",
+                          msg.role === 'user' ? 'items-end' : 'items-start')
+                        }>
+                          <div className={cn(
+                            "rounded-2xl px-4 py-2 text-sm max-w-[80%] border",
+                            msg.role === 'user' ? 'bg-gray-100 border-gray-200 self-end' : 'bg-white border-gray-200 self-start')
+                          }>
+                            {msg.message || ''}
+                            {msg.timestamp && (
+                              <span className="ml-2 text-xs text-muted-foreground align-bottom">{msg.timestamp ? `(${msg.timestamp})` : ''}</span>
+                            )}
+                          </div>
+                          {msg.llm_response_time_ms && (
+                            <div className="text-xs text-muted-foreground ml-2">LLM {msg.llm_response_time_ms} ms</div>
+                          )}
+                          {msg.input_type && (
+                            <div className="text-xs text-muted-foreground ml-2">{msg.input_type === 'text' ? 'Text input' : msg.input_type}</div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -815,14 +797,26 @@ export default function CallReportsPage() {
                 </TabsContent>
                 <TabsContent value="clientdata">
                   {conversationLoading ? 'Loading...' : (
-                    <div className="space-y-2">
-                      {conversationDetails?.conversation_initiation_client_data ? (
-                        Object.entries(conversationDetails.conversation_initiation_client_data).map(([key, value]: [string, any]) => (
-                          <div key={key} className="text-sm">
-                            <span className="font-semibold">{key}:</span> {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                          </div>
-                        ))
-                      ) : 'No client data'}
+                    <div className="space-y-4">
+                      <div className="font-semibold text-base mb-2">Client overrides</div>
+                      {conversationDetails?.conversation_initiation_client_data && Object.keys(conversationDetails.conversation_initiation_client_data).length > 0 ? (
+                        <table className="min-w-[200px] border rounded-lg">
+                          <tbody>
+                            {Object.entries(conversationDetails.conversation_initiation_client_data).map(([key, value]: [string, any]) => (
+                              <tr key={key} className="border-b align-top">
+                                <td className="py-2 px-4 font-medium whitespace-nowrap align-top">{key}</td>
+                                <td className="py-2 px-4">
+                                  {typeof value === 'object' && value !== null
+                                    ? <pre className="text-xs bg-gray-50 rounded p-2 overflow-x-auto">{JSON.stringify(value, null, 2)}</pre>
+                                    : String(value)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="text-muted-foreground">No client data</div>
+                      )}
                     </div>
                   )}
                 </TabsContent>

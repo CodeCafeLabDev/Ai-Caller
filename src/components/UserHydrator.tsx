@@ -3,6 +3,8 @@ import React from "react";
 import { useUser } from "@/lib/utils";
 import { api } from "@/lib/apiConfig";
 
+export { useUser } from "@/lib/utils";
+
 export function UserHydrator({ children }: { children: React.ReactNode }) {
   const { setUser } = useUser();
 
@@ -26,6 +28,9 @@ export function UserHydrator({ children }: { children: React.ReactNode }) {
             name: data.data.name,
             avatarUrl: data.data.avatar_url,
             role: data.data.roleName,
+            type: data.data.type,
+            companyName: data.data.companyName,
+            clientId: data.data.type === 'client' ? data.data.id?.toString() : data.data.clientId?.toString(),
           };
           setUser(userObj);
           localStorage.setItem("user", JSON.stringify(userObj));
