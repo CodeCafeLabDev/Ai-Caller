@@ -37,6 +37,7 @@ export default function CreateAgentPage() {
       const res = await fetch("http://localhost:5000/api/elevenlabs/create-agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           conversation_config: { agent: {} },
           name: name.trim(),

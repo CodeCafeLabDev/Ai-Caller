@@ -82,13 +82,7 @@ export type AIAgent = {
   clientName?: string;
 };
 
-const mockAgents: AIAgent[] = [
-  { id: "tpl_1", name: "Lead Qualification Pro", useCase: "Lead Generation", tags: ["sales", "b2b", "qualification"], createdBy: "Admin User", language: "English (US)", lastModified: "2024-07-15", status: "Published", version: "1.2", source: 'local' },
-  { id: "tpl_2", name: "Appointment Reminder Basic", useCase: "Reminder", tags: ["appointment", "customer service"], createdBy: "System", language: "Spanish (ES)", lastModified: "2024-06-20", status: "Published", version: "1.0", source: 'local' },
-  { id: "tpl_3", name: "Feedback Collector v2", useCase: "Feedback", tags: ["survey", "customer experience"], createdBy: "Admin User", language: "English (US)", lastModified: "2024-07-01", status: "Draft", version: "0.8", source: 'local' },
-  { id: "tpl_4", name: "Sales Pitch - Enterprise", useCase: "Sales", tags: ["enterprise", "pitch"], createdBy: "Sales Team Lead", language: "English (US)", lastModified: "2024-05-10", status: "Archived", version: "2.1", source: 'local' },
-  { id: "tpl_5", name: "Payment Due Notification", useCase: "Payment Collection", tags: ["billing", "finance"], createdBy: "System", language: "Hindi (IN)", lastModified: "2024-07-18", status: "Published", version: "1.0", source: 'local' },
-];
+
 
 const statusVariants: Record<AIAgentStatus, string> = {
   Published: "bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100",
@@ -130,7 +124,7 @@ export default function AiAgentsPage() {
   const { toast } = useToast();
   const { user } = useUser();
   const router = useRouter();
-  const [agents, setAgents] = React.useState<AIAgent[]>(mockAgents);
+  const [agents, setAgents] = React.useState<AIAgent[]>([]);
   const [clients, setClients] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -173,7 +167,7 @@ export default function AiAgentsPage() {
               name: agent.name,
               useCase: agent.description || 'Other',
               tags: agent.tags ? JSON.parse(agent.tags) : [],
-              createdBy: user?.name || user?.fullName || user?.email || 'You',
+              createdBy: agent.creator_name || user?.name || user?.fullName || user?.email || 'Unknown',
               clientName: client ? client.companyName : '-',
               language: '',
               lastModified: agent.updated_at,
@@ -234,7 +228,16 @@ export default function AiAgentsPage() {
   const handleDuplicate = async (agent: any) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/agents/${agent.id}/duplicate`, { method: 'POST', credentials: 'include' });
+      const res = await fetch(`/api/agents/${agent.id}/duplicate`, { 
+        method: 'POST', 
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: user?.clientId || null
+        }),
+        credentials: 'include' 
+      });
       if (res.ok) {
         toast({ title: 'Agent duplicated!' });
         refreshAgents();

@@ -866,6 +866,7 @@ export default function AiAgentImportExportPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(elevenLabsPayload),
       });
 
