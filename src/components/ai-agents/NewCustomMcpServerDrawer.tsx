@@ -1,172 +1,382 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const SERVER_TYPES = [
   { value: "sse", label: "SSE" },
   { value: "streamable", label: "Streamable HTTP" },
 ];
+
 const URL_TYPES = [
   { value: "Value", label: "Value" },
   { value: "Secret", label: "Secret" },
   { value: "Dynamic Variable", label: "Dynamic Variable" },
 ];
-const SECRET_OPTIONS = [
-  { value: "none", label: "None" },
-  // Add more options as needed
-];
-const HEADER_TYPES = [
-  { value: "Text", label: "Value" },
-  { value: "Secret", label: "Secret" },
-  { value: "Dynamic Variable", label: "Dynamic Variable" },
-];
+
 const TOOL_APPROVAL_MODES = [
-  { value: "always", label: "Always Ask", description: "Maximum security. The agent will request your permission before each tool use.", recommended: true },
-  { value: "fine", label: "Fine-Grained Tool Approval", description: "Disable & pre-select tools which can run automatically & those requiring approval." },
-  { value: "none", label: "No Approval", description: "The assistant can use any tool without approval." },
-];
-const TOOLS = [
-  { value: "tool1", label: "Tool 1" },
-  { value: "tool2", label: "Tool 2" },
-  // Add more tools as needed
+  { 
+    value: "always", 
+    label: "Always Ask", 
+    description: "Maximum security. The agent will request your permission before each tool use.", 
+    recommended: true,
+    icon: "🛡️"
+  },
+  { 
+    value: "fine", 
+    label: "Fine-Grained Tool Approval", 
+    description: "Disable & pre-select tools which can run automatically & those requiring approval.",
+    icon: "⚙️"
+  },
+  { 
+    value: "none", 
+    label: "No Approval", 
+    description: "The assistant can use any tool without approval.",
+    icon: "👁️"
+  },
 ];
 
-export default function NewCustomMcpServerDrawer({ open = true, onClose }: { open?: boolean; onClose: () => void }) {
+export default function NewCustomMcpServerDrawer({ open = true, onClose, onCreated }: { open?: boolean; onClose: () => void; onCreated?: (created: any) => void }) {
   // Form state
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [serverType, setServerType] = useState("sse");
+  const [serverType, setServerType] = useState("streamable");
   const [urlType, setUrlType] = useState("Value");
   const [url, setUrl] = useState("");
   const [secret, setSecret] = useState("none");
   const [headers, setHeaders] = useState<any[]>([]);
   const [approvalMode, setApprovalMode] = useState("always");
   const [trusted, setTrusted] = useState(false);
-  // Fine-grained tool approval state
-  const [toolApprovals, setToolApprovals] = useState<{ [key: string]: boolean }>({});
+  const [secretOptions, setSecretOptions] = useState<{ value: string; label: string }[]>([
+    { value: "none", label: "None" }
+  ]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Drawer animation
+  // Dynamic URL placeholder only (no pre-fill)
+  const urlPlaceholder = serverType === "sse" ? "https://example.com/sse" : "https://example.com/mcp";
+
+  useEffect(() => {
+    async function loadSecrets() {
+      try {
+        console.log('[DEBUG] Loading workspace secrets...');
+        const res = await fetch("/api/workspace-secrets/local", { credentials: "include" });
+        console.log('[DEBUG] Workspace secrets response status:', res.status);
+        if (!res.ok) {
+          console.error('[DEBUG] Workspace secrets response not ok:', res.status);
+          return;
+        }
+        const json = await res.json();
+        console.log('[DEBUG] Workspace secrets response:', json);
+        const rows = json?.secrets || [];
+        console.log('[DEBUG] Workspace secrets rows:', rows);
+        const opts = [{ value: "none", label: "None" }, ...rows.map((r: any) => ({ value: r.secret_id, label: r.name }))];
+        console.log('[DEBUG] Final secret options:', opts);
+        setSecretOptions(opts);
+      } catch (error) {
+        console.error('[DEBUG] Error loading workspace secrets:', error);
+      }
+    }
+    if (open) {
+      loadSecrets();
+    }
+  }, [open]);
+
+  async function handleAddServer() {
+    setSaving(true);
+    setError(null);
+    
+    // Form validation
+    if (!name.trim()) {
+      setError("Server name is required");
+      setSaving(false);
+      return;
+    }
+    
+    if (!url.trim()) {
+      setError("Server URL is required");
+      setSaving(false);
+      return;
+    }
+    
+    if (!trusted) {
+      setError("You must trust this server to continue");
+      setSaving(false);
+      return;
+    }
+    
+    try {
+      console.log('[DEBUG] Creating MCP server with payload:', { name, description, serverType, url, secret, headers, approvalMode, trusted });
+      
+      const payload: any = {
+        name: name.trim(),
+        description: description.trim(),
+        type: serverType,
+        url: url.trim(),
+        trusted,
+        approval_mode: approvalMode,
+      };
+      
+      if (secret && secret !== "none") {
+        payload.secret = { type: "workspace_secret", secret_id: secret };
+      }
+      
+      if (headers && headers.length > 0) {
+        payload.headers = headers
+          .filter(h => h?.name && h?.value)
+          .map(h => ({ 
+            name: h.name.trim(), 
+            type: h.type === "Secret" ? "workspace_secret" : "text", 
+            value: h.value.trim() 
+          }));
+      }
+      
+      console.log('[DEBUG] Final payload:', payload);
+      
+      const res = await fetch("/api/mcp-servers", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      
+      console.log('[DEBUG] MCP server creation response status:', res.status);
+      
+      const json = await res.json();
+      console.log('[DEBUG] MCP server creation response:', json);
+      
+      if (!res.ok || !json?.success) {
+        const errorMessage = json?.error || 'Failed to create MCP server';
+        console.error('[DEBUG] MCP server creation failed:', errorMessage);
+        throw new Error(errorMessage);
+      }
+      
+      console.log('[DEBUG] MCP server created successfully:', json.data);
+      onCreated?.(json.data);
+      onClose();
+    } catch (e: any) {
+      console.error('[DEBUG] Error creating MCP server:', e);
+      setError(e?.message || "Failed to create MCP server");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const addHeader = () => {
+    setHeaders([...headers, { type: "Text", name: "", value: "" }]);
+  };
+
+  const removeHeader = (index: number) => {
+    setHeaders(headers.filter((_, i) => i !== index));
+  };
+
+  const updateHeader = (index: number, field: string, value: string) => {
+    const newHeaders = [...headers];
+    newHeaders[index] = { ...newHeaders[index], [field]: value };
+    setHeaders(newHeaders);
+  };
+
+  if (!open) return null;
+
   return (
     <>
-      {open && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-30 z-40"
-          onClick={onClose}
-        />
-      )}
+      {/* Backdrop */}
       <div
-        className={`fixed top-0 right-0 h-full w-full max-w-lg bg-white shadow-lg z-50 transition-transform duration-300 ${
-          open ? "translate-x-0" : "translate-x-full"
-        }`}
-        style={{ width: 480 }}
+        className="fixed inset-0 bg-black bg-opacity-30 z-40"
+        onClick={onClose}
+      />
+      
+      {/* Right-side Drawer */}
+      <div
+        className={`fixed top-0 right-0 h-full w-full max-w-xl bg-white shadow-xl z-50 transform transition-transform duration-300 ${open ? 'translate-x-0' : 'translate-x-full'}`}
       >
         <div className="h-full flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-lg font-bold">New Custom MCP Server</h2>
-            <button onClick={onClose} className="text-2xl text-gray-400">&times;</button>
-          </div>
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            {/* Basic Information */}
-            <div>
-              <div className="font-semibold mb-1">Basic Information</div>
-              <label className="block text-sm mb-1">Name</label>
-              <input className="border rounded w-full px-3 py-2 mb-2" value={name} onChange={e => setName(e.target.value)} />
-              <label className="block text-sm mb-1">Description</label>
-              <textarea className="border rounded w-full px-3 py-2" value={description} onChange={e => setDescription(e.target.value)} />
-            </div>
-            {/* Server Configuration */}
-            <div>
-              <div className="font-semibold mb-1">Server Configuration</div>
-              <div className="flex gap-2 mb-2">
-                {SERVER_TYPES.map(t => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    className={`px-4 py-2 rounded ${serverType === t.value ? "bg-black text-white" : "bg-gray-200"}`}
-                    onClick={() => setServerType(t.value)}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+          <div className="flex items-center justify-between p-6 border-b">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                <span className="text-gray-600 text-lg">🔗</span>
               </div>
-              <div className="flex gap-2 mb-2">
-                <select className="border rounded px-2 py-2" value={urlType} onChange={e => setUrlType(e.target.value)}>
-                  {URL_TYPES.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">New Custom MCP Server</h2>
+                <span className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full">Alpha</span>
+              </div>
+            </div>
+            <button 
+              onClick={onClose} 
+              className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 space-y-6 overflow-y-auto">
+            {/* Basic Information */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-2">Basic Information</h3>
+              <p className="text-sm text-gray-600 mb-4">Identify your MCP server with a clear name and description.</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter server name"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter server description"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Server Configuration */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-2">Server Configuration</h3>
+              <p className="text-sm text-gray-600 mb-4">Specify how to connect to your MCP server.</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Server type</label>
+                  <div className="flex gap-2">
+                    {SERVER_TYPES.map(type => (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => setServerType(type.value)}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          serverType === type.value
+                            ? "bg-gray-900 text-white ring-2 ring-gray-900 ring-offset-2"
+                            : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Server URL</label>
+                  <div className="flex gap-3">
+                    <select
+                      value={urlType}
+                      onChange={(e) => setUrlType(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {URL_TYPES.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder={urlPlaceholder}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Secret Token */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-2">Secret Token</h3>
+              <p className="text-sm text-gray-600 mb-4">Configure a secret token for secure server access.</p>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Secret</label>
+                <select
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {secretOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                <input className="border rounded flex-1 px-3 py-2" placeholder="https://example.com/sse" value={url} onChange={e => setUrl(e.target.value)} />
               </div>
             </div>
-            {/* Secret Token */}
-            <div>
-              <div className="font-semibold mb-1">Secret Token</div>
-              <select className="border rounded px-2 py-2 w-full" value={secret} onChange={e => setSecret(e.target.value)}>
-                {SECRET_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
+
             {/* HTTP Headers */}
-            <div>
-              <div className="font-semibold mb-1">HTTP Headers</div>
-              {headers.map((header, idx) => (
-                <div key={idx} className="flex gap-2 mb-2 items-center">
-                  <select
-                    className="border rounded px-2 py-2"
-                    value={header.type}
-                    onChange={e => {
-                      const newHeaders = [...headers];
-                      newHeaders[idx].type = e.target.value;
-                      setHeaders(newHeaders);
-                    }}
-                  >
-                    {HEADER_TYPES.map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
-                  <input
-                    className="border rounded px-2 py-2 flex-1"
-                    placeholder="Name"
-                    value={header.name}
-                    onChange={e => {
-                      const newHeaders = [...headers];
-                      newHeaders[idx].name = e.target.value;
-                      setHeaders(newHeaders);
-                    }}
-                  />
-                  <input
-                    className="border rounded px-2 py-2 flex-1"
-                    placeholder={header.type === 'Text' ? 'Value' : header.type === 'Secret' ? 'Secret' : 'Variable'}
-                    value={header.value}
-                    onChange={e => {
-                      const newHeaders = [...headers];
-                      newHeaders[idx].value = e.target.value;
-                      setHeaders(newHeaders);
-                    }}
-                  />
-                  <button
-                    className="text-red-500 px-2"
-                    onClick={() => setHeaders(headers.filter((_, i) => i !== idx))}
-                  >
-                    ×
-                  </button>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-gray-900">HTTP Headers</h3>
+                  <p className="text-sm text-gray-600">Add custom headers for additional configuration or authentication.</p>
                 </div>
-              ))}
-              <button
-                className="bg-gray-200 px-3 py-2 rounded"
-                type="button"
-                onClick={() => setHeaders([...headers, { type: "Text", name: "", value: "" }])}
-              >
-                Add header
-              </button>
+                <button
+                  type="button"
+                  onClick={addHeader}
+                  className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  Add header
+                </button>
+              </div>
+              
+              {headers.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No headers added yet
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {headers.map((header, index) => (
+                    <div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                          <input
+                            type="text"
+                            value={header.name}
+                            onChange={(e) => updateHeader(index, 'name', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Enter header name"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                          <input
+                            type="text"
+                            value={header.value}
+                            onChange={(e) => updateHeader(index, 'value', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Enter header value"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => removeHeader(index)}
+                          className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+
             {/* Tool Approval Mode */}
-            <div>
-              <div className="font-semibold mb-1">Tool Approval Mode</div>
-              <div className="space-y-2">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-2">Tool Approval Mode</h3>
+              <p className="text-sm text-gray-600 mb-4">Control how the agent requests permission to use tools from this MCP server.</p>
+              
+              <div className="space-y-3">
                 {TOOL_APPROVAL_MODES.map(mode => (
-                  <label key={mode.value} className="flex items-start gap-2 cursor-pointer">
+                  <label key={mode.value} className="flex items-start gap-3 cursor-pointer">
                     <input
                       type="radio"
                       name="tool-approval-mode"
@@ -175,50 +385,71 @@ export default function NewCustomMcpServerDrawer({ open = true, onClose }: { ope
                       onChange={() => setApprovalMode(mode.value)}
                       className="mt-1"
                     />
-                    <span>
-                      <span className="font-medium">{mode.label}</span>
-                      {mode.recommended && <span className="ml-2 text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded font-medium">Recommended</span>}
-                      <div className="text-xs text-gray-500">{mode.description}</div>
-                    </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{mode.icon}</span>
+                        <span className="font-medium text-gray-900">{mode.label}</span>
+                        {mode.recommended && (
+                          <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                            Recommended
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1">{mode.description}</p>
+                    </div>
                   </label>
                 ))}
               </div>
-              {approvalMode === "fine" && (
-                <div className="mt-3 border rounded p-3">
-                  <div className="font-medium mb-2 text-sm">Fine-Grained Tool Approval</div>
-                  {TOOLS.map(tool => (
-                    <div key={tool.value} className="flex items-center gap-2 mb-1">
-                      <input
-                        type="checkbox"
-                        checked={!!toolApprovals[tool.value]}
-                        onChange={e => setToolApprovals({ ...toolApprovals, [tool.value]: e.target.checked })}
-                      />
-                      <span>{tool.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
+
             {/* Confirmation */}
-            <div>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={trusted} onChange={e => setTrusted(e.target.checked)} />
-                I trust this server
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-2">Confirmation</h3>
+              <p className="text-sm text-gray-600 mb-3">Custom MCP servers are not verified by ElevenLabs</p>
+              
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={trusted}
+                  onChange={(e) => setTrusted(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-sm text-gray-700">I trust this server</span>
               </label>
-              <div className="text-xs text-gray-500 mt-1">
-                Custom MCP servers are not verified by ElevenLabs
-              </div>
             </div>
+
+            {/* Error Display */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-800 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Loading State */}
+            {saving && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <p className="text-blue-800 text-sm">Creating MCP server...</p>
+                </div>
+              </div>
+            )}
           </div>
-          {/* Actions */}
-          <div className="flex justify-end gap-2 p-4 border-t">
-            <button onClick={onClose} className="px-4 py-2 rounded bg-gray-200">Cancel</button>
+
+          {/* Footer */}
+          <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
             <button
-              onClick={() => {/* Placeholder for save logic */ onClose(); }}
-              className="px-4 py-2 rounded bg-black text-white"
-              disabled={!name || !url || !trusted}
+              onClick={onClose}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
             >
-              Add Server
+              Cancel
+            </button>
+            <button
+              onClick={handleAddServer}
+              disabled={!name || !url || !trusted || saving}
+              className="px-4 py-2 text-sm bg-gray-900 text-white rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {saving ? "Adding..." : "Add Server"}
             </button>
           </div>
         </div>

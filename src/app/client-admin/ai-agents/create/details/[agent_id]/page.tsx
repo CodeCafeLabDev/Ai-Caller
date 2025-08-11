@@ -941,7 +941,45 @@ export default function AgentDetailsPage() {
   const [showMcpDialog, setShowMcpDialog] = useState(false);
   const [showNewMcpForm, setShowNewMcpForm] = useState(false);
   const [showMcpDrawer, setShowMcpDrawer] = useState(false);
-  const [mcpServers, setMcpServers] = useState(agentSettings.mcp_server_ids || []);
+  const [mcpServers, setMcpServers] = useState<any[]>(agentSettings.mcp_server_ids || []);
+
+  // MCP server selection helpers
+  const selectedMcpIds: string[] = agentSettings.mcp_server_ids || [];
+  const isMcpSelected = (id: string) => (selectedMcpIds || []).includes(id);
+  const handleSelectMcpServer = (server: any) => {
+    const id = server?.id || server?.mcp_server_id || server?.server_id;
+    if (!id) return;
+    setAgentSettings((prev: any) => {
+      const current: string[] = prev.mcp_server_ids || [];
+      if (current.includes(id)) return prev;
+      return { ...prev, mcp_server_ids: [...current, id] };
+    });
+  };
+  const handleRemoveMcpServer = (id: string) => {
+    setAgentSettings((prev: any) => ({
+      ...prev,
+      mcp_server_ids: (prev.mcp_server_ids || []).filter((x: string) => x !== id),
+    }));
+  };
+
+  useEffect(() => {
+    fetch('/api/mcp-servers', { credentials: 'include' })
+      .then(r => r.json())
+      .then(j => {
+        console.log('[DEBUG] Client Admin MCP Servers API response:', j);
+        console.log('[DEBUG] Client Admin MCP Servers data:', j?.data);
+        const servers = Array.isArray(j?.data) ? j.data : [];
+        console.log('[DEBUG] Client Admin Normalized MCP servers:', servers);
+        if (servers.length > 0) {
+          console.log('[DEBUG] Client Admin First MCP server properties:', Object.keys(servers[0]));
+          console.log('[DEBUG] Client Admin First MCP server data:', servers[0]);
+        }
+        setMcpServers(servers);
+      })
+      .catch((error) => {
+        console.error('[DEBUG] Client Admin Error fetching MCP servers:', error);
+      });
+  }, []);
 
   // Use the ElevenLabs tools hook
   const apiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '';
@@ -983,6 +1021,12 @@ export default function AgentDetailsPage() {
       .then(data => {
         setLocalAgent(data.local || {});
         setElevenLabsAgent(data.elevenlabs || {});
+        // Hydrate MCP selection from ElevenLabs (first ID) on each refresh
+        const mcpIds = data?.elevenlabs?.conversation_config?.agent?.prompt?.mcp_server_ids || [];
+        setAgentSettings(prev => ({
+          ...prev,
+          mcp_server_ids: Array.isArray(mcpIds) ? mcpIds : (prev.mcp_server_ids || []),
+        }));
         
         // Populate selectedDocs with agent's existing knowledge base items
         const agentKnowledgeBase = data.elevenlabs?.conversation_config?.agent?.prompt?.knowledge_base || data?.local?.knowledge_base || [];
@@ -1300,6 +1344,7 @@ export default function AgentDetailsPage() {
         first_message: firstMessage,
         system_prompt: systemPrompt,
         language_id: languages.find(l => l.code === updatedAgentSettings.language)?.id || null,
+        mcp_server_id: (updatedAgentSettings.mcp_server_ids && updatedAgentSettings.mcp_server_ids.length) ? updatedAgentSettings.mcp_server_ids[0] : null,
       };
       // Build ElevenLabs payload, including custom LLM fields if selected
       const elevenLabsPayload = buildElevenLabsPayload({
@@ -3449,16 +3494,29 @@ export default function AgentDetailsPage() {
                           </>
                         ) : (
                           <>
-                            <div className="max-h-60 overflow-y-auto divide-y">
-                              {mcpServers.map((server: any, idx: number) => (
-                                <div key={server.id || idx} className="px-4 py-3 hover:bg-gray-50 cursor-pointer">
-                                  <div className="font-medium">{server.name || 'MCP Server'}</div>
-                                  <div className="text-xs text-gray-500">{server.description || server.url || ''}</div>
-                                </div>
-                              ))}
+                            <div className="max-h-60 overflow-y-auto p-1">
+                              {mcpServers.map((server: any, idx: number) => {
+                                const id = server.id || server.mcp_server_id || server.server_id;
+                                const selected = isMcpSelected(id);
+                                const name = server.name || server.config?.name || server.display_name || 'MCP Server';
+                                const desc = server.description || server.config?.description || server.url || server.config?.url || '';
+                                return (
+                                  <div
+                                    key={id || idx}
+                                    className={`flex items-start gap-3 rounded-lg px-3 py-2 border mb-1 hover:bg-gray-50 ${selected ? 'opacity-60' : ''}`}
+                                    onClick={() => !selected && handleSelectMcpServer(server)}
+                                  >
+                                    <div className="w-7 h-7 rounded bg-gray-100 flex items-center justify-center mt-0.5">🔗</div>
+                                    <div className="min-w-0">
+                                      <div className="font-medium text-gray-900 truncate">{name}</div>
+                                      <div className="text-xs text-gray-500 truncate">{desc}</div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                             <button
-                              className="w-full border rounded px-3 py-2 mb-2 font-medium flex items-center justify-center gap-2 hover:bg-gray-50"
+                              className="w-full border rounded-lg px-3 py-2 mb-2 font-medium flex items-center justify-center gap-2 hover:bg-gray-50"
                               onClick={() => { setShowMcpDrawer(true); setShowMcpDialog(false); }}
                             >
                               <span className="text-xl font-bold">+</span> New Custom MCP Server
@@ -3468,7 +3526,47 @@ export default function AgentDetailsPage() {
                       </div>
                     )}
                     {showMcpDrawer && (
-                      <NewCustomMcpServerDrawer open={showMcpDrawer} onClose={() => setShowMcpDrawer(false)} />
+                      <NewCustomMcpServerDrawer
+                        open={showMcpDrawer}
+                        onClose={() => setShowMcpDrawer(false)}
+                        onCreated={(created) => {
+                          fetch('/api/mcp-servers', { credentials: 'include' })
+                            .then(r => r.json())
+                            .then(j => setMcpServers(j?.data || []))
+                            .catch((error) => console.error('[DEBUG] Client Admin Error refreshing MCP servers:', error));
+                        }}
+                      />
+                    )}
+                    {/* Selected MCP servers list */}
+                    {(agentSettings.mcp_server_ids || []).length > 0 && (
+                      <div className="mt-3">
+                        {(agentSettings.mcp_server_ids || []).map((id: string, index: number) => {
+                        const server = (mcpServers || []).find((s: any) => (s.id || s.mcp_server_id || s.server_id) === id) || {};
+                        const name = server.name || server.config?.name || server.display_name || 'MCP Server';
+                        const desc = server.description || server.config?.description || server.url || server.config?.url || id;
+                          return (
+                            <div key={id || index} className="flex items-center justify-between bg-white border rounded-xl p-4 shadow-sm mt-3">
+                              <div className="flex items-center gap-3">
+                                <div className="relative">
+                                  <div className="w-10 h-10 rounded-lg bg-gray-50 border flex items-center justify-center">🔗</div>
+                                  <span className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>
+                                </div>
+                                <div>
+                                <div className="font-semibold text-gray-900">{name}</div>
+                                <div className="text-sm text-gray-500">{desc}</div>
+                                </div>
+                              </div>
+                              <button
+                                className="p-2 rounded-lg border hover:bg-gray-50"
+                                title="Remove"
+                                onClick={() => handleRemoveMcpServer(id)}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </div>

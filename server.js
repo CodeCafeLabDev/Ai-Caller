@@ -311,6 +311,33 @@ db.connect(err => {
       console.error("Failed to create workspace secrets table:", err);
     } else {
       console.log("✅ Workspace secrets table ready");
+      
+      // Removed sample workspace secrets auto-insert
+    }
+  });
+
+  // Create MCP Servers table (local mirror/metadata)
+  const createMcpServersTable = `
+    CREATE TABLE IF NOT EXISTS mcp_servers (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      mcp_server_id VARCHAR(255) NOT NULL UNIQUE,
+      name VARCHAR(255) NOT NULL,
+      description TEXT NULL,
+      server_type VARCHAR(32) NULL,
+      url TEXT,
+      secret_id VARCHAR(255) NULL,
+      headers JSON NULL,
+      approval_mode VARCHAR(32) DEFAULT 'always',
+      trusted BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    );
+  `;
+  db.query(createMcpServersTable, (err) => {
+    if (err) {
+      console.error('Failed to create mcp_servers table:', err);
+    } else {
+      console.log('✅ MCP servers table ready');
     }
   });
 });
@@ -445,6 +472,8 @@ app.post('/api/elevenlabs/create-agent', authenticateJWT, async (req, res) => {
         JSON.stringify(agent.custom_llm_headers || []),
         agent.llm || '',
         agent.temperature || null,
+        // single selection: pick primary MCP server id from ElevenLabs payload if present
+        JSON.stringify(Array.isArray(agent.prompt?.mcp_server_ids) ? agent.prompt.mcp_server_ids : (agent.mcp_server_ids || [])),
         req.user.id,
         (req.user.name || req.user.companyName || req.user.email || 'Unknown'),
         (req.user.type === 'client' ? 'client' : 'admin')
@@ -452,8 +481,8 @@ app.post('/api/elevenlabs/create-agent', authenticateJWT, async (req, res) => {
       console.log('Insert values:', insertValues);
       const insertSql = `
         INSERT INTO agents (
-          agent_id, client_id, name, description, first_message, system_prompt, language_id, voice_id, model, tags, platform_settings, created_at, updated_at, language_code, additional_languages, custom_llm_url, custom_llm_model_id, custom_llm_api_key, custom_llm_headers, llm, temperature, created_by, created_by_name, created_by_type
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          agent_id, client_id, name, description, first_message, system_prompt, language_id, voice_id, model, tags, platform_settings, created_at, updated_at, language_code, additional_languages, custom_llm_url, custom_llm_model_id, custom_llm_api_key, custom_llm_headers, llm, temperature, mcp_server_ids, created_by, created_by_name, created_by_type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           name=VALUES(name), description=VALUES(description), first_message=VALUES(first_message),
           system_prompt=VALUES(system_prompt), language_id=VALUES(language_id), voice_id=VALUES(voice_id),
@@ -461,7 +490,7 @@ app.post('/api/elevenlabs/create-agent', authenticateJWT, async (req, res) => {
           language_code=VALUES(language_code), additional_languages=VALUES(additional_languages),
           custom_llm_url=VALUES(custom_llm_url), custom_llm_model_id=VALUES(custom_llm_model_id),
           custom_llm_api_key=VALUES(custom_llm_api_key), custom_llm_headers=VALUES(custom_llm_headers),
-          llm=VALUES(llm), temperature=VALUES(temperature), created_by=VALUES(created_by), created_by_name=VALUES(created_by_name), created_by_type=VALUES(created_by_type)
+          llm=VALUES(llm), temperature=VALUES(temperature), mcp_server_ids=VALUES(mcp_server_ids), created_by=VALUES(created_by), created_by_name=VALUES(created_by_name), created_by_type=VALUES(created_by_type)
       `;
       db.query(
         insertSql,
@@ -487,7 +516,7 @@ app.get('/api/agents', authenticateJWT, (req, res) => {
       a.*,
       l.name AS language_name,
       l.code AS language_code,
-      COALESCE(a.created_by_name, au.name, cu.full_name, ?) AS creator_name
+      COALESCE(a.created_by_name, au.name, cu.companyName, ?) AS creator_name
     FROM agents a
     LEFT JOIN languages l ON a.language_id = l.id
     LEFT JOIN admin_users au ON a.created_by = au.id
@@ -531,6 +560,11 @@ app.get('/api/agents/:id/details', async (req, res) => {
     } catch (e) {
       elevenLabsAgent = {};
     }
+    // Normalize MCP server info from ElevenLabs and set into localAgent for UI binding
+    try {
+      const mcpIds = elevenLabsAgent?.conversation_config?.agent?.prompt?.mcp_server_ids || [];
+      localAgent.mcp_server_ids = Array.isArray(mcpIds) ? mcpIds : [];
+    } catch {}
     res.json({ local: localAgent, elevenlabs: elevenLabsAgent });
   });
 });
@@ -547,6 +581,15 @@ app.patch('/api/agents/:id/details', async (req, res) => {
       const updateValues = [];
       if (local) {
         Object.keys(local).filter(k => k !== 'agent_id').forEach(k => {
+          // Special handling for MCP arrays (normalize to mcp_server_ids JSON column)
+          if (k === 'mcp_server_ids' || k === 'mcp_server_id') {
+            const arr = Array.isArray(local.mcp_server_ids)
+              ? local.mcp_server_ids
+              : (local.mcp_server_id ? [local.mcp_server_id] : []);
+            updateFields.push(`mcp_server_ids = ?`);
+            updateValues.push(JSON.stringify(arr));
+            return;
+          }
           let value = local[k];
           if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
             value = JSON.stringify(value);
@@ -569,6 +612,12 @@ app.patch('/api/agents/:id/details', async (req, res) => {
             updateFields.push(`additional_languages = ?`);
             updateValues.push(JSON.stringify(additional_languages));
           }
+        }
+        // Persist MCP server IDs as array if present in ElevenLabs response
+        const mcpIdsFromEl = elevenlabs.conversation_config?.agent?.prompt?.mcp_server_ids;
+        if (Array.isArray(mcpIdsFromEl)) {
+          updateFields.push(`mcp_server_ids = ?`);
+          updateValues.push(JSON.stringify(mcpIdsFromEl));
         }
       }
       if (updateFields.length > 0) {
@@ -601,6 +650,21 @@ app.patch('/api/agents/:id/details', async (req, res) => {
       console.log('[PATCH /api/agents/:id/details] ElevenLabs response:', resp.status, respData);
       if (!resp.ok) {
         throw new Error(`Failed to update ElevenLabs: ${JSON.stringify(respData)}`);
+      }
+
+        // After ElevenLabs update, persist mcp_server_ids locally (array)
+        try {
+          const mcpIds = respData?.conversation_config?.agent?.prompt?.mcp_server_ids || elevenlabs?.conversation_config?.agent?.prompt?.mcp_server_ids || [];
+          if (Array.isArray(mcpIds)) {
+            await new Promise((resolve, reject) => {
+              db.query('UPDATE agents SET mcp_server_ids = ? WHERE agent_id = ?', [JSON.stringify(mcpIds), agentId], (err) => {
+                if (err) return reject(err);
+                resolve(null);
+              });
+            });
+          }
+        } catch (e) {
+          console.warn('[PATCH /api/agents/:id/details] Warning persisting mcp_server_ids:', e);
       }
     }
     res.json({ success: true });
@@ -2835,6 +2899,7 @@ app.get('/api/agents/:agentId/knowledge-base-db', async (req, res) => {
 // GET /api/workspace-secrets/local - Get secrets from local database
 app.get('/api/workspace-secrets/local', (req, res) => {
   try {
+    console.log('[DEBUG] Fetching workspace secrets from local database...');
     const query = 'SELECT * FROM workspace_secrets ORDER BY created_at DESC';
     db.query(query, (err, rows) => {
       if (err) {
@@ -2842,11 +2907,16 @@ app.get('/api/workspace-secrets/local', (req, res) => {
         return res.status(500).json({ error: 'Failed to fetch secrets from local database' });
       }
       
+      console.log('[DEBUG] Raw database rows:', rows);
+      
       // Parse used_by JSON for each secret
       const secrets = rows.map(row => ({
         ...row,
         used_by: row.used_by ? JSON.parse(row.used_by) : null
       }));
+      
+      console.log('[DEBUG] Processed secrets:', secrets);
+      console.log('[DEBUG] Sending response with secrets count:', secrets.length);
       
       res.json({ secrets });
     });
@@ -2963,6 +3033,231 @@ app.get('/api/elevenlabs/secrets', async (req, res) => {
   } catch (error) {
     console.error('Error fetching secrets:', error);
     res.status(500).json({ error: 'Failed to fetch secrets', details: error.message });
+  }
+});
+
+// MCP Servers - proxy to ElevenLabs and sync minimal metadata locally
+app.get('/api/mcp-servers', authenticateJWT, async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' };
+    const resp = await fetch('https://api.elevenlabs.io/v1/convai/mcp-servers', { headers });
+    const data = await resp.json();
+    
+    console.log('[DEBUG] ElevenLabs MCP servers response status:', resp.status);
+    console.log('[DEBUG] ElevenLabs MCP servers raw data:', data);
+    
+    if (!resp.ok) {
+      return res.status(resp.status).json({ success: false, error: data });
+    }
+    
+    const list = Array.isArray(data)
+      ? data
+      : (Array.isArray(data?.items) ? data.items
+        : (Array.isArray(data?.servers) ? data.servers
+          : (Array.isArray(data?.mcp_servers) ? data.mcp_servers : [])));
+    
+    console.log('[DEBUG] Normalized MCP servers list:', list);
+    if (list.length > 0) {
+      console.log('[DEBUG] First MCP server properties:', Object.keys(list[0]));
+      console.log('[DEBUG] First MCP server data:', list[0]);
+    }
+    
+    res.json({ success: true, data: list });
+  } catch (err) {
+    console.error('[DEBUG] Error in MCP servers endpoint:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+app.get('/api/mcp-servers/:id', authenticateJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' };
+    const resp = await fetch(`https://api.elevenlabs.io/v1/convai/mcp-servers/${id}`, { headers });
+    const data = await resp.json();
+    if (!resp.ok) {
+      return res.status(resp.status).json({ success: false, error: data });
+    }
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+app.post('/api/mcp-servers', authenticateJWT, async (req, res) => {
+  try {
+    const payload = req.body;
+    console.log('[DEBUG] MCP server creation request payload:', payload);
+    
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      console.error('[DEBUG] ElevenLabs API key not configured');
+      return res.status(500).json({ success: false, error: 'ElevenLabs API key not configured' });
+    }
+    
+    const headers = { 'xi-api-key': apiKey, 'Content-Type': 'application/json' };
+    
+    const transportMap = {
+      sse: 'SSE',
+      streamable: 'STREAMABLE_HTTP',
+    };
+    const approvalMap = {
+      always: 'require_approval_all',
+      fine: 'require_approval_per_tool',
+      none: 'auto_approve_all',
+    };
+
+    // Normalize incoming fields
+    const normalized = {
+      name: payload.name,
+      description: payload.description,
+      type: payload.type || 'streamable',
+      url: payload.url,
+      trusted: !!payload.trusted,
+      approval_mode: payload.approval_mode,
+      secret_id: payload?.secret?.secret_id && payload?.secret?.secret_id !== 'none' ? payload.secret.secret_id : null,
+      headers: Array.isArray(payload.headers) ? payload.headers : [],
+    };
+
+    const headersArray = (normalized.headers || [])
+      .filter(h => h?.name && h?.value)
+      .map(h => ({ name: h.name, type: h.type || 'text', value: h.value }));
+
+    const headersObject = headersArray.reduce((acc, h) => {
+      if (h.type === 'text') {
+        acc[h.name] = h.value;
+      }
+      return acc;
+    }, {});
+
+    // Create multiple candidate payloads to maximize compatibility
+    const candidatePayloads = [
+      {
+        id: 'shape:type_url',
+        body: {
+          name: normalized.name,
+          description: normalized.description,
+          type: normalized.type,
+          url: normalized.url,
+          trusted: normalized.trusted,
+          ...(normalized.secret_id ? { secret: { type: 'workspace_secret', secret_id: normalized.secret_id } } : {}),
+          ...(headersArray.length ? { headers: headersArray } : {}),
+          // do not send approval_mode here
+        },
+      },
+      {
+        id: 'shape:transport_url',
+        body: {
+          name: normalized.name,
+          description: normalized.description,
+          transport: transportMap[normalized.type] || 'STREAMABLE_HTTP',
+          url: normalized.url,
+          trusted: normalized.trusted,
+          ...(normalized.secret_id ? { secret: { type: 'workspace_secret', secret_id: normalized.secret_id } } : {}),
+          ...(headersArray.length ? { headers: headersArray } : {}),
+        },
+      },
+      {
+        id: 'shape:config_object',
+        body: {
+          config: {
+            name: normalized.name,
+            description: normalized.description,
+            url: normalized.url,
+            transport: transportMap[normalized.type] || 'STREAMABLE_HTTP',
+            ...(normalized.approval_mode ? { approval_policy: approvalMap[normalized.approval_mode] || undefined } : {}),
+            ...(normalized.secret_id ? { secret_token: { secret_id: normalized.secret_id } } : {}),
+            ...(Object.keys(headersObject).length ? { request_headers: headersObject } : {}),
+          },
+        },
+      },
+    ];
+
+    let succeeded = null;
+    const attempts = [];
+    for (const candidate of candidatePayloads) {
+      try {
+        console.log(`[DEBUG] Trying ElevenLabs payload ${candidate.id}:`, JSON.stringify(candidate.body));
+        const resp = await fetch('https://api.elevenlabs.io/v1/convai/mcp-servers', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(candidate.body),
+        });
+        const text = await resp.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = { raw: text }; }
+        console.log(`[DEBUG] Response for ${candidate.id}: status=${resp.status}`, data);
+        
+        attempts.push({ id: candidate.id, status: resp.status, body: data });
+        if (resp.ok) {
+          succeeded = { status: resp.status, data };
+          break;
+        }
+        
+        if (resp.status >= 500) {
+          // server-side error; no point in trying other shapes
+          break;
+        }
+      } catch (err) {
+        console.warn(`[DEBUG] Error while trying payload ${candidate.id}:`, err);
+        attempts.push({ id: candidate.id, error: String(err) });
+      }
+    }
+
+    if (!succeeded) {
+      console.error('[DEBUG] All payload shapes failed. Attempts summary:', attempts);
+      return res.status(422).json({ success: false, error: attempts });
+    }
+
+    // Successfully created on ElevenLabs, now save minimal metadata locally
+    try {
+      const { id: mcp_server_id, name, description } = succeeded.data || {};
+      if (mcp_server_id) {
+        const insert = `
+          INSERT INTO mcp_servers (mcp_server_id, name, description, server_type, url, secret_id, headers, approval_mode, trusted)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE 
+            name = VALUES(name), 
+            description = VALUES(description), 
+            server_type = VALUES(server_type),
+            url = VALUES(url),
+            secret_id = VALUES(secret_id),
+            headers = VALUES(headers),
+            approval_mode = VALUES(approval_mode),
+            trusted = VALUES(trusted),
+            updated_at = CURRENT_TIMESTAMP
+        `;
+        
+        const headersJson = headersArray.length ? JSON.stringify(headersArray) : null;
+        db.query(insert, [
+          mcp_server_id, 
+          name || normalized.name || null, 
+          description || normalized.description || null,
+          normalized.type || null,
+          normalized.url || null,
+          normalized.secret_id,
+          headersJson,
+          normalized.approval_mode || 'always',
+          normalized.trusted
+        ], (dbErr) => {
+          if (dbErr) {
+            console.error('[DEBUG] Failed to upsert MCP server locally:', dbErr);
+          } else {
+            console.log('[DEBUG] MCP server metadata saved locally successfully');
+          }
+        });
+      }
+    } catch (dbErr) {
+      console.warn('[DEBUG] Failed to upsert MCP server locally:', dbErr);
+    }
+
+    console.log('[DEBUG] MCP server created successfully on ElevenLabs and locally');
+    res.status(201).json({ success: true, data: succeeded.data });
+  } catch (err) {
+    console.error('[DEBUG] Error in MCP server creation endpoint:', err);
+    res.status(500).json({ success: false, error: String(err) });
   }
 });
 

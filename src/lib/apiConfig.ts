@@ -103,6 +103,17 @@ export const API_ENDPOINTS = {
   VOICES: {
     BASE: '/api/voices',
   },
+
+  // Workspace Secrets
+  WORKSPACE_SECRETS: {
+    LOCAL: '/api/workspace-secrets/local',
+  },
+
+  // MCP Servers
+  MCP_SERVERS: {
+    BASE: '/api/mcp-servers',
+    BY_ID: (id: string) => `/api/mcp-servers/${id}`,
+  },
 };
 
 // Helper function to build full API URLs
@@ -289,6 +300,14 @@ export const api = {
   
   // Voices
   getVoices: () => apiUtils.get(API_ENDPOINTS.VOICES.BASE),
+
+  // Workspace Secrets
+  getWorkspaceSecretsLocal: () => apiUtils.get(API_ENDPOINTS.WORKSPACE_SECRETS.LOCAL),
+
+  // MCP Servers
+  getMcpServers: () => apiUtils.get(API_ENDPOINTS.MCP_SERVERS.BASE),
+  getMcpServer: (id: string) => apiUtils.get(API_ENDPOINTS.MCP_SERVERS.BY_ID(id)),
+  createMcpServer: (data: any) => apiUtils.post(API_ENDPOINTS.MCP_SERVERS.BASE, data),
   
   // External APIs
   elevenLabs: {
