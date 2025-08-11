@@ -283,6 +283,8 @@ db.connect(err => {
         db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS additional_languages TEXT`, () => {});
         db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'Published' AFTER updated_at`, () => {});
         db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS created_by INT`, () => {});
+        db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS created_by_name VARCHAR(255)`, () => {});
+        db.query(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS created_by_type VARCHAR(20)`, () => {});
       });
     });
     return;
@@ -443,13 +445,15 @@ app.post('/api/elevenlabs/create-agent', authenticateJWT, async (req, res) => {
         JSON.stringify(agent.custom_llm_headers || []),
         agent.llm || '',
         agent.temperature || null,
-        req.user.id // Add the creator's user ID
+        req.user.id,
+        (req.user.name || req.user.companyName || req.user.email || 'Unknown'),
+        (req.user.type === 'client' ? 'client' : 'admin')
       ];
       console.log('Insert values:', insertValues);
       const insertSql = `
         INSERT INTO agents (
-          agent_id, client_id, name, description, first_message, system_prompt, language_id, voice_id, model, tags, platform_settings, created_at, updated_at, language_code, additional_languages, custom_llm_url, custom_llm_model_id, custom_llm_api_key, custom_llm_headers, llm, temperature, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          agent_id, client_id, name, description, first_message, system_prompt, language_id, voice_id, model, tags, platform_settings, created_at, updated_at, language_code, additional_languages, custom_llm_url, custom_llm_model_id, custom_llm_api_key, custom_llm_headers, llm, temperature, created_by, created_by_name, created_by_type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           name=VALUES(name), description=VALUES(description), first_message=VALUES(first_message),
           system_prompt=VALUES(system_prompt), language_id=VALUES(language_id), voice_id=VALUES(voice_id),
@@ -457,7 +461,7 @@ app.post('/api/elevenlabs/create-agent', authenticateJWT, async (req, res) => {
           language_code=VALUES(language_code), additional_languages=VALUES(additional_languages),
           custom_llm_url=VALUES(custom_llm_url), custom_llm_model_id=VALUES(custom_llm_model_id),
           custom_llm_api_key=VALUES(custom_llm_api_key), custom_llm_headers=VALUES(custom_llm_headers),
-          llm=VALUES(llm), temperature=VALUES(temperature), created_by=VALUES(created_by)
+          llm=VALUES(llm), temperature=VALUES(temperature), created_by=VALUES(created_by), created_by_name=VALUES(created_by_name), created_by_type=VALUES(created_by_type)
       `;
       db.query(
         insertSql,
@@ -477,17 +481,21 @@ app.post('/api/elevenlabs/create-agent', authenticateJWT, async (req, res) => {
 });
 
 // GET /api/agents - return all agents from local DB with language name/code
-app.get('/api/agents', (req, res) => {
+app.get('/api/agents', authenticateJWT, (req, res) => {
   const sql = `
-    SELECT a.*, l.name AS language_name, l.code AS language_code,
-           COALESCE(au.name, c.contactPersonName, 'Unknown') AS creator_name
+    SELECT
+      a.*,
+      l.name AS language_name,
+      l.code AS language_code,
+      COALESCE(a.created_by_name, au.name, cu.full_name, ?) AS creator_name
     FROM agents a
     LEFT JOIN languages l ON a.language_id = l.id
     LEFT JOIN admin_users au ON a.created_by = au.id
-    LEFT JOIN clients c ON a.created_by = c.id
+    LEFT JOIN clients cu ON a.created_by = cu.id
   `;
   console.log('[API] /api/agents SQL:', sql);
-  db.query(sql, (err, results) => {
+  const fallbackName = (req.user?.name || req.user?.companyName || req.user?.email || 'Unknown');
+  db.query(sql, [fallbackName], (err, results) => {
     if (err) {
       console.error('[API] /api/agents ERROR:', err);
       return res.status(500).json({ success: false, message: 'Failed to fetch agents', error: err });
@@ -2560,7 +2568,9 @@ app.post('/api/agents/:agentId/duplicate', authenticateJWT, async (req, res) => 
             custom_llm_headers: JSON.stringify(details.conversation_config?.agent?.prompt?.custom_llm_headers || []),
             llm: details.conversation_config?.agent?.prompt?.llm || '',
             temperature: details.conversation_config?.agent?.prompt?.temperature || 0.5,
-            created_by: req.user.id // Add the creator's user ID
+            created_by: req.user.id,
+            created_by_name: (req.user.name || req.user.companyName || req.user.email || 'Unknown'),
+            created_by_type: (req.user.type === 'client' ? 'client' : 'admin')
           };
           db.query('INSERT INTO agents SET ?', newAgent, (err2, result) => {
             if (err2) {
@@ -2581,7 +2591,9 @@ app.post('/api/agents/:agentId/duplicate', authenticateJWT, async (req, res) => 
       newAgent.agent_id = `local_${Date.now()}`;
       newAgent.name = agent.name + ' (Copy)';
       newAgent.client_id = client_id || agent.client_id; // Use provided client_id or keep original
-      newAgent.created_by = req.user.id; // Add the creator's user ID
+      newAgent.created_by = req.user.id;
+      newAgent.created_by_name = (req.user.name || req.user.companyName || req.user.email || 'Unknown');
+      newAgent.created_by_type = (req.user.type === 'client' ? 'client' : 'admin');
       delete newAgent.id;
       db.query('INSERT INTO agents SET ?', newAgent, (err2, result) => {
         if (err2) {

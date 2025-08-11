@@ -108,7 +108,7 @@ import { useUser } from '@/components/UserHydrator';
 //   keywords: ['call reports', 'call analytics', 'performance tracking', 'AI Caller reports'],
 // };
 
-type CallStatus = "Completed" | "Failed" | "Missed" | "Answered" | "All";
+type CallStatus = "unknown" | "successful" | "failure" | "All";
 type ReportEntry = {
   id: string;
   date: Date;
@@ -128,7 +128,7 @@ type FilterOption = {
 type ExportFormat = "CSV" | "Excel" | "PDF";
 type ReportPeriod = "Current View" | "Daily Summary" | "Weekly Summary" | "Monthly Summary";
 
-const callStatuses: CallStatus[] = ["All", "Completed", "Failed", "Missed", "Answered"];
+const callStatuses: CallStatus[] = ["All", "unknown", "successful", "failure"];
 
 export default function CallReportsPage() {
   const { toast } = useToast();
@@ -286,7 +286,7 @@ export default function CallReportsPage() {
   // Filter conversations by status
   const filteredData = React.useMemo(() => {
     return conversations.filter((conv: any) => {
-      const statusMatch = selectedStatus === "All" || conv.status === selectedStatus;
+      const statusMatch = selectedStatus === "All" || conv.call_successful === selectedStatus;
       return statusMatch;
     });
   }, [conversations, selectedStatus]);
@@ -297,11 +297,11 @@ export default function CallReportsPage() {
   // KPIs (example: total calls, successful calls, avg duration, etc.)
   const kpiData = React.useMemo(() => {
     const totalCallsPlaced = filteredData.length;
-    const successfulCalls = filteredData.filter((c: any) => c.call_successful === "success").length;
+    const successfulCalls = filteredData.filter((c: any) => c.call_successful === "successful").length;
     const avgDuration = totalCallsPlaced > 0 ?
       (filteredData.reduce((sum: number, c: any) => sum + (c.call_duration_secs || 0), 0) / totalCallsPlaced) : 0;
     const pickupRate = totalCallsPlaced > 0 ?
-      Math.round((filteredData.filter((c: any) => c.status === "Answered").length / totalCallsPlaced) * 100) : 0;
+      Math.round((filteredData.filter((c: any) => c.call_successful === "successful").length / totalCallsPlaced) * 100) : 0;
     return {
       totalCallsPlaced,
       successfulCalls,
@@ -343,7 +343,7 @@ export default function CallReportsPage() {
         Agent: entry.agent_name || agent?.agent_name || "N/A",
         Duration: entry.call_duration_secs ? `${Math.floor(entry.call_duration_secs / 60)}:${(entry.call_duration_secs % 60).toString().padStart(2, '0')}` : "0:00",
         Messages: entry.message_count ?? (entry.messages ? entry.messages.length : 0),
-        "Evaluation result": entry.evaluation_result || "Unknown"
+        "Status": entry.call_successful || "Unknown"
       };
     });
     if (format === "CSV") {
@@ -440,6 +440,30 @@ export default function CallReportsPage() {
     await elevenLabsApi.deleteConversation(selectedConversation.conversation_id);
     setConversationSheetOpen(false);
     // Optionally refresh data
+  }
+
+  async function handleDownloadAudio() {
+    if (!conversationAudioUrl) {
+      toast({ title: "No Audio Available", description: "Audio file is not available for this conversation.", variant: "destructive" });
+      return;
+    }
+    
+    try {
+      const response = await fetch(conversationAudioUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `conversation-${selectedConversation?.conversation_id || 'audio'}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast({ title: "Audio Downloaded", description: "The conversation audio has been downloaded successfully." });
+    } catch (error) {
+      console.error('Error downloading audio:', error);
+      toast({ title: "Download Failed", description: "Failed to download the audio file.", variant: "destructive" });
+    }
   }
 
   // Compute clientOptions from clients state
@@ -624,7 +648,7 @@ export default function CallReportsPage() {
                   <TableHead>Agent</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead>Messages</TableHead>
-                  <TableHead>Evaluation result</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -637,7 +661,7 @@ export default function CallReportsPage() {
                       <TableCell>{entry.agent_name || agent?.agent_name || "N/A"}</TableCell>
                       <TableCell>{entry.call_duration_secs ? `${Math.floor(entry.call_duration_secs / 60)}:${(entry.call_duration_secs % 60).toString().padStart(2, '0')}` : "0:00"}</TableCell>
                       <TableCell>{entry.message_count ?? (entry.messages ? entry.messages.length : 0)}</TableCell>
-                      <TableCell><Badge variant="secondary" className="text-xs">{entry.evaluation_result || "Unknown"}</Badge></TableCell>
+                      <TableCell><Badge variant="secondary" className="text-xs">{entry.call_successful || "Unknown"}</Badge></TableCell>
                     <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -704,127 +728,132 @@ export default function CallReportsPage() {
             </SheetDescription>
           </SheetHeader>
           <div className="flex h-full">
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              <Tabs value={conversationTab} onValueChange={setConversationTab} className="w-full">
-                <TabsList className="mb-6">
-                  <TabsTrigger value="overview">Overview</TabsTrigger>
-                  <TabsTrigger value="transcription">Transcription</TabsTrigger>
-                  <TabsTrigger value="clientdata">Client data</TabsTrigger>
-                </TabsList>
-                <TabsContent value="overview">
-                  {conversationLoading ? 'Loading...' : (
-                    <div className="space-y-6">
-                      {/* Summary */}
-                      <div>
-                        <div className="font-semibold text-base mb-2">Summary</div>
-                        <div className="text-sm text-gray-700 leading-relaxed">{conversationDetails?.transcript_summary || selectedConversation?.transcript_summary || 'N/A'}</div>
-                      </div>
-                      {/* Call status */}
-                      <div>
-                        <div className="font-semibold text-base mb-2">Call status</div>
-                        <div className="text-sm text-gray-700">{conversationDetails?.analysis?.call_successful || 'Unknown'}</div>
-                      </div>
-                      {/* User ID */}
-                      <div>
-                        <div className="font-semibold text-base mb-2">User ID</div>
-                        <div className="text-sm text-gray-700 font-mono">{conversationDetails?.user_id || 'Unknown'}</div>
-                      </div>
-                      {/* Criteria evaluation */}
-                      {conversationDetails?.analysis?.evaluation_criteria_results && (
+            <div className="flex-1 flex flex-col h-full">
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <Tabs value={conversationTab} onValueChange={setConversationTab} className="w-full">
+                  <TabsList className="mb-6">
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="transcription">Transcription</TabsTrigger>
+                    <TabsTrigger value="clientdata">Client data</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="overview">
+                    {conversationLoading ? 'Loading...' : (
+                      <div className="space-y-6">
+                        {/* Summary */}
                         <div>
-                          <div className="font-semibold text-base mb-2">Criteria evaluation</div>
-                          <div className="text-sm text-gray-600 mb-3">0 of {Object.keys(conversationDetails.analysis.evaluation_criteria_results).length} successful</div>
-                          {Object.entries(conversationDetails.analysis.evaluation_criteria_results).map(([key, val]: [string, any]) => (
-                            <div key={key} className="mb-4">
-                              <div className="font-semibold text-sm text-gray-800 mb-1">{key.replace(/_/g, ' ')}</div>
-                              <div className="text-sm text-gray-700 mb-1">{val.value ?? 'unknown'}</div>
-                              {val.rationale && <div className="text-xs text-gray-500 leading-relaxed">{val.rationale}</div>}
-                            </div>
-                          ))}
+                          <div className="font-semibold text-base mb-2">Summary</div>
+                          <div className="text-sm text-gray-700 leading-relaxed">{conversationDetails?.transcript_summary || selectedConversation?.transcript_summary || 'N/A'}</div>
                         </div>
-                      )}
-                      {/* Data collection */}
-                      {conversationDetails?.analysis?.data_collection_results && (
+                        {/* Call status */}
                         <div>
-                          <div className="font-semibold text-base mb-2">Data collection</div>
-                          {Object.entries(conversationDetails.analysis.data_collection_results).map(([key, val]: [string, any]) => (
-                            <div key={key} className="mb-4">
-                              <div className="font-semibold text-sm text-gray-800 mb-1">{key}</div>
-                              <div className="text-sm text-gray-700 mb-1">Type: {val.json_schema?.type || 'unknown'}</div>
-                              <div className="text-sm text-gray-700 mb-1">Value: {val.value === null ? 'null' : String(val.value)}</div>
-                              {val.rationale && <div className="text-xs text-gray-500 leading-relaxed">{val.rationale}</div>}
-                            </div>
-                          ))}
+                          <div className="font-semibold text-base mb-2">Call status</div>
+                          <div className="text-sm text-gray-700">{conversationDetails?.analysis?.call_successful || 'Unknown'}</div>
                         </div>
-                      )}
-                      {/* Call summary title */}
-                      {conversationDetails?.analysis?.call_summary_title && (
+                        {/* User ID */}
                         <div>
-                          <div className="font-semibold text-base mb-2">Call summary title</div>
-                          <div className="text-sm text-gray-700">{conversationDetails.analysis.call_summary_title}</div>
+                          <div className="font-semibold text-base mb-2">User ID</div>
+                          <div className="text-sm text-gray-700 font-mono">{conversationDetails?.user_id || 'Unknown'}</div>
                         </div>
-                      )}
-                    </div>
-                  )}
-                </TabsContent>
-                <TabsContent value="transcription">
-                  {conversationLoading ? 'Loading...' : (
-                    <div className="space-y-4">
-                      {(conversationDetails?.transcript || []).map((msg: any, i: number) => (
-                        <div key={i} className={cn(
-                          "flex flex-col items-start gap-1",
-                          msg.role === 'user' ? 'items-end' : 'items-start')
-                        }>
-                          <div className={cn(
-                            "rounded-2xl px-4 py-2 text-sm max-w-[80%] border",
-                            msg.role === 'user' ? 'bg-gray-100 border-gray-200 self-end' : 'bg-white border-gray-200 self-start')
+                        {/* Criteria evaluation */}
+                        {conversationDetails?.analysis?.evaluation_criteria_results && (
+                          <div>
+                            <div className="font-semibold text-base mb-2">Criteria evaluation</div>
+                            <div className="text-sm text-gray-600 mb-3">0 of {Object.keys(conversationDetails.analysis.evaluation_criteria_results).length} successful</div>
+                            {Object.entries(conversationDetails.analysis.evaluation_criteria_results).map(([key, val]: [string, any]) => (
+                              <div key={key} className="mb-4">
+                                <div className="font-semibold text-sm text-gray-800 mb-1">{key.replace(/_/g, ' ')}</div>
+                                <div className="text-sm text-gray-700 mb-1">{val.value ?? 'unknown'}</div>
+                                {val.rationale && <div className="text-xs text-gray-500 leading-relaxed">{val.rationale}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Data collection */}
+                        {conversationDetails?.analysis?.data_collection_results && (
+                          <div>
+                            <div className="font-semibold text-base mb-2">Data collection</div>
+                            {Object.entries(conversationDetails.analysis.data_collection_results).map(([key, val]: [string, any]) => (
+                              <div key={key} className="mb-4">
+                                <div className="font-semibold text-sm text-gray-800 mb-1">{key}</div>
+                                <div className="text-sm text-gray-700 mb-1">Type: {val.json_schema?.type || 'unknown'}</div>
+                                <div className="text-sm text-gray-700 mb-1">Value: {val.value === null ? 'null' : String(val.value)}</div>
+                                {val.rationale && <div className="text-xs text-gray-500 leading-relaxed">{val.rationale}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Call summary title */}
+                        {conversationDetails?.analysis?.call_summary_title && (
+                          <div>
+                            <div className="font-semibold text-base mb-2">Call summary title</div>
+                            <div className="text-sm text-gray-700">{conversationDetails.analysis.call_summary_title}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="transcription">
+                    {conversationLoading ? 'Loading...' : (
+                      <div className="space-y-4">
+                        {(conversationDetails?.transcript || []).map((msg: any, i: number) => (
+                          <div key={i} className={cn(
+                            "flex flex-col items-start gap-1",
+                            msg.role === 'user' ? 'items-end' : 'items-start')
                           }>
-                            {msg.message || ''}
-                            {msg.timestamp && (
-                              <span className="ml-2 text-xs text-muted-foreground align-bottom">{msg.timestamp ? `(${msg.timestamp})` : ''}</span>
+                            <div className={cn(
+                              "rounded-2xl px-4 py-2 text-sm max-w-[80%] border",
+                              msg.role === 'user' ? 'bg-gray-100 border-gray-200 self-end' : 'bg-white border-gray-200 self-start')
+                            }>
+                              {msg.message || ''}
+                              {msg.timestamp && (
+                                <span className="ml-2 text-xs text-muted-foreground align-bottom">{msg.timestamp ? `(${msg.timestamp})` : ''}</span>
+                              )}
+                            </div>
+                            {msg.llm_response_time_ms && (
+                              <div className="text-xs text-muted-foreground ml-2">LLM {msg.llm_response_time_ms} ms</div>
+                            )}
+                            {msg.input_type && (
+                              <div className="text-xs text-muted-foreground ml-2">{msg.input_type === 'text' ? 'Text input' : msg.input_type}</div>
                             )}
                           </div>
-                          {msg.llm_response_time_ms && (
-                            <div className="text-xs text-muted-foreground ml-2">LLM {msg.llm_response_time_ms} ms</div>
-                          )}
-                          {msg.input_type && (
-                            <div className="text-xs text-muted-foreground ml-2">{msg.input_type === 'text' ? 'Text input' : msg.input_type}</div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
-                <TabsContent value="clientdata">
-                  {conversationLoading ? 'Loading...' : (
-                    <div className="space-y-4">
-                      <div className="font-semibold text-base mb-2">Client overrides</div>
-                      {conversationDetails?.conversation_initiation_client_data && Object.keys(conversationDetails.conversation_initiation_client_data).length > 0 ? (
-                        <table className="min-w-[200px] border rounded-lg">
-                          <tbody>
-                            {Object.entries(conversationDetails.conversation_initiation_client_data).map(([key, value]: [string, any]) => (
-                              <tr key={key} className="border-b align-top">
-                                <td className="py-2 px-4 font-medium whitespace-nowrap align-top">{key}</td>
-                                <td className="py-2 px-4">
-                                  {typeof value === 'object' && value !== null
-                                    ? <pre className="text-xs bg-gray-50 rounded p-2 overflow-x-auto">{JSON.stringify(value, null, 2)}</pre>
-                                    : String(value)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : (
-                        <div className="text-muted-foreground">No client data</div>
-                      )}
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-              {/* Audio player */}
-              {conversationAudioUrl && (
-                <audio controls src={conversationAudioUrl} className="w-full mt-4" />
-              )}
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="clientdata">
+                    {conversationLoading ? 'Loading...' : (
+                      <div className="space-y-4">
+                        <div className="font-semibold text-base mb-2">Client overrides</div>
+                        {conversationDetails?.conversation_initiation_client_data && Object.keys(conversationDetails.conversation_initiation_client_data).length > 0 ? (
+                          <table className="min-w-[200px] border rounded-lg">
+                            <tbody>
+                              {Object.entries(conversationDetails.conversation_initiation_client_data).map(([key, value]: [string, any]) => (
+                                <tr key={key} className="border-b align-top">
+                                  <td className="py-2 px-4 font-medium whitespace-nowrap align-top">{key}</td>
+                                  <td className="py-2 px-4">
+                                    {typeof value === 'object' && value !== null
+                                      ? <pre className="text-xs bg-gray-50 rounded p-2 overflow-x-auto">{JSON.stringify(value, null, 2)}</pre>
+                                      : String(value)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="text-muted-foreground">No client data</div>
+                        )}
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+                {/* Audio player positioned in content area */}
+                {conversationAudioUrl && (
+                  <div className="mt-6 pt-4 border-t bg-gray-50 rounded-lg p-4">
+                    <div className="font-semibold text-sm text-gray-700 mb-2">Audio Recording</div>
+                    <audio controls src={conversationAudioUrl} className="w-full" />
+                  </div>
+                )}
+              </div>
             </div>
             {/* Metadata sidebar - fixed position */}
             <div className="w-64 flex-shrink-0 border-l px-6 py-4 bg-gray-50">
