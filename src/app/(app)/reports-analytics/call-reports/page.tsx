@@ -79,6 +79,11 @@ import {
   SheetIcon,
   CalendarDays as CalendarIcon,
   MoreVertical,
+  AlertTriangle,
+  HelpCircle,
+  MessageSquare,
+  Clock,
+  Download,
 } from "lucide-react";
 import elevenLabsApi from "@/lib/elevenlabsApi";
 import { api } from '@/lib/apiConfig';
@@ -94,8 +99,13 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-  SheetClose
-} from '@/components/ui/sheet';
+} from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
@@ -289,8 +299,57 @@ export default function CallReportsPage() {
 
   // Filter conversations by status
   const filteredData = React.useMemo(() => {
+    console.log('Filtering conversations:', {
+      total: conversations.length,
+      selectedStatus,
+      sampleConversations: conversations.slice(0, 3).map(c => ({
+        id: c.conversation_id,
+        call_successful: c.call_successful,
+        status: c.status,
+        call_status: c.call_status,
+        analysis: c.analysis?.call_successful
+      }))
+    });
+    
     return conversations.filter((conv: any) => {
-      const statusMatch = selectedStatus === "All" || conv.call_successful === selectedStatus;
+      // Check multiple possible status fields from ElevenLabs API
+      const possibleStatuses = [
+        conv.call_successful,
+        conv.status,
+        conv.call_status,
+        conv.analysis?.call_successful,
+        conv.metadata?.call_successful
+      ].filter(Boolean); // Remove undefined/null values
+      
+      console.log(`Conversation ${conv.conversation_id} status fields:`, possibleStatuses);
+      
+      // If no status found, default to 'unknown'
+      const callStatus = possibleStatuses.length > 0 ? possibleStatuses[0] : 'unknown';
+      const normalizedStatus = String(callStatus).toLowerCase().trim();
+      
+      // Handle different status formats from ElevenLabs
+      let statusMatch = false;
+      if (selectedStatus === "All") {
+        statusMatch = true;
+      } else {
+        const selectedNormalized = selectedStatus.toLowerCase().trim();
+        
+        // Map various status formats to our expected values
+        const statusMapping: Record<string, string[]> = {
+          'successful': ['successful', 'success', 'true', '1', 'completed'],
+          'failure': ['failure', 'failed', 'false', '0', 'error', 'failed'],
+          'unknown': ['unknown', 'pending', 'in_progress', 'processing']
+        };
+        
+        // Check if the normalized status matches any of the expected values
+        const expectedValues = statusMapping[selectedNormalized] || [selectedNormalized];
+        statusMatch = expectedValues.includes(normalizedStatus);
+      }
+      
+      if (selectedStatus !== "All") {
+        console.log(`Call ${conv.conversation_id}: original_status=${callStatus}, normalized=${normalizedStatus}, selected=${selectedStatus}, match=${statusMatch}`);
+      }
+      
       return statusMatch;
     });
   }, [conversations, selectedStatus]);
@@ -301,18 +360,94 @@ export default function CallReportsPage() {
   // KPIs (example: total calls, successful calls, avg duration, etc.)
   const kpiData = React.useMemo(() => {
     const totalCallsPlaced = filteredData.length;
-    const successfulCalls = filteredData.filter((c: any) => c.call_successful === "successful").length;
-    const avgDuration = totalCallsPlaced > 0 ?
-      (filteredData.reduce((sum: number, c: any) => sum + (c.call_duration_secs || 0), 0) / totalCallsPlaced) : 0;
-    const pickupRate = totalCallsPlaced > 0 ?
-      Math.round((filteredData.filter((c: any) => c.call_successful === "successful").length / totalCallsPlaced) * 100) : 0;
+    
+    // Helper function to get normalized status (same logic as filtering)
+    const getNormalizedStatus = (conv: any) => {
+      const possibleStatuses = [
+        conv.call_successful,
+        conv.status,
+        conv.call_status,
+        conv.analysis?.call_successful,
+        conv.metadata?.call_successful
+      ].filter(Boolean);
+      
+      const callStatus = possibleStatuses.length > 0 ? possibleStatuses[0] : 'unknown';
+      return String(callStatus).toLowerCase().trim();
+    };
+    
+    // Status mapping for consistent categorization
+    const statusMapping: Record<string, string[]> = {
+      'successful': ['successful', 'success', 'true', '1', 'completed'],
+      'failure': ['failure', 'failed', 'false', '0', 'error', 'failed'],
+      'unknown': ['unknown', 'pending', 'in_progress', 'processing']
+    };
+    
+    const isStatusMatch = (normalizedStatus: string, targetStatus: string) => {
+      const expectedValues = statusMapping[targetStatus] || [targetStatus];
+      return expectedValues.includes(normalizedStatus);
+    };
+    
+    // Use enhanced status logic for consistent filtering
+    const successfulCalls = filteredData.filter((c: any) => {
+      const normalizedStatus = getNormalizedStatus(c);
+      return isStatusMatch(normalizedStatus, 'successful');
+    }).length;
+    
+    const failedCalls = filteredData.filter((c: any) => {
+      const normalizedStatus = getNormalizedStatus(c);
+      return isStatusMatch(normalizedStatus, 'failure');
+    }).length;
+    
+    const unknownCalls = filteredData.filter((c: any) => {
+      const normalizedStatus = getNormalizedStatus(c);
+      return isStatusMatch(normalizedStatus, 'unknown');
+    }).length;
+    
+    // Calculate average duration in seconds, then convert to minutes
+    const totalDurationSecs = filteredData.reduce((sum: number, c: any) => sum + (c.call_duration_secs || 0), 0);
+    const avgDurationSecs = totalCallsPlaced > 0 ? totalDurationSecs / totalCallsPlaced : 0;
+    const avgDurationMinutes = avgDurationSecs / 60;
+    
+    // Calculate pickup rate (successful calls / total calls)
+    const pickupRate = totalCallsPlaced > 0 ? Math.round((successfulCalls / totalCallsPlaced) * 100) : 0;
+    
+    // Calculate AI conversation success rate (successful calls / (successful + failed calls))
+    const totalResolvedCalls = successfulCalls + failedCalls;
+    const aiSuccessRate = totalResolvedCalls > 0 ? Math.round((successfulCalls / totalResolvedCalls) * 100) : 0;
+    
+    // Calculate calls by language
+    const languageCounts: Record<string, number> = {};
+    filteredData.forEach((c: any) => {
+      const language = c.language || c.agent_language || 'Unknown';
+      languageCounts[language] = (languageCounts[language] || 0) + 1;
+    });
+    
+    // Calculate total messages and average messages per call
+    const totalMessages = filteredData.reduce((sum: number, c: any) => sum + (c.message_count || (c.messages ? c.messages.length : 0)), 0);
+    const avgMessagesPerCall = totalCallsPlaced > 0 ? Math.round(totalMessages / totalCallsPlaced) : 0;
+    
+    console.log('KPI Calculation:', {
+      totalCallsPlaced,
+      successfulCalls,
+      failedCalls,
+      unknownCalls,
+      pickupRate,
+      aiSuccessRate,
+      sampleStatuses: filteredData.slice(0, 3).map(c => getNormalizedStatus(c))
+    });
+    
     return {
       totalCallsPlaced,
       successfulCalls,
-      averageDuration: avgDuration ? `${(avgDuration / 60).toFixed(2)} min` : "0 min",
+      failedCalls,
+      unknownCalls,
+      averageDuration: avgDurationMinutes > 0 ? `${avgDurationMinutes.toFixed(2)} min` : "0 min",
       pickupRate: `${pickupRate}%`,
-      aiConversationSuccessRate: "-",
-      callsByLanguage: {},
+      aiConversationSuccessRate: `${aiSuccessRate}%`,
+      callsByLanguage: languageCounts,
+      totalMessages,
+      avgMessagesPerCall,
+      totalDurationSecs: Math.round(totalDurationSecs / 60), // in minutes
     };
   }, [filteredData]);
 
@@ -444,12 +579,113 @@ export default function CallReportsPage() {
     }
   }
 
-  async function handleDeleteConversation() {
-    if (!selectedConversation) return;
-    await elevenLabsApi.deleteConversation(selectedConversation.conversation_id);
-    setConversationSheetOpen(false);
-    // Optionally refresh data
-  }
+  const handleDeleteConversation = async () => {
+    if (!selectedConversation?.conversation_id) return;
+    
+    try {
+      const response = await elevenLabsApi.deleteConversation(selectedConversation.conversation_id);
+      if (response.ok) {
+        setConversationSheetOpen(false);
+        // Refresh the conversations list
+        // You might want to refetch the data here
+      } else {
+        console.error("Failed to delete conversation");
+      }
+    } catch (error) {
+      console.error("Error deleting conversation:", error);
+    }
+  };
+
+  // Download conversation data (transcription and audio)
+  const handleDownloadConversationData = async () => {
+    if (!selectedConversation?.conversation_id) return;
+    
+    try {
+      // Download transcription as text file
+      const transcriptionText = conversationDetails?.transcript?.map((msg: any) => 
+        `${msg.role}: ${msg.message}${msg.timestamp ? ` (${msg.timestamp})` : ''}`
+      ).join('\n\n') || 'No transcription available';
+      
+      const transcriptionBlob = new Blob([transcriptionText], { type: 'text/plain' });
+      const transcriptionUrl = URL.createObjectURL(transcriptionBlob);
+      const transcriptionLink = document.createElement('a');
+      transcriptionLink.href = transcriptionUrl;
+      transcriptionLink.download = `conversation_${selectedConversation.conversation_id}_transcription.txt`;
+      transcriptionLink.click();
+      URL.revokeObjectURL(transcriptionUrl);
+      
+      // Download audio if available
+      if (conversationAudioUrl) {
+        const audioLink = document.createElement('a');
+        audioLink.href = conversationAudioUrl;
+        audioLink.download = `conversation_${selectedConversation.conversation_id}_audio.mp3`;
+        audioLink.click();
+      }
+    } catch (error) {
+      console.error("Error downloading conversation data:", error);
+    }
+  };
+
+  // Download overview data as Excel
+  const handleDownloadOverviewData = async () => {
+    if (!conversationDetails) return;
+    
+    try {
+      // Import xlsx dynamically to avoid SSR issues
+      const XLSX = await import('xlsx');
+      
+      // Prepare overview data with proper typing
+      const overviewData: Record<string, any> = {
+        'Conversation ID': selectedConversation?.conversation_id || 'N/A',
+        'Agent Name': selectedConversation?.agent_name || 'N/A',
+        'User ID': conversationDetails?.user_id || 'N/A',
+        'Call Status': conversationDetails?.analysis?.call_successful || 'N/A',
+        'Summary': conversationDetails?.transcript_summary || 'N/A',
+        'Call Summary Title': conversationDetails?.analysis?.call_summary_title || 'N/A',
+        'Date': conversationDetails?.metadata?.accepted_time_unix_secs ? 
+          format(new Date(conversationDetails.metadata.accepted_time_unix_secs * 1000), 'MMM dd, yyyy, hh:mm a') : 'N/A',
+        'Duration (seconds)': conversationDetails?.metadata?.call_duration_secs || 'N/A',
+        'Cost': conversationDetails?.metadata?.cost || 'N/A',
+        'Total Tokens': conversationDetails?.metadata?.charging?.llm_usage?.total_tokens || 'N/A',
+        'LLM Cost': conversationDetails?.metadata?.charging?.llm_cost || 'N/A'
+      };
+      
+      // Add evaluation criteria if available
+      if (conversationDetails?.analysis?.evaluation_criteria_results) {
+        Object.entries(conversationDetails.analysis.evaluation_criteria_results).forEach(([key, val]: [string, any]) => {
+          overviewData[`Criteria: ${key.replace(/_/g, ' ')}`] = val.value ?? 'unknown';
+          if (val.rationale) {
+            overviewData[`Criteria: ${key.replace(/_/g, ' ')} - Rationale`] = val.rationale;
+          }
+        });
+      }
+      
+      // Add data collection results if available
+      if (conversationDetails?.analysis?.data_collection_results) {
+        Object.entries(conversationDetails.analysis.data_collection_results).forEach(([key, val]: [string, any]) => {
+          overviewData[`Data: ${key}`] = val.value === null ? 'null' : String(val.value);
+          if (val.rationale) {
+            overviewData[`Data: ${key} - Rationale`] = val.rationale;
+          }
+        });
+      }
+      
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet([overviewData]);
+      
+      // Auto-size columns
+      const maxWidth = Object.keys(overviewData).reduce((max, key) => Math.max(max, key.length), 0);
+      worksheet['!cols'] = [{ wch: maxWidth }];
+      
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Conversation Overview');
+      
+      // Download the file
+      XLSX.writeFile(workbook, `conversation_${selectedConversation?.conversation_id || 'overview'}_data.xlsx`);
+    } catch (error) {
+      console.error("Error downloading overview data:", error);
+    }
+  };
 
   async function handleDownloadAudio() {
     if (!conversationAudioUrl) {
@@ -657,12 +893,85 @@ export default function CallReportsPage() {
             <CardTitle>Key Performance Indicators</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <div className="p-4 border rounded-lg"><div className="flex items-center text-sm text-muted-foreground"><Phone className="mr-2 h-4 w-4"/>Total Calls</div><div className="text-2xl font-bold">{kpiData.totalCallsPlaced.toLocaleString()}</div></div>
-            <div className="p-4 border rounded-lg"><div className="flex items-center text-sm text-muted-foreground"><CheckCircle className="mr-2 h-4 w-4"/>Successful Calls</div><div className="text-2xl font-bold">{kpiData.successfulCalls.toLocaleString()}</div></div>
-            <div className="p-4 border rounded-lg"><div className="flex items-center text-sm text-muted-foreground"><ClockIcon className="mr-2 h-4 w-4"/>Avg. Duration</div><div className="text-2xl font-bold">{kpiData.averageDuration}</div></div>
-            <div className="p-4 border rounded-lg"><div className="flex items-center text-sm text-muted-foreground"><TrendingUp className="mr-2 h-4 w-4"/>Pickup Rate</div><div className="text-2xl font-bold">{kpiData.pickupRate}</div></div>
-            <div className="p-4 border rounded-lg"><div className="flex items-center text-sm text-muted-foreground"><Percent className="mr-2 h-4 w-4"/>AI Success Rate</div><div className="text-2xl font-bold">{kpiData.aiConversationSuccessRate}</div></div>
-            <div className="p-4 border rounded-lg"><div className="flex items-center text-sm text-muted-foreground"><LanguagesIcon className="mr-2 h-4 w-4"/>Calls by Language</div><div className="text-xs">{Object.entries(kpiData.callsByLanguage).map(([lang, count]) => `${lang}: ${count}`).join(', ')}</div></div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Phone className="mr-2 h-4 w-4"/>Total Calls
+              </div>
+              <div className="text-2xl font-bold">{kpiData.totalCallsPlaced.toLocaleString()}</div>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <CheckCircle className="mr-2 h-4 w-4"/>Successful Calls
+              </div>
+              <div className="text-2xl font-bold text-green-600">{kpiData.successfulCalls.toLocaleString()}</div>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <ClockIcon className="mr-2 h-4 w-4"/>Avg. Duration
+              </div>
+              <div className="text-2xl font-bold">{kpiData.averageDuration}</div>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <TrendingUp className="mr-2 h-4 w-4"/>Pickup Rate
+              </div>
+              <div className="text-2xl font-bold text-blue-600">{kpiData.pickupRate}</div>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Percent className="mr-2 h-4 w-4"/>AI Success Rate
+              </div>
+              <div className="text-2xl font-bold text-purple-600">{kpiData.aiConversationSuccessRate}</div>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <LanguagesIcon className="mr-2 h-4 w-4"/>Calls by Language
+              </div>
+              <div className="text-xs space-y-1">
+                {Object.entries(kpiData.callsByLanguage).length > 0 ? 
+                  Object.entries(kpiData.callsByLanguage).map(([lang, count]) => (
+                    <div key={lang} className="flex justify-between">
+                      <span>{lang}:</span>
+                      <span className="font-medium">{count}</span>
+                    </div>
+                  ))
+                  : <span className="text-muted-foreground">No language data</span>
+                }
+              </div>
+            </div>
+        </CardContent>
+      </Card>
+      
+      {/* Additional KPI Cards */}
+      <Card>
+        <CardHeader>
+            <CardTitle>Additional Metrics</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <AlertTriangle className="mr-2 h-4 w-4"/>Failed Calls
+              </div>
+              <div className="text-2xl font-bold text-red-600">{kpiData.failedCalls.toLocaleString()}</div>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <HelpCircle className="mr-2 h-4 w-4"/>Unknown Status
+              </div>
+              <div className="text-2xl font-bold text-yellow-600">{kpiData.unknownCalls.toLocaleString()}</div>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <MessageSquare className="mr-2 h-4 w-4"/>Total Messages
+              </div>
+              <div className="text-2xl font-bold text-indigo-600">{kpiData.totalMessages.toLocaleString()}</div>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Clock className="mr-2 h-4 w-4"/>Total Duration
+              </div>
+              <div className="text-2xl font-bold text-cyan-600">{kpiData.totalDurationSecs} min</div>
+            </div>
         </CardContent>
       </Card>
 
@@ -672,7 +981,7 @@ export default function CallReportsPage() {
           <CardDescription>View individual report entries based on applied filters.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="max-h-[600px]">
+          <ScrollArea className="max-h-[800px]">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -751,10 +1060,10 @@ export default function CallReportsPage() {
       <Sheet open={conversationSheetOpen} onOpenChange={setConversationSheetOpen}>
         <SheetContent
           side="right"
-          className="!w-[1000px] !max-w-none !min-w-[1000px] px-0"
-          style={{ width: '1000px', maxWidth: '1000px', minWidth: '1000px' }}
+          className="!w-[1000px] !max-w-none !min-w-[1000px] px-0 h-full"
+          style={{ width: '1000px', maxWidth: '1000px', minWidth: '1000px', height: '100vh' }}
         >
-          <SheetHeader className="px-6 py-4 border-b">
+          <SheetHeader className="px-6 py-4 border-b flex-shrink-0">
             <SheetTitle>
               Conversation with {selectedConversation?.agent_name || 'Agent'}
             </SheetTitle>
@@ -762,18 +1071,56 @@ export default function CallReportsPage() {
               {selectedConversation?.conversation_id}
             </SheetDescription>
           </SheetHeader>
-          <div className="flex h-full">
-            <div className="flex-1 flex flex-col h-full">
-              <div className="flex-1 overflow-y-auto px-6 py-4">
+          
+          <div className="flex h-[calc(100vh-80px)]">
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Audio Recording - Fixed at top */}
+              {conversationAudioUrl && (
+                <div className="px-6 py-4 border-b bg-gray-50 flex-shrink-0">
+                  <div className="font-semibold text-sm text-gray-700 mb-2">Audio Recording</div>
+                  <audio controls src={conversationAudioUrl} className="w-full" />
+                </div>
+              )}
+              
+              {/* Tabs - Fixed below audio */}
+              <div className="px-6 py-4 border-b flex-shrink-0">
                 <Tabs value={conversationTab} onValueChange={setConversationTab} className="w-full">
-                  <TabsList className="mb-6">
+                  <TabsList>
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="transcription">Transcription</TabsTrigger>
                     <TabsTrigger value="clientdata">Client data</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="overview">
+                </Tabs>
+              </div>
+              
+              {/* Scrollable Content Area */}
+              <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+                <Tabs value={conversationTab} onValueChange={setConversationTab} className="w-full">
+                  <TabsContent value="overview" className="mt-0">
                     {conversationLoading ? 'Loading...' : (
-                      <div className="space-y-6">
+                      <div className="space-y-6 pb-6">
+                        {/* Overview Header with Download Button */}
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold">Overview</h3>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleDownloadOverviewData}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Download overview data in Excel format</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                        
                         {/* Summary */}
                         <div>
                           <div className="font-semibold text-base mb-2">Summary</div>
@@ -827,9 +1174,31 @@ export default function CallReportsPage() {
                       </div>
                     )}
                   </TabsContent>
-                  <TabsContent value="transcription">
+                  <TabsContent value="transcription" className="mt-0">
                     {conversationLoading ? 'Loading...' : (
-                      <div className="space-y-4">
+                      <div className="space-y-4 pb-6">
+                        {/* Transcription Header with Download Button */}
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold">Transcription</h3>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleDownloadConversationData}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Download conversation transcription and audio recording</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                        
                         {(conversationDetails?.transcript || []).map((msg: any, i: number) => (
                           <div key={i} className={cn(
                             "flex flex-col items-start gap-1",
@@ -855,9 +1224,9 @@ export default function CallReportsPage() {
                       </div>
                     )}
                   </TabsContent>
-                  <TabsContent value="clientdata">
+                  <TabsContent value="clientdata" className="mt-0">
                     {conversationLoading ? 'Loading...' : (
-                      <div className="space-y-4">
+                      <div className="space-y-4 pb-6">
                         <div className="font-semibold text-base mb-2">Client overrides</div>
                         {conversationDetails?.conversation_initiation_client_data && Object.keys(conversationDetails.conversation_initiation_client_data).length > 0 ? (
                           <table className="min-w-[200px] border rounded-lg">
@@ -881,17 +1250,10 @@ export default function CallReportsPage() {
                     )}
                   </TabsContent>
                 </Tabs>
-                {/* Audio player positioned in content area */}
-                {conversationAudioUrl && (
-                  <div className="mt-6 pt-4 border-t bg-gray-50 rounded-lg p-4">
-                    <div className="font-semibold text-sm text-gray-700 mb-2">Audio Recording</div>
-                    <audio controls src={conversationAudioUrl} className="w-full" />
-                  </div>
-                )}
               </div>
             </div>
             {/* Metadata sidebar - fixed position */}
-            <div className="w-64 flex-shrink-0 border-l px-6 py-4 bg-gray-50">
+            <div className="w-64 flex-shrink-0 border-l px-6 py-4 bg-gray-50 overflow-y-auto">
               <div className="mb-4 text-sm font-semibold text-gray-800">Metadata</div>
               <div className="space-y-3">
                 <div>

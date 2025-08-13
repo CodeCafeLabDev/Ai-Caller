@@ -484,17 +484,33 @@ function buildElevenLabsPayload({
     response_timeout_secs: 20,
     type: "system"
   };
-  if (agentSettings.tools.includes('transfer_to_agent')) builtInTools.transfer_to_agent = {
+  const transferToAgentTransfers = Array.isArray((agentSettings as any).transfer_to_agent_transfers)
+    ? (agentSettings as any).transfer_to_agent_transfers
+    : [];
+  if (agentSettings.tools.includes('transfer_to_agent') && transferToAgentTransfers.length > 0) builtInTools.transfer_to_agent = {
     name: "transfer_to_agent",
     description: "Gives agent the ability to transfer the call to another AI agent.",
-    params: { system_tool_type: "transfer_to_agent" },
+    params: {
+      system_tool_type: "transfer_to_agent",
+      transfer_to_agent: {
+        transfers: transferToAgentTransfers
+      }
+    },
     response_timeout_secs: 20,
     type: "system"
   };
-  if (agentSettings.tools.includes('transfer_to_number')) builtInTools.transfer_to_number = {
+  const transferToNumberTransfers = Array.isArray((agentSettings as any).transfer_to_number_transfers)
+    ? (agentSettings as any).transfer_to_number_transfers
+    : [];
+  if (agentSettings.tools.includes('transfer_to_number') && transferToNumberTransfers.length > 0) builtInTools.transfer_to_number = {
     name: "transfer_to_number",
     description: "Gives agent the ability to transfer the call to a human.",
-    params: { system_tool_type: "transfer_to_number" },
+    params: {
+      system_tool_type: "transfer_to_number",
+      transfer_to_number: {
+        transfers: transferToNumberTransfers
+      }
+    },
     response_timeout_secs: 20,
     type: "system"
   };
@@ -515,15 +531,23 @@ function buildElevenLabsPayload({
   // ... rest of buildElevenLabsPayload as before ...
 
   // Build prompt object with conditional fields
-  const enabledBuiltInTools = BUILT_IN_TOOLS.filter(tool => agentSettings.tools.includes(tool.name));
-  const enabledCustomTools = (agentSettings.tools || []).map((t: string) => allTools.find((tool: any) => tool.name === t)).filter((tool: any) => tool && !BUILT_IN_TOOLS.some(b => b.name === tool.name));
-  const enabledTools = [...enabledBuiltInTools, ...enabledCustomTools];
+  const enabledBuiltInTools = Object.values(builtInTools);
+  const enabledCustomTools = (agentSettings.tools || [])
+    .map((t: string) => allTools.find((tool: any) => tool.id === t || tool.name === t))
+    .filter((tool: any) => tool && !BUILT_IN_TOOLS.some(b => b.name === tool.name));
+  // Only include custom tools in `tools`. Built-in/system tools go in `built_in_tools`.
+  const enabledTools = [...enabledCustomTools];
   const prompt: any = {
     prompt: systemPrompt,
     llm: agentSettings.llm,
     temperature: agentSettings.temperature,
     max_tokens: agentSettings.token_limit,
-    tool_ids: agentSettings.tool_ids,
+    tool_ids: (agentSettings.tools || [])
+      .map((t: string) => {
+        const match = allTools.find((tool: any) => tool.id === t || tool.name === t);
+        return match?.id;
+      })
+      .filter(Boolean),
     mcp_server_ids: agentSettings.mcp_server_ids,
     native_mcp_server_ids: agentSettings.native_mcp_server_ids,
     knowledge_base: agentSettings.knowledge_base,
@@ -822,6 +846,10 @@ export default function AgentDetailsPage() {
     ignore_default_personality: false,
     rag: {} as any,
     timezone: null as any,
+    // Built-in tool configs
+    transfer_to_agent_transfers: [] as any[],
+    transfer_to_number_transfers: [] as any[],
+    voicemail_detection_message: '' as string,
     tools: [] as any[],
     custom_llm_url: "",
     custom_llm_model_id: "",
@@ -939,6 +967,7 @@ export default function AgentDetailsPage() {
 
   // Add at the top of the component
   const [showMcpDialog, setShowMcpDialog] = useState(false);
+  const [showBuiltInToolDrawer, setShowBuiltInToolDrawer] = useState<{open: boolean, tool: string | null}>({ open: false, tool: null });
   const [showNewMcpForm, setShowNewMcpForm] = useState(false);
   const [showMcpDrawer, setShowMcpDrawer] = useState(false);
   const [mcpServers, setMcpServers] = useState<any[]>(agentSettings.mcp_server_ids || []);
@@ -1016,7 +1045,7 @@ export default function AgentDetailsPage() {
   // Fetch agent details from backend (which fetches from ElevenLabs and local DB)
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/agents/${agentId}/details`)
+    fetch(`/api/agents/${agentId}/details`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
         setLocalAgent(data.local || {});
@@ -1115,7 +1144,27 @@ export default function AgentDetailsPage() {
             ?? (typeof prev.token_limit === 'number' ? prev.token_limit : -1),
           first_message: data.elevenlabs.conversation_config?.agent?.first_message || data?.local?.first_message || prev.first_message || '',
           // system_prompt: data.elevenlabs.conversation_config?.agent?.prompt?.prompt || data?.local?.system_prompt || prev.system_prompt || '',
-          tools: data.elevenlabs.conversation_config?.agent?.tools || data.elevenlabs.conversation_config?.agent?.prompt?.tool_ids || data?.local?.tools || prev.tools || [],
+          // Hydrate tools from ElevenLabs: merge prompt.tool_ids (IDs) + built_in_tools names; fallback to agent.tools; then local
+          tools: (() => {
+            const toolIds = (Array.isArray(agent.prompt?.tool_ids) && agent.prompt?.tool_ids?.length)
+              ? agent.prompt.tool_ids
+              : [];
+            const builtInNames = agent.prompt?.built_in_tools ? Object.keys(agent.prompt.built_in_tools) : [];
+            const fromAgentTools = Array.isArray(agent.tools) ? agent.tools : [];
+            const base = toolIds.length ? [...toolIds, ...builtInNames] : fromAgentTools;
+            const fallback = data?.local?.tools || prev.tools || [];
+            return Array.from(new Set([...(base || []), ...(fallback || [])]));
+          })(),
+          // hydrate built-in tool configs
+          transfer_to_agent_transfers: Array.isArray(agent.prompt?.built_in_tools?.transfer_to_agent?.params?.transfer_to_agent?.transfers)
+            ? agent.prompt.built_in_tools.transfer_to_agent.params.transfer_to_agent.transfers
+            : (prev as any).transfer_to_agent_transfers || [],
+          transfer_to_number_transfers: Array.isArray(agent.prompt?.built_in_tools?.transfer_to_number?.params?.transfer_to_number?.transfers)
+            ? agent.prompt.built_in_tools.transfer_to_number.params.transfer_to_number.transfers
+            : (prev as any).transfer_to_number_transfers || [],
+          voicemail_detection_message: typeof agent.prompt?.built_in_tools?.voicemail_detection?.params?.voicemail_detection?.message === 'string'
+            ? agent.prompt.built_in_tools.voicemail_detection.params.voicemail_detection.message
+            : (prev as any).voicemail_detection_message || '',
           custom_llm: data.local.custom_llm ?? agent.prompt?.custom_llm ?? prev.custom_llm ?? null,
           ignore_default_personality: data.local.ignore_default_personality ?? agent.prompt?.ignore_default_personality ?? prev.ignore_default_personality ?? false,
           rag: data.local.rag ?? agent.prompt?.rag ?? prev.rag ?? {},
@@ -1124,6 +1173,7 @@ export default function AgentDetailsPage() {
           custom_llm_model_id: data.local.custom_llm_model_id ?? agent.custom_llm_model_id ?? prev.custom_llm_model_id ?? '',
           custom_llm_api_key: data.local.custom_llm_api_key ?? agent.custom_llm_api_key ?? prev.custom_llm_api_key ?? '',
           custom_llm_headers: data.local.custom_llm_headers ?? agent.custom_llm_headers ?? prev.custom_llm_headers ?? [],
+          mcp_server_ids: agent.prompt?.mcp_server_ids || data?.local?.mcp_server_ids || prev.mcp_server_ids || [],
         }));
         setFirstMessage(agent.first_message || '');
         setSystemPrompt(agent.prompt?.prompt || '');
@@ -3422,6 +3472,10 @@ export default function AgentDetailsPage() {
                               type="checkbox"
                               checked={agentSettings.tools.includes(tool.name)}
                               onChange={e => {
+                                const needsConfig = ['transfer_to_agent','transfer_to_number','voicemail_detection'].includes(tool.name);
+                                if (e.target.checked && needsConfig) {
+                                  setShowBuiltInToolDrawer({ open: true, tool: tool.name });
+                                }
                                 setAgentSettings(prev => ({
                                   ...prev,
                                   tools: e.target.checked
@@ -3448,20 +3502,21 @@ export default function AgentDetailsPage() {
                           <label className="inline-flex items-center cursor-pointer">
                             <input
                               type="checkbox"
-                              checked={agentSettings.tools.includes(tool.name)}
+                              checked={agentSettings.tools.includes(tool.id) || agentSettings.tools.includes(tool.name)}
                               onChange={e => {
+                                const toolIdentifier = tool.id || tool.name;
                                 setAgentSettings(prev => ({
                                   ...prev,
                                   tools: e.target.checked
-                                    ? [...prev.tools, tool.name]
-                                    : prev.tools.filter((t: string) => t !== tool.name)
+                                    ? [...prev.tools, toolIdentifier]
+                                    : prev.tools.filter((t: string) => t !== toolIdentifier)
                                 }));
                               }}
                               className="sr-only peer"
                             />
-                            <div className={`w-11 h-6 rounded-full transition-colors duration-200 ${agentSettings.tools.includes(tool.name) ? 'bg-blue-600' : 'bg-gray-200'}`}
+                            <div className={`w-11 h-6 rounded-full transition-colors duration-200 ${(agentSettings.tools.includes(tool.id) || agentSettings.tools.includes(tool.name)) ? 'bg-blue-600' : 'bg-gray-200'}`}
                               style={{ position: 'relative' }}>
-                              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${agentSettings.tools.includes(tool.name) ? 'translate-x-5' : ''}`}></div>
+                              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${(agentSettings.tools.includes(tool.id) || agentSettings.tools.includes(tool.name)) ? 'translate-x-5' : ''}`}></div>
                             </div>
                           </label>
                         </div>
@@ -3469,6 +3524,119 @@ export default function AgentDetailsPage() {
                     </div>
                   )}
                 </div>
+                {/* Built-in Tool Drawer */}
+                {showBuiltInToolDrawer.open && (
+                  <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setShowBuiltInToolDrawer({ open: false, tool: null })} />
+                )}
+                {showBuiltInToolDrawer.open && (
+                  <div className="fixed top-0 right-0 h-full w-full sm:w-[420px] bg-white shadow-xl z-50 p-4 overflow-y-auto">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="text-lg font-semibold">Configure {showBuiltInToolDrawer.tool}</div>
+                      <button onClick={() => setShowBuiltInToolDrawer({ open: false, tool: null })} className="text-gray-500">Close</button>
+                    </div>
+                    {showBuiltInToolDrawer.tool === 'transfer_to_agent' && (
+                      <div className="space-y-3">
+                        <div className="text-sm text-gray-600">Add one or more agent transfer rules.</div>
+                        <button
+                          className="px-3 py-2 bg-gray-100 rounded"
+                          onClick={() => setAgentSettings(prev => ({
+                            ...prev,
+                            transfer_to_agent_transfers: [...(prev as any).transfer_to_agent_transfers, { agent_id: '', label: '' }]
+                          }))}
+                        >Add Rule</button>
+                        <div className="space-y-2">
+                          {(agentSettings as any).transfer_to_agent_transfers?.map((rule: any, idx: number) => (
+                            <div key={idx} className="border rounded p-2 space-y-2">
+                              <input
+                                placeholder="Agent ID"
+                                className="w-full border rounded px-2 py-1"
+                                value={rule.agent_id}
+                                onChange={e => setAgentSettings(prev => {
+                                  const next = [...(prev as any).transfer_to_agent_transfers];
+                                  next[idx] = { ...next[idx], agent_id: e.target.value };
+                                  return { ...prev, transfer_to_agent_transfers: next } as any;
+                                })}
+                              />
+                              <input
+                                placeholder="Label (optional)"
+                                className="w-full border rounded px-2 py-1"
+                                value={rule.label || ''}
+                                onChange={e => setAgentSettings(prev => {
+                                  const next = [...(prev as any).transfer_to_agent_transfers];
+                                  next[idx] = { ...next[idx], label: e.target.value };
+                                  return { ...prev, transfer_to_agent_transfers: next } as any;
+                                })}
+                              />
+                              <button className="text-red-600 text-sm" onClick={() => setAgentSettings(prev => {
+                                const next = [...(prev as any).transfer_to_agent_transfers];
+                                next.splice(idx, 1);
+                                return { ...prev, transfer_to_agent_transfers: next } as any;
+                              })}>Remove</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {showBuiltInToolDrawer.tool === 'transfer_to_number' && (
+                      <div className="space-y-3">
+                        <div className="text-sm text-gray-600">Add one or more human transfer rules.</div>
+                        <button
+                          className="px-3 py-2 bg-gray-100 rounded"
+                          onClick={() => setAgentSettings(prev => ({
+                            ...prev,
+                            transfer_to_number_transfers: [...(prev as any).transfer_to_number_transfers, { phone_number: '', label: '' }]
+                          }))}
+                        >Add Rule</button>
+                        <div className="space-y-2">
+                          {(agentSettings as any).transfer_to_number_transfers?.map((rule: any, idx: number) => (
+                            <div key={idx} className="border rounded p-2 space-y-2">
+                              <input
+                                placeholder="Phone number (E.164)"
+                                className="w-full border rounded px-2 py-1"
+                                value={rule.phone_number}
+                                onChange={e => setAgentSettings(prev => {
+                                  const next = [...(prev as any).transfer_to_number_transfers];
+                                  next[idx] = { ...next[idx], phone_number: e.target.value };
+                                  return { ...prev, transfer_to_number_transfers: next } as any;
+                                })}
+                              />
+                              <input
+                                placeholder="Label (optional)"
+                                className="w-full border rounded px-2 py-1"
+                                value={rule.label || ''}
+                                onChange={e => setAgentSettings(prev => {
+                                  const next = [...(prev as any).transfer_to_number_transfers];
+                                  next[idx] = { ...next[idx], label: e.target.value };
+                                  return { ...prev, transfer_to_number_transfers: next } as any;
+                                })}
+                              />
+                              <button className="text-red-600 text-sm" onClick={() => setAgentSettings(prev => {
+                                const next = [...(prev as any).transfer_to_number_transfers];
+                                next.splice(idx, 1);
+                                return { ...prev, transfer_to_number_transfers: next } as any;
+                              })}>Remove</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {showBuiltInToolDrawer.tool === 'voicemail_detection' && (
+                      <div className="space-y-3">
+                        <div className="text-sm text-gray-600">Voicemail message to leave when voicemail is detected.</div>
+                        <textarea
+                          rows={6}
+                          className="w-full border rounded px-2 py-1"
+                          value={(agentSettings as any).voicemail_detection_message}
+                          onChange={e => setAgentSettings(prev => ({ ...prev, voicemail_detection_message: e.target.value }) as any)}
+                        />
+                      </div>
+                    )}
+                    <div className="mt-6 flex gap-2">
+                      <button className="px-4 py-2 bg-blue-600 text-white rounded" onClick={() => setShowBuiltInToolDrawer({ open: false, tool: null })}>Done</button>
+                      <button className="px-4 py-2 bg-gray-100 rounded" onClick={() => setShowBuiltInToolDrawer({ open: false, tool: null })}>Cancel</button>
+                    </div>
+                  </div>
+                )}
                 {/* Custom MCP Servers */}
                 <div className="bg-white rounded-lg p-5 shadow flex flex-col gap-2 relative">
                   <div className="font-semibold">Custom MCP Servers<span className="bg-gray-100 text-xs px-2 py-1 rounded ml-2">soon</span></div>

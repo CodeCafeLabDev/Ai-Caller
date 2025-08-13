@@ -1,42 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { elevenLabsApi } from '@/lib/elevenlabsApi';
-// import your DB functions here (pseudo: getAgentFromDB, updateAgentInDB)
 
-// Helper to fetch agent from ElevenLabs
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+// Resolve base URL robustly; default to ElevenLabs public API if env is missing
+const ELEVEN_BASE = (() => {
+  const fromEnv = process.env.ELEVENLABS_BASE_URL?.replace(/\/$/, '');
+  if (fromEnv) {
+    // If the env doesn't already include /v1/convai, append it
+    if (/\/v1(\/convai)?$/.test(fromEnv)) return fromEnv + (fromEnv.endsWith('/convai') ? '' : '/convai');
+    return fromEnv + '/v1/convai';
+  }
+  return 'https://api.elevenlabs.io/v1/convai';
+})();
+
+const XI_KEY = process.env.ELEVENLABS_API_KEY || process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '';
+
 async function fetchElevenLabsAgent(agentId: string) {
-  // Replace with your actual ElevenLabs API call
-  const res = await fetch(`${process.env.ELEVENLABS_BASE_URL}/v1/convai/agents/${agentId}`, {
-    headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY || '' },
+  const res = await fetch(`${ELEVEN_BASE}/agents/${agentId}`, {
+    headers: { 'xi-api-key': XI_KEY },
+    cache: 'no-store',
   });
-  if (!res.ok) throw new Error('Failed to fetch from ElevenLabs');
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Failed to fetch from ElevenLabs (${res.status}): ${text}`);
+  }
   return res.json();
 }
 
-// Helper to update agent in ElevenLabs
 async function updateElevenLabsAgent(agentId: string, data: any) {
-  const res = await fetch(`${process.env.ELEVENLABS_BASE_URL}/v1/convai/agents/${agentId}`, {
+  const res = await fetch(`${ELEVEN_BASE}/agents/${agentId}`, {
     method: 'PATCH',
     headers: {
-      'xi-api-key': process.env.ELEVENLABS_API_KEY || '',
+      'xi-api-key': XI_KEY,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to update ElevenLabs');
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Failed to update ElevenLabs (${res.status}): ${text}`);
+  }
   return res.json();
 }
 
 export async function GET(req: NextRequest, { params }: { params: { agent_id: string } }) {
   const { agent_id } = params;
   try {
-    // Fetch from ElevenLabs
     const elevenlabs = await fetchElevenLabsAgent(agent_id);
-    // Fetch from local DB (replace with your actual DB call)
-    // const local = await getAgentFromDB(agent_id);
-    const local = {}; // TODO: implement
-    return NextResponse.json({ elevenlabs, local });
+    const local = {};
+    return NextResponse.json({ success: true, elevenlabs, local });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
 
@@ -44,13 +59,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { agent_id: 
   const { agent_id } = params;
   try {
     const body = await req.json();
-    // Update ElevenLabs
     const elevenlabs = await updateElevenLabsAgent(agent_id, body.elevenlabs);
-    // Update local DB (replace with your actual DB call)
-    // const local = await updateAgentInDB(agent_id, body.local);
-    const local = {}; // TODO: implement
-    return NextResponse.json({ elevenlabs, local });
+    const local = {};
+    return NextResponse.json({ success: true, elevenlabs, local });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
-} 
+}
