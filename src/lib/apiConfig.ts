@@ -69,6 +69,8 @@ export const API_ENDPOINTS = {
   CLIENTS: {
     BASE: '/api/clients',
     BY_ID: (clientId: string) => `/api/clients/${clientId}`,
+    SEND_WELCOME_EMAIL: (clientId: string) => `/api/clients/${clientId}/send-welcome-email`,
+    INCREMENT_CALL: (clientId: string) => `/api/clients/${clientId}/increment-call`,
   },
 
   // Plans
@@ -272,6 +274,8 @@ export const api = {
   getClient: (clientId: string) => apiUtils.get(API_ENDPOINTS.CLIENTS.BY_ID(clientId)),
   createClient: (data: any) => apiUtils.post(API_ENDPOINTS.CLIENTS.BASE, data),
   updateClient: (clientId: string, data: any) => apiUtils.put(API_ENDPOINTS.CLIENTS.BY_ID(clientId), data),
+  sendWelcomeEmail: (clientId: string) => apiUtils.post(API_ENDPOINTS.CLIENTS.SEND_WELCOME_EMAIL(clientId)),
+  incrementCallCount: (clientId: string) => apiUtils.post(API_ENDPOINTS.CLIENTS.INCREMENT_CALL(clientId)),
   
   // Plans
   getPlans: () => apiUtils.get(API_ENDPOINTS.PLANS.BASE),

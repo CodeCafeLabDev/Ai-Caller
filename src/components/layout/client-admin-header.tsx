@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -17,6 +18,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Logo } from '@/components/logo';
 import { useToast } from "@/components/ui/use-toast";
+import { useUser } from '@/lib/utils';
+import { api } from '@/lib/apiConfig';
 
 // Simplified mock client data for header
 const mockClientData = {
@@ -32,6 +35,8 @@ const clientQuickActionItems = [
 export function ClientAdminHeader() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user, setUser } = useUser();
+  const [trialBanner, setTrialBanner] = React.useState<{ message: string; critical?: boolean } | null>(null);
 
   const handleLogout = () => {
     toast({
@@ -55,8 +60,60 @@ export function ClientAdminHeader() {
     // Here you would typically set locale preference, e.g., in context or cookies
   };
 
+  // Trial expiry watcher
+  React.useEffect(() => {
+    let canceled = false;
+    const checkTrial = async () => {
+      try {
+        if (!user?.clientId) return;
+        const res = await api.getClient(user.clientId);
+        const j = await res.json();
+        if (!j?.success) return;
+        const client = j.data;
+        const isTrial = !!client?.trialMode;
+        const trialEndsAt = client?.trialEndsAt ? new Date(client.trialEndsAt) : null;
+        const callLimit = typeof client?.trialCallLimit === 'number' ? client.trialCallLimit : null;
+        const totalCalls = typeof client?.totalCallsMade === 'number' ? client.totalCallsMade : null;
+        const now = new Date();
+
+        const expiredByTime = isTrial && trialEndsAt && now > trialEndsAt;
+        const expiredByUsage = isTrial && callLimit !== null && totalCalls !== null && totalCalls >= callLimit;
+
+        if (expiredByTime || expiredByUsage) {
+          if (canceled) return;
+          setTrialBanner({ message: 'Your trial has ended. Please contact support to continue.', critical: true });
+          // Auto-logout after short delay to restrict usage
+          setTimeout(() => {
+            if (canceled) return;
+            toast({ title: 'Trial Ended', description: 'You have been logged out. Please contact support to upgrade.' });
+            setUser(null);
+            router.push('/signin');
+          }, 4000);
+        } else if (isTrial && trialEndsAt) {
+          const daysLeft = Math.max(0, Math.ceil((trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+          if (daysLeft <= 3) {
+            setTrialBanner({ message: `Trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`, critical: false });
+          } else {
+            setTrialBanner(null);
+          }
+        } else {
+          setTrialBanner(null);
+        }
+      } catch {}
+    };
+    checkTrial();
+    const id = setInterval(checkTrial, 60_000);
+    return () => { canceled = true; clearInterval(id); };
+  }, [user?.clientId, router, setUser, toast]);
+
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-background px-4 md:px-6 shadow-sm">
+    <header className="sticky top-0 z-30 flex flex-col border-b bg-background shadow-sm">
+      {trialBanner && (
+        <div className={`w-full text-center text-xs px-3 py-1 ${trialBanner.critical ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-900'}`}>
+          {trialBanner.message}
+        </div>
+      )}
+      <div className="flex h-16 items-center justify-between gap-4 px-4 md:px-6">
       <div className="flex items-center gap-2 md:gap-4">
         <SidebarTrigger className="md:hidden shrink-0" />
         <div className="hidden md:block">
@@ -165,6 +222,7 @@ export function ClientAdminHeader() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      </div>
       </div>
     </header>
   );

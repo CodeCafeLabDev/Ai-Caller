@@ -32,6 +32,8 @@ const addClientFormSchema = z.object({
   address: z.string().optional(),
   contactPersonName: z.string().min(2, { message: "Contact person name must be at least 2 characters." }),
   domainSubdomain: z.string().optional(),
+  // Optional referral code; kept flexible (alphanumeric and dashes/underscores) for dynamic referral admin mapping
+  referralCode: z.string().regex(/^[A-Za-z0-9-_]+$/, { message: "Referral code can contain letters, numbers, dashes and underscores only." }).optional().or(z.literal("")),
   apiAccess: z.boolean().default(false),
   trialMode: z.boolean().default(false),
   trialDuration: z.coerce.number().optional(), 
@@ -79,6 +81,7 @@ export function AddClientForm({ onSuccess, onCancel, client }: AddClientFormProp
       address: client.address || "",
       contactPersonName: client.contactPersonName || "",
       domainSubdomain: client.domainSubdomain || "",
+      referralCode: client.referralCode || "",
       apiAccess: client.apiAccess || false,
       trialMode: client.trialMode || false,
       trialDuration: client.trialDuration || undefined,
@@ -93,6 +96,7 @@ export function AddClientForm({ onSuccess, onCancel, client }: AddClientFormProp
       address: "",
       contactPersonName: "",
       domainSubdomain: "",
+      referralCode: "",
       apiAccess: false,
       trialMode: false,
       trialDuration: undefined,
@@ -196,6 +200,23 @@ export function AddClientForm({ onSuccess, onCancel, client }: AddClientFormProp
                   </FormControl>
                   <FormDescription>
                     Relevant for multi-tenant setups.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="referralCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Referral Code (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., PARTNER-123" {...field} className="h-9 text-sm" />
+                  </FormControl>
+                  <FormDescription>
+                    If provided, credits/benefits may be applied automatically based on the referral admin.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

@@ -121,11 +121,14 @@ db.connect(err => {
             address TEXT,
             contactPersonName VARCHAR(255) NOT NULL,
             domainSubdomain VARCHAR(255),
+            referralCode VARCHAR(64) NULL,
             plan_id INT NOT NULL,
             apiAccess BOOLEAN NOT NULL DEFAULT FALSE,
             trialMode BOOLEAN NOT NULL DEFAULT FALSE,
             trialDuration INT,
             trialCallLimit INT,
+            trialEndsAt DATETIME NULL,
+            totalCallsMade INT NOT NULL DEFAULT 0,
             adminPassword VARCHAR(255) NOT NULL,
             autoSendLoginEmail BOOLEAN NOT NULL DEFAULT TRUE,
             avatar_url VARCHAR(255) NULL,
@@ -142,6 +145,71 @@ db.connect(err => {
             return;
           }
           console.log("✅ Clients table created successfully");
+
+          // Ensure new columns/indexes exist for evolving schema
+          // 1) referralCode column (optional)
+          tempDb.query(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'ai-caller' AND TABLE_NAME = 'clients' AND COLUMN_NAME = 'referralCode'",
+            (e1, r1) => {
+              if (!e1 && (!Array.isArray(r1) || r1.length === 0)) {
+                tempDb.query(
+                  "ALTER TABLE clients ADD COLUMN referralCode VARCHAR(64) NULL AFTER domainSubdomain",
+                  (e1a) => {
+                    if (e1a) console.error("Failed to add clients.referralCode column:", e1a);
+                    else console.log("✅ Added clients.referralCode column");
+                  }
+                );
+              }
+            }
+          );
+
+          // 2) trialEndsAt column (optional) used for auto-logout/banner
+          tempDb.query(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'ai-caller' AND TABLE_NAME = 'clients' AND COLUMN_NAME = 'trialEndsAt'",
+            (e2, r2) => {
+              if (!e2 && (!Array.isArray(r2) || r2.length === 0)) {
+                tempDb.query(
+                  "ALTER TABLE clients ADD COLUMN trialEndsAt DATETIME NULL AFTER trialCallLimit",
+                  (e2a) => {
+                    if (e2a) console.error("Failed to add clients.trialEndsAt column:", e2a);
+                    else console.log("✅ Added clients.trialEndsAt column");
+                  }
+                );
+              }
+            }
+          );
+
+          // 3) Unique index on companyEmail to enforce uniqueness
+          tempDb.query(
+            "SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA='ai-caller' AND TABLE_NAME='clients' AND INDEX_NAME='unique_companyEmail'",
+            (e3, r3) => {
+              if (!e3 && (!Array.isArray(r3) || r3.length === 0)) {
+                tempDb.query(
+                  "ALTER TABLE clients ADD UNIQUE KEY unique_companyEmail (companyEmail)",
+                  (e3a) => {
+                    if (e3a) console.error("Failed to add unique index on clients.companyEmail:", e3a);
+                    else console.log("✅ Added unique index clients.unique_companyEmail");
+                  }
+                );
+              }
+            }
+          );
+
+          // 4) totalCallsMade column for real-time call tracking
+          tempDb.query(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'ai-caller' AND TABLE_NAME = 'clients' AND COLUMN_NAME = 'totalCallsMade'",
+            (e4, r4) => {
+              if (!e4 && (!Array.isArray(r4) || r4.length === 0)) {
+                tempDb.query(
+                  "ALTER TABLE clients ADD COLUMN totalCallsMade INT NOT NULL DEFAULT 0 AFTER trialEndsAt",
+                  (e4a) => {
+                    if (e4a) console.error("Failed to add clients.totalCallsMade column:", e4a);
+                    else console.log("✅ Added clients.totalCallsMade column");
+                  }
+                );
+              }
+            }
+          );
         });
 
         // --- LANGUAGES TABLE CREATION ---
@@ -1132,6 +1200,12 @@ app.post("/api/clients", async (req, res) => {
       client.adminPassword = await bcrypt.hash(client.adminPassword, 10);
     }
 
+    // If trialMode with duration is provided and no trialEndsAt, set it now
+    if (client.trialMode && client.trialDuration && !client.trialEndsAt) {
+      const ends = new Date(Date.now() + Number(client.trialDuration) * 24 * 60 * 60 * 1000);
+      client.trialEndsAt = ends;
+    }
+
     db.query("INSERT INTO clients SET ?", client, (err, result) => {
       if (err) {
         console.error("Failed to create client:", err);
@@ -1164,6 +1238,12 @@ app.put("/api/clients/:id", (req, res) => {
       delete client[key];
     }
   });
+
+  // If frontend updates trialMode/trialDuration without explicit trialEndsAt, recompute
+  if (client.trialMode && client.trialDuration && !client.trialEndsAt) {
+    const ends = new Date(Date.now() + Number(client.trialDuration) * 24 * 60 * 60 * 1000);
+    client.trialEndsAt = ends;
+  }
 
   db.query(
     "UPDATE clients SET ? WHERE id = ?",
@@ -1200,6 +1280,105 @@ app.delete("/api/clients/:id", (req, res) => {
     }
     res.json({ success: true, message: "Client deleted" });
   });
+});
+
+// Import email service
+const { sendEmail, testEmailConfig } = require('./emailService');
+
+// Send welcome email to client
+app.post("/api/clients/:id/send-welcome-email", async (req, res) => {
+  try {
+    const clientId = req.params.id;
+    
+    // Get client details
+    db.query("SELECT * FROM clients WHERE id = ?", [clientId], async (err, results) => {
+      if (err) {
+        console.error("Failed to fetch client for welcome email:", err);
+        return res.status(500).json({ success: false, message: "Failed to fetch client details" });
+      }
+      
+      if (results.length === 0) {
+        return res.status(404).json({ success: false, message: "Client not found" });
+      }
+      
+      const client = results[0];
+      
+      try {
+        // Send actual welcome email
+        const emailResult = await sendEmail(client.companyEmail, 'welcomeEmail', client);
+        
+        console.log(`📧 Welcome email sent successfully to: ${client.companyEmail}`);
+        console.log(`📧 Company: ${client.companyName}`);
+        console.log(`📧 Contact Person: ${client.contactPersonName}`);
+        console.log(`📧 Email Message ID: ${emailResult.messageId}`);
+        
+        res.json({ 
+          success: true, 
+          message: "Welcome email sent successfully",
+          email: client.companyEmail,
+          companyName: client.companyName,
+          messageId: emailResult.messageId
+        });
+      } catch (emailError) {
+        console.error("Failed to send welcome email:", emailError);
+        
+        // Fallback: Log the email details for manual sending
+        console.log(`📧 Welcome email details (manual sending required):`);
+        console.log(`📧 To: ${client.companyEmail}`);
+        console.log(`📧 Company: ${client.companyName}`);
+        console.log(`📧 Contact Person: ${client.contactPersonName}`);
+        
+        res.json({ 
+          success: false, 
+          message: "Welcome email failed to send, but client was created successfully",
+          email: client.companyEmail,
+          companyName: client.companyName,
+          error: emailError.message
+        });
+      }
+    });
+  } catch (error) {
+    console.error("Error in welcome email endpoint:", error);
+    res.status(500).json({ success: false, message: "Failed to process welcome email request", error: error.message });
+  }
+});
+
+// Increment call count for a client (for real-time usage tracking)
+app.post("/api/clients/:id/increment-call", (req, res) => {
+  const clientId = req.params.id;
+  
+  db.query(
+    "UPDATE clients SET totalCallsMade = totalCallsMade + 1 WHERE id = ?",
+    [clientId],
+    (err, result) => {
+      if (err) {
+        console.error("Failed to increment call count:", err);
+        return res.status(500).json({ success: false, message: "Failed to increment call count", error: err });
+      }
+      
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: "Client not found" });
+      }
+      
+      // Get updated call count
+      db.query(
+        "SELECT totalCallsMade FROM clients WHERE id = ?",
+        [clientId],
+        (err2, results) => {
+          if (err2) {
+            console.error("Failed to fetch updated call count:", err2);
+            return res.status(500).json({ success: false, message: "Call count incremented but failed to fetch updated count" });
+          }
+          
+          res.json({ 
+            success: true, 
+            message: "Call count incremented successfully",
+            totalCallsMade: results[0].totalCallsMade
+          });
+        }
+      );
+    }
+  );
 });
 
 // User Roles API
@@ -1537,7 +1716,21 @@ app.post("/api/assigned-plans", (req, res) => {
             console.error("Failed to update client's plan_id:", err2);
             return res.status(500).json({ success: false, message: "Plan assigned but failed to update client", error: err2 });
           }
-          res.status(201).json({ success: true, message: "Plan assigned successfully" });
+          
+          // Automatically turn off trial mode when a paid plan is assigned
+          db.query(
+            "UPDATE clients SET trialMode = FALSE, trialDuration = NULL, trialCallLimit = NULL, trialEndsAt = NULL WHERE id = ?",
+            [client_id],
+            (err3) => {
+              if (err3) {
+                console.error("Failed to turn off trial mode:", err3);
+                // Don't fail the request, just log the error
+              } else {
+                console.log(`✅ Trial mode automatically turned off for client ${client_id} after plan assignment`);
+              }
+              res.status(201).json({ success: true, message: "Plan assigned successfully and trial mode turned off" });
+            }
+          );
         }
       );
     }
@@ -3561,4 +3754,41 @@ app.post('/api/debug/fix-agent-knowledge-base-table', (req, res) => {
       });
     });
   });
+});
+
+// Test email configuration endpoint
+app.post("/api/test-email", async (req, res) => {
+  try {
+    const { testEmail } = req.body;
+    
+    if (!testEmail) {
+      return res.status(400).json({ success: false, message: "Test email address is required" });
+    }
+    
+    // Test email configuration
+    const isConfigValid = await testEmailConfig();
+    if (!isConfigValid) {
+      return res.status(500).json({ success: false, message: "Email service configuration is invalid" });
+    }
+    
+    // Send test email
+    const testClientData = {
+      companyName: 'Test Company',
+      companyEmail: testEmail,
+      contactPersonName: 'Test User',
+      phoneNumber: '1234567890'
+    };
+    
+    const emailResult = await sendEmail(testEmail, 'welcomeEmail', testClientData);
+    
+    res.json({ 
+      success: true, 
+      message: "Test email sent successfully",
+      to: testEmail,
+      messageId: emailResult.messageId
+    });
+  } catch (error) {
+    console.error("Error sending test email:", error);
+    res.status(500).json({ success: false, message: "Failed to send test email", error: error.message });
+  }
 });

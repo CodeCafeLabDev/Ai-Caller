@@ -248,7 +248,19 @@ function AllClientsListPageInner() {
   );
 
   const handleAddClientSuccess = async (formData: AddClientFormValues) => {
-    // Call backend to add client
+    // 1) Enforce unique email (case-insensitive) before creating
+    const existingRes = await api.getClients();
+    const existingJson = await existingRes.json();
+    if (existingJson?.success && Array.isArray(existingJson.data)) {
+      const emailLower = (formData.companyEmail || '').trim().toLowerCase();
+      const exists = existingJson.data.some((c: any) => String(c.companyEmail || '').trim().toLowerCase() === emailLower);
+      if (exists) {
+        toast({ title: "Email already in use", description: "A client with this email already exists.", variant: 'destructive' });
+        return;
+      }
+    }
+
+    // 2) Create client
     const response = await api.createClient(formData);
     const data = await response.json();
     if (data.success) {
@@ -256,6 +268,12 @@ function AllClientsListPageInner() {
       // Refresh client list
       fetchClients();
       toast({ title: "Client Added", description: "The new client has been successfully added." });
+      // 3) Auto-send welcome email (backend recommended). For now, call an email endpoint if available
+      try {
+        if (formData.autoSendLoginEmail) {
+          await fetch(`/api/clients/${encodeURIComponent(String(data.data?.id || ''))}/send-welcome-email`, { method: 'POST' });
+        }
+      } catch {}
     } else {
       toast({ title: "Error", description: data.message || "Failed to add client", variant: "destructive" });
     }
