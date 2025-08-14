@@ -10,7 +10,7 @@ import languages from '@/data/languages.json';
 import { FaBrain, FaTrash } from 'react-icons/fa';
 import WebhookModal from '@/components/ui/WebhookModal';
 import { useToast } from '@/components/ui/use-toast';
-import { Edit2, Copy, Check, ChevronsUpDown, Lock, X } from 'lucide-react';
+import { Edit2, Copy, Check, ChevronsUpDown, Lock, X, Play, Link } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1698,6 +1698,58 @@ export default function AgentDetailsPage() {
 
   const [docTypeDropdownOpen, setDocTypeDropdownOpen] = useState(false);
 
+  // Handle test AI agent
+  const handleTestAgent = () => {
+    const testUrl = `https://elevenlabs.io/app/conversational-ai/agents/${agentId}`;
+    window.open(testUrl, '_blank');
+  };
+
+  // Handle copy link
+  const handleCopyLink = async () => {
+    const fallbackUrl = `https://elevenlabs.io/app/conversational-ai/agents/${agentId}`;
+    try {
+      let agentLink: string | undefined;
+      try {
+        const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}/link`, {
+          headers: {
+            'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+            'Content-Type': 'application/json',
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          agentLink = data.link || data.url;
+        }
+      } catch {}
+
+      const textToCopy = agentLink || fallbackUrl;
+
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = textToCopy;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try {
+          document.execCommand('copy');
+        } finally {
+          document.body.removeChild(ta);
+        }
+      }
+
+      toast({ title: 'Success', description: 'Agent link copied to clipboard' });
+    } catch (error) {
+      console.error('Error copying agent link:', error);
+      toast({ title: 'Error', description: 'Failed to copy agent link', variant: 'destructive' });
+    }
+  };
+
+  
+
   // Add document dialog handlers
   const [addDocLoading, setAddDocLoading] = useState(false);
   const [addUrlInput, setAddUrlInput] = useState("");
@@ -2864,7 +2916,26 @@ export default function AgentDetailsPage() {
                 <Edit2 className="w-4 h-4" />
               </button>
             )}
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={handleTestAgent}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-black text-white rounded-md hover:bg-gray-800 transition-colors"
+                title="Test agent in ElevenLabs"
+              >
+                <Play className="w-3.5 h-3.5" />
+                Test Agent
+              </button>
+              <button
+                onClick={handleCopyLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-black text-white rounded-md hover:bg-gray-800 transition-colors"
+                title="Copy agent link to clipboard"
+              >
+                <Link className="w-3.5 h-3.5" />
+                Copy Agent Link
+              </button>
+            </div>
           </div>
+          {/* Removed duplicate action buttons block */}
           <div className="flex items-center gap-4 mb-2">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">Agent ID:</span>

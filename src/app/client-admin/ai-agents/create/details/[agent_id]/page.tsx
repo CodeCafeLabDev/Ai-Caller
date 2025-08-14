@@ -12,7 +12,7 @@ import { useUser } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import { FaBrain, FaTrash } from 'react-icons/fa';
 import WebhookModal from '@/components/ui/WebhookModal';
-import { Edit2, Copy, Check, Lock, X } from 'lucide-react';
+import { Edit2, Copy, Check, Lock, X, Play, Link } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1590,6 +1590,60 @@ export default function AgentDetailsPage() {
   const [addTextContent, setAddTextContent] = useState("");
   const [addFile, setAddFile] = useState<File | null>(null);
 
+  // Handle test AI agent
+  const handleTestAgent = () => {
+    // Open the agent test page in a new tab
+    const testUrl = `https://elevenlabs.io/app/conversational-ai/agents/${agentId}`;
+    window.open(testUrl, '_blank');
+  };
+
+  // Handle copy link
+  const handleCopyLink = async () => {
+    const fallbackUrl = `https://elevenlabs.io/app/conversational-ai/agents/${agentId}`;
+    try {
+      let agentLink: string | undefined;
+
+      try {
+        const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}/link`, {
+          headers: {
+            'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+            'Content-Type': 'application/json',
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          agentLink = data.link || data.url;
+        }
+      } catch {}
+
+      const textToCopy = agentLink || fallbackUrl;
+
+      // Try modern clipboard API first
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+      } catch {
+        // Fallback for older browsers / insecure contexts
+        const ta = document.createElement('textarea');
+        ta.value = textToCopy;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try {
+          document.execCommand('copy');
+        } finally {
+          document.body.removeChild(ta);
+        }
+      }
+
+      toast({ title: 'Success', description: 'Agent link copied to clipboard' });
+    } catch (error) {
+      console.error('Error copying agent link:', error);
+      toast({ title: 'Error', description: 'Failed to copy agent link', variant: 'destructive' });
+    }
+  };
+
   async function handleAddUrl() {
     setAddDocLoading(true);
     try {
@@ -2997,15 +3051,35 @@ export default function AgentDetailsPage() {
             <h1 className="text-2xl font-bold">{localAgent.name || agentName}</h1>
             <span className="bg-gray-200 text-xs px-2 py-1 rounded">Public</span>
           </div>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="text-sm text-gray-500">{agentId}</div>
-            <button
-              onClick={handleCopyId}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
-              title="Copy Agent ID"
-            >
-              {copiedId ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-            </button>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="text-sm text-gray-500">{agentId}</div>
+              <button
+                onClick={handleCopyId}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                title="Copy Agent ID"
+              >
+                {copiedId ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+              </button>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={handleTestAgent}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-black text-white rounded-md hover:bg-gray-800 transition-colors"
+              >
+                <Play className="w-3.5 h-3.5" />
+                Test Agent
+              </button>
+              <button
+                onClick={handleCopyLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-black text-white rounded-md hover:bg-gray-800 transition-colors"
+              >
+                <Link className="w-3.5 h-3.5" />
+                Copy Agent Link
+              </button>
+            </div>
           </div>
           {/* Rename functionality */}
           <div className="flex items-center gap-2 mb-4">
