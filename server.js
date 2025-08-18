@@ -1241,12 +1241,12 @@ app.get("/api/clients/:id", (req, res) => {
     GROUP BY c.id
   `;
   db.query(sql, [req.params.id], (err, results) => {
-    if (err) {
-      return res.status(500).json({ success: false, message: "Failed to fetch client", error: err });
-    }
-    if (results.length === 0) {
-      return res.status(404).json({ success: false, message: "Client not found" });
-    }
+      if (err) {
+        return res.status(500).json({ success: false, message: "Failed to fetch client", error: err });
+      }
+      if (results.length === 0) {
+        return res.status(404).json({ success: false, message: "Client not found" });
+      }
     const row = results[0];
     row.monthlyCallLimit = row.totalMonthlyLimit ? parseInt(row.totalMonthlyLimit) : 0;
     res.json({ success: true, data: row });
@@ -1840,7 +1840,7 @@ app.post("/api/assigned-plans", (req, res) => {
                FROM clients c
                JOIN plans p ON p.id = ?
                WHERE c.id = ?`,
-              [plan_id, client_id],
+        [plan_id, client_id],
               async (err4, results) => {
                 if (!err4 && results && results.length > 0) {
                   const rec = results[0];

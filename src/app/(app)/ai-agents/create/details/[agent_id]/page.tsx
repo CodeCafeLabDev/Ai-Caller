@@ -2933,7 +2933,7 @@ export default function AgentDetailsPage() {
                 <Link className="w-3.5 h-3.5" />
                 Copy Agent Link
               </button>
-            </div>
+          </div>
           </div>
           {/* Removed duplicate action buttons block */}
           <div className="flex items-center gap-4 mb-2">

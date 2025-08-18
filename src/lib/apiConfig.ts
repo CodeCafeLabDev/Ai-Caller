@@ -72,6 +72,7 @@ export const API_ENDPOINTS = {
     SEND_WELCOME_EMAIL: (clientId: string) => `/api/clients/${clientId}/send-welcome-email`,
     INCREMENT_CALL: (clientId: string) => `/api/clients/${clientId}/increment-call`,
     RESET_MONTHLY_USAGE: '/api/clients/reset-monthly-usage',
+    ELEVENLABS_USAGE: (clientId: string) => `/api/clients/${clientId}/elevenlabs-usage`,
   },
 
   // Plans
@@ -280,6 +281,7 @@ export const api = {
       sendWelcomeEmail: (clientId: string) => apiUtils.post(API_ENDPOINTS.CLIENTS.SEND_WELCOME_EMAIL(clientId)),
     incrementCallCount: (clientId: string) => apiUtils.post(API_ENDPOINTS.CLIENTS.INCREMENT_CALL(clientId)),
     resetMonthlyUsage: () => apiUtils.post(API_ENDPOINTS.CLIENTS.RESET_MONTHLY_USAGE),
+    getElevenLabsUsage: (clientId: string) => apiUtils.get(API_ENDPOINTS.CLIENTS.ELEVENLABS_USAGE(clientId)),
   
   // Plans
   getPlans: () => apiUtils.get(API_ENDPOINTS.PLANS.BASE),

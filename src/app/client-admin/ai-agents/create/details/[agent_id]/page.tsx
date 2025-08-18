@@ -1604,12 +1604,12 @@ export default function AgentDetailsPage() {
       let agentLink: string | undefined;
 
       try {
-        const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}/link`, {
-          headers: {
-            'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
-            'Content-Type': 'application/json',
-          },
-        });
+      const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}/link`, {
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+      });
         if (response.ok) {
           const data = await response.json();
           agentLink = data.link || data.url;

@@ -135,31 +135,43 @@ function AllClientsListPageInner() {
   const fetchClients = React.useCallback(() => {
     api.getClients()
       .then(res => res.json())
-      .then(data => {
+      .then(async data => {
         if (data.success) {
           // Map backend fields to frontend Client type and ensure unique IDs
-          const processedData = data.data
-            .filter((c: any) => c.id != null && c.id !== undefined) // Filter out clients without valid IDs
+          const processedData: Client[] = data.data
+            .filter((c: any) => c.id != null && c.id !== undefined)
             .map((c: any, index: number) => ({
-              id: `${String(c.id)}-${index}`, // Ensure truly unique id for React keys
+              id: `${String(c.id)}-${index}`,
               name: c.companyName,
               contactPerson: c.contactPersonName,
               email: c.companyEmail,
               phone: c.phoneNumber,
-              clientId: String(c.id), // Keep original ID for API calls
-              status: c.status || "Active", // Default or map from DB if you have
+              clientId: String(c.id),
+              status: c.status || "Active",
               plans: String(c.planNames || "")
                 .split(',')
                 .map((s: string) => s.trim())
                 .filter((s: string) => s.length > 0),
-              totalCallsMade: c.totalCallsMade || 0, // Total calls ever made
-              monthlyCallsMade: c.monthlyCallsMade || 0, // Calls made this month
-              monthlyCallLimit: c.monthlyCallLimit || 0, // Monthly limit from plan
+              totalCallsMade: c.totalCallsMade || 0,
+              monthlyCallsMade: c.monthlyCallsMade || 0,
+              monthlyCallLimit: c.monthlyCallLimit || 0,
               joinedDate: c.created_at || new Date().toISOString(),
-              avatarUrl: "", // If you have an avatar field, else empty
+              avatarUrl: "",
             }));
-          
-          setClients(processedData);
+
+          // Enhance monthlyCallsMade with real-time ElevenLabs usage
+          const enhanced: Client[] = await Promise.all(processedData.map(async (cl: Client) => {
+            try {
+              const r = await api.getElevenLabsUsage(cl.clientId);
+              const j = await r.json();
+              if (j?.success && j?.data && typeof j.data.monthlyCalls === 'number') {
+                return { ...cl, monthlyCallsMade: j.data.monthlyCalls };
+              }
+            } catch {}
+            return cl;
+          }));
+
+          setClients(enhanced);
           setLastUpdated(new Date());
         } else {
           toast({ title: 'Error', description: 'Failed to fetch clients', variant: 'destructive' });

@@ -36,6 +36,7 @@ function ClientDetailsUsagePageInner() {
   const searchParams = useSearchParams();
   const clientId = searchParams.get("clientId");
   const [client, setClient] = React.useState<any | null>(null);
+  const [monthlyCalls, setMonthlyCalls] = React.useState<number>(0);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [clientStatus, setClientStatus] = React.useState(true);
@@ -49,19 +50,24 @@ function ClientDetailsUsagePageInner() {
       return;
     }
     setLoading(true);
-    api.getClient(clientId)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setClient(data.data);
-          setClientStatus(data.data.status === "Active");
+    Promise.all([
+      api.getClient(clientId).then((r) => r.json()),
+      api.getElevenLabsUsage(clientId).then((r) => r.json()).catch(() => null),
+    ])
+      .then(([clientResp, usageResp]) => {
+        if (clientResp?.success) {
+          setClient(clientResp.data);
+          setClientStatus(clientResp.data.status === "Active");
           setError(null);
         } else {
-          setError(data.message || "Failed to fetch client data.");
+          setError(clientResp?.message || "Failed to fetch client data.");
+        }
+        if (usageResp?.success && usageResp?.data && typeof usageResp.data.monthlyCalls === 'number') {
+          setMonthlyCalls(usageResp.data.monthlyCalls);
         }
         setLoading(false);
       })
-      .catch((err) => {
+      .catch(() => {
         setError("Error fetching client data.");
         setLoading(false);
       });
@@ -221,8 +227,8 @@ function ClientDetailsUsagePageInner() {
             <Card>
               <CardHeader><CardTitle>Total Calls</CardTitle></CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold">{displayClient.totalCallsMade} / {displayClient.monthlyCallLimit}</p>
-                <Progress value={(displayClient.totalCallsMade / displayClient.monthlyCallLimit) * 100} className="mt-2 h-2" />
+                <p className="text-3xl font-bold">{monthlyCalls} / {displayClient.monthlyCallLimit}</p>
+                <Progress value={(displayClient.monthlyCallLimit > 0 ? (monthlyCalls / displayClient.monthlyCallLimit) * 100 : 0)} className="mt-2 h-2" />
                 <p className="text-xs text-muted-foreground mt-1">Monthly Limit</p>
               </CardContent>
             </Card>
