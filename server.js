@@ -1196,58 +1196,61 @@ app.delete("/api/plans/:id", (req, res) => {
   });
 });
 
-// Get all clients (show latest assigned plan)
+// Get all clients (aggregate all assigned plans)
 app.get("/api/clients", (req, res) => {
-  // Join with assigned_plans to get the most recent plan assignment for each client
+  // Aggregate plan names and sum monthly limits across all currently active assigned plans
   const sql = `
-    SELECT c.*, p.name AS planName, p.totalCallsAllowedPerMonth
+    SELECT 
+      c.*,
+      COALESCE(SUM(CAST(p.totalCallsAllowedPerMonth AS UNSIGNED)), 0) AS totalMonthlyLimit,
+      GROUP_CONCAT(DISTINCT p.name ORDER BY p.name SEPARATOR ', ') AS planNames
     FROM clients c
-    LEFT JOIN (
-      SELECT ap1.* FROM assigned_plans ap1
-      INNER JOIN (
-        SELECT client_id, MAX(start_date) AS max_start_date
-        FROM assigned_plans
-        GROUP BY client_id
-      ) ap2 ON ap1.client_id = ap2.client_id AND ap1.start_date = ap2.max_start_date
-    ) ap ON c.id = ap.client_id
+    LEFT JOIN assigned_plans ap ON ap.client_id = c.id
+      AND (ap.start_date IS NULL OR ap.start_date <= CURDATE())
+      AND (ap.duration_override_days IS NULL OR DATE_ADD(ap.start_date, INTERVAL ap.duration_override_days DAY) >= CURDATE())
     LEFT JOIN plans p ON ap.plan_id = p.id
+    GROUP BY c.id
   `;
   db.query(sql, (err, results) => {
     if (err) {
       return res.status(500).json({ success: false, message: "Failed to fetch clients", error: err });
     }
-    
-    // Process results to set monthly call limits from plans
-    const processedResults = results.map(client => {
-      if (client.totalCallsAllowedPerMonth) {
-        const monthlyLimit = parseInt(client.totalCallsAllowedPerMonth);
-        return {
-          ...client,
-          monthlyCallLimit: monthlyLimit
-        };
-      }
-      return client;
-    });
-    
+
+    const processedResults = results.map(client => ({
+      ...client,
+      monthlyCallLimit: client.totalMonthlyLimit ? parseInt(client.totalMonthlyLimit) : 0,
+    }));
+
     res.json({ success: true, data: processedResults });
   });
 });
 
 // Get a single client by id
 app.get("/api/clients/:id", (req, res) => {
-  db.query(
-    `SELECT clients.*, plans.name AS planName FROM clients LEFT JOIN plans ON clients.plan_id = plans.id WHERE clients.id = ?`,
-    [req.params.id],
-    (err, results) => {
-      if (err) {
-        return res.status(500).json({ success: false, message: "Failed to fetch client", error: err });
-      }
-      if (results.length === 0) {
-        return res.status(404).json({ success: false, message: "Client not found" });
-      }
-      res.json({ success: true, data: results[0] });
+  const sql = `
+    SELECT 
+      c.*,
+      COALESCE(SUM(CAST(p.totalCallsAllowedPerMonth AS UNSIGNED)), 0) AS totalMonthlyLimit,
+      GROUP_CONCAT(DISTINCT p.name ORDER BY p.name SEPARATOR ', ') AS planNames
+    FROM clients c
+    LEFT JOIN assigned_plans ap ON ap.client_id = c.id
+      AND (ap.start_date IS NULL OR ap.start_date <= CURDATE())
+      AND (ap.duration_override_days IS NULL OR DATE_ADD(ap.start_date, INTERVAL ap.duration_override_days DAY) >= CURDATE())
+    LEFT JOIN plans p ON ap.plan_id = p.id
+    WHERE c.id = ?
+    GROUP BY c.id
+  `;
+  db.query(sql, [req.params.id], (err, results) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: "Failed to fetch client", error: err });
     }
-  );
+    if (results.length === 0) {
+      return res.status(404).json({ success: false, message: "Client not found" });
+    }
+    const row = results[0];
+    row.monthlyCallLimit = row.totalMonthlyLimit ? parseInt(row.totalMonthlyLimit) : 0;
+    res.json({ success: true, data: row });
+  });
 });
 
 // Create a new client
@@ -1408,89 +1411,88 @@ app.post("/api/clients/:id/send-welcome-email", async (req, res) => {
 // Increment call count for a client (for real-time usage tracking)
 app.post("/api/clients/:id/increment-call", (req, res) => {
   const clientId = req.params.id;
-  
-  // First, check if monthly reset is needed and get current client data
-  db.query(
-    "SELECT c.*, p.totalCallsAllowedPerMonth FROM clients c LEFT JOIN plans p ON c.plan_id = p.id WHERE c.id = ?",
-    [clientId],
-    (err, results) => {
-      if (err) {
-        console.error("Failed to fetch client data:", err);
-        return res.status(500).json({ success: false, message: "Failed to fetch client data", error: err });
+
+  // Fetch client and aggregate monthly limit across all active assigned plans
+  const sql = `
+    SELECT 
+      c.*, 
+      COALESCE(SUM(CAST(p.totalCallsAllowedPerMonth AS UNSIGNED)), 0) AS totalMonthlyLimit
+    FROM clients c
+    LEFT JOIN assigned_plans ap ON ap.client_id = c.id
+      AND (ap.start_date IS NULL OR ap.start_date <= CURDATE())
+      AND (ap.duration_override_days IS NULL OR DATE_ADD(ap.start_date, INTERVAL ap.duration_override_days DAY) >= CURDATE())
+    LEFT JOIN plans p ON ap.plan_id = p.id
+    WHERE c.id = ?
+    GROUP BY c.id
+  `;
+  db.query(sql, [clientId], (err, results) => {
+    if (err) {
+      console.error("Failed to fetch client data:", err);
+      return res.status(500).json({ success: false, message: "Failed to fetch client data", error: err });
+    }
+    if (results.length === 0) {
+      return res.status(404).json({ success: false, message: "Client not found" });
+    }
+
+    const client = results[0];
+    const currentDate = new Date();
+    const lastReset = new Date(client.lastMonthlyReset);
+
+    const needsMonthlyReset = currentDate.getMonth() !== lastReset.getMonth() ||
+                              currentDate.getFullYear() !== lastReset.getFullYear();
+
+    const monthlyLimit = parseInt(client.totalMonthlyLimit) || 0;
+
+    let updateQuery, updateParams;
+
+    if (needsMonthlyReset) {
+      updateQuery = `
+        UPDATE clients 
+        SET totalCallsMade = totalCallsMade + 1,
+            monthlyCallsMade = 1,
+            monthlyCallLimit = ?,
+            lastMonthlyReset = CURDATE()
+        WHERE id = ?
+      `;
+      updateParams = [monthlyLimit, clientId];
+    } else {
+      updateQuery = `
+        UPDATE clients 
+        SET totalCallsMade = totalCallsMade + 1,
+            monthlyCallsMade = monthlyCallsMade + 1
+        WHERE id = ?
+      `;
+      updateParams = [clientId];
+    }
+
+    db.query(updateQuery, updateParams, (err2, result) => {
+      if (err2) {
+        console.error("Failed to increment call count:", err2);
+        return res.status(500).json({ success: false, message: "Failed to increment call count", error: err2 });
       }
-      
-      if (results.length === 0) {
+      if (result.affectedRows === 0) {
         return res.status(404).json({ success: false, message: "Client not found" });
       }
-      
-      const client = results[0];
-      const currentDate = new Date();
-      const lastReset = new Date(client.lastMonthlyReset);
-      
-      // Check if we need to reset monthly usage (new month)
-      const needsMonthlyReset = currentDate.getMonth() !== lastReset.getMonth() || 
-                               currentDate.getFullYear() !== lastReset.getFullYear();
-      
-      // Parse monthly call limit from plan
-      const monthlyLimit = parseInt(client.totalCallsAllowedPerMonth) || 0;
-      
-      let updateQuery, updateParams;
-      
-      if (needsMonthlyReset) {
-        // Reset monthly usage for new month
-        updateQuery = `
-          UPDATE clients 
-          SET totalCallsMade = totalCallsMade + 1,
-              monthlyCallsMade = 1,
-              monthlyCallLimit = ?,
-              lastMonthlyReset = CURDATE()
-          WHERE id = ?
-        `;
-        updateParams = [monthlyLimit, clientId];
-      } else {
-        // Just increment monthly usage
-        updateQuery = `
-          UPDATE clients 
-          SET totalCallsMade = totalCallsMade + 1,
-              monthlyCallsMade = monthlyCallsMade + 1
-          WHERE id = ?
-        `;
-        updateParams = [clientId];
-      }
-      
-      db.query(updateQuery, updateParams, (err2, result) => {
-        if (err2) {
-          console.error("Failed to increment call count:", err2);
-          return res.status(500).json({ success: false, message: "Failed to increment call count", error: err2 });
-        }
-        
-        if (result.affectedRows === 0) {
-          return res.status(404).json({ success: false, message: "Client not found" });
-        }
-        
-        // Get updated call counts
-        db.query(
-          "SELECT totalCallsMade, monthlyCallsMade, monthlyCallLimit FROM clients WHERE id = ?",
-          [clientId],
-          (err3, results2) => {
-            if (err3) {
-              console.error("Failed to fetch updated call count:", err3);
-              return res.status(500).json({ success: false, message: "Call count incremented but failed to fetch updated count" });
-            }
-            
-            const updatedData = results2[0];
-            res.json({ 
-              success: true, 
-              message: "Call count incremented successfully",
-              totalCallsMade: updatedData.totalCallsMade,
-              monthlyCallsMade: updatedData.monthlyCallsMade,
-              monthlyCallLimit: updatedData.monthlyCallLimit
-            });
+      db.query(
+        "SELECT totalCallsMade, monthlyCallsMade, monthlyCallLimit FROM clients WHERE id = ?",
+        [clientId],
+        (err3, results2) => {
+          if (err3) {
+            console.error("Failed to fetch updated call count:", err3);
+            return res.status(500).json({ success: false, message: "Call count incremented but failed to fetch updated count" });
           }
-        );
-      });
-    }
-  );
+          const updatedData = results2[0];
+          res.json({
+            success: true,
+            message: "Call count incremented successfully",
+            totalCallsMade: updatedData.totalCallsMade,
+            monthlyCallsMade: updatedData.monthlyCallsMade,
+            monthlyCallLimit: updatedData.monthlyCallLimit
+          });
+        }
+      );
+    });
+  });
 });
 
 // User Roles API
@@ -1780,7 +1782,7 @@ app.get('/api/admin_roles/:id', (req, res) => {
   });
 });
 
-// Assign a plan to a client (insert into assigned_plans and update clients.plan_id)
+// Assign a plan to a client (insert into assigned_plans). Supports multiple plans per client.
 app.post("/api/assigned-plans", (req, res) => {
   console.log("Assign Plan Request Body:", req.body);
   const {
@@ -1819,68 +1821,105 @@ app.post("/api/assigned-plans", (req, res) => {
         console.error("Failed to assign plan:", err);
         return res.status(500).json({ success: false, message: "Failed to assign plan", error: err });
       }
-      // Also update the client's plan_id
+
+      // Turn off trial mode when a plan is assigned
       db.query(
-        "UPDATE clients SET plan_id = ? WHERE id = ?",
-        [plan_id, client_id],
-        (err2) => {
-          if (err2) {
-            console.error("Failed to update client's plan_id:", err2);
-            return res.status(500).json({ success: false, message: "Plan assigned but failed to update client", error: err2 });
+        "UPDATE clients SET trialMode = FALSE, trialDuration = NULL, trialCallLimit = NULL, trialEndsAt = NULL WHERE id = ?",
+        [client_id],
+        (err3) => {
+          if (err3) {
+            console.error("Failed to turn off trial mode:", err3);
+          } else {
+            console.log(`✅ Trial mode automatically turned off for client ${client_id} after plan assignment`);
           }
-          
-          // Automatically turn off trial mode when a paid plan is assigned
-          db.query(
-            "UPDATE clients SET trialMode = FALSE, trialDuration = NULL, trialCallLimit = NULL, trialEndsAt = NULL WHERE id = ?",
-            [client_id],
-            (err3) => {
-              if (err3) {
-                console.error("Failed to turn off trial mode:", err3);
-                // Don't fail the request, just log the error
-              } else {
-                console.log(`✅ Trial mode automatically turned off for client ${client_id} after plan assignment`);
-              }
-              
-              // Send plan assignment email if autoSendNotifications is enabled
-              if (auto_send_notifications) {
-                // Get client and plan details for email
-                db.query(
-                  "SELECT c.*, p.name as planName FROM clients c LEFT JOIN plans p ON c.plan_id = p.id WHERE c.id = ?",
-                  [client_id],
-                  async (err4, results) => {
-                    if (!err4 && results.length > 0) {
-                      const client = results[0];
-                      try {
-                        const planData = {
-                          companyName: client.companyName,
-                          contactPersonName: client.contactPersonName,
-                          companyEmail: client.companyEmail,
-                          planName: client.planName || 'Selected Plan',
-                          startDate: start_date ? new Date(start_date).toLocaleDateString() : new Date().toLocaleDateString(),
-                          durationOverrideDays: duration_override_days,
-                          discountType: discount_type,
-                          discountValue: discount_value
-                        };
-                        
-                        await sendEmail(client.companyEmail, 'planAssignmentEmail', planData);
-                        console.log(`📧 Plan assignment email sent to ${client.companyEmail}`);
-                      } catch (emailError) {
-                        console.error("Failed to send plan assignment email:", emailError);
-                        // Don't fail the request, just log the error
-                      }
-                    }
-                    res.status(201).json({ success: true, message: "Plan assigned successfully, trial mode turned off, and notification email sent" });
+
+          if (auto_send_notifications) {
+            // Fetch client and the specific plan just assigned
+            db.query(
+              `SELECT c.companyName, c.contactPersonName, c.companyEmail, p.name AS planName
+               FROM clients c
+               JOIN plans p ON p.id = ?
+               WHERE c.id = ?`,
+              [plan_id, client_id],
+              async (err4, results) => {
+                if (!err4 && results && results.length > 0) {
+                  const rec = results[0];
+                  try {
+                    const planData = {
+                      companyName: rec.companyName,
+                      contactPersonName: rec.contactPersonName,
+                      companyEmail: rec.companyEmail,
+                      planName: rec.planName || 'Selected Plan',
+                      startDate: start_date ? new Date(start_date).toLocaleDateString() : new Date().toLocaleDateString(),
+                      durationOverrideDays: duration_override_days,
+                      discountType: discount_type,
+                      discountValue: discount_value
+                    };
+                    await sendEmail(rec.companyEmail, 'planAssignmentEmail', planData);
+                    console.log(`📧 Plan assignment email sent to ${rec.companyEmail}`);
+                  } catch (emailError) {
+                    console.error("Failed to send plan assignment email:", emailError);
                   }
-                );
-              } else {
+                }
                 res.status(201).json({ success: true, message: "Plan assigned successfully and trial mode turned off" });
               }
-            }
-          );
+            );
+          } else {
+            res.status(201).json({ success: true, message: "Plan assigned successfully and trial mode turned off" });
+          }
         }
       );
     }
   );
+});
+
+// List assigned plans for a client
+app.get("/api/clients/:id/assigned-plans", (req, res) => {
+  const clientId = req.params.id;
+  const sql = `
+    SELECT 
+      ap.id AS assignmentId,
+      ap.client_id AS clientId,
+      ap.plan_id AS planId,
+      p.name AS planName,
+      p.totalCallsAllowedPerMonth AS monthlyLimit,
+      ap.start_date AS startDate,
+      ap.duration_override_days AS durationDays,
+      ap.is_trial AS isTrial,
+      ap.discount_type AS discountType,
+      ap.discount_value AS discountValue,
+      ap.notes AS notes,
+      ap.auto_send_notifications AS autoSendNotifications,
+      ( (ap.start_date IS NULL OR ap.start_date <= CURDATE())
+        AND (ap.duration_override_days IS NULL OR DATE_ADD(ap.start_date, INTERVAL ap.duration_override_days DAY) >= CURDATE())
+      ) AS isActive
+    FROM assigned_plans ap
+    LEFT JOIN plans p ON p.id = ap.plan_id
+    WHERE ap.client_id = ?
+    ORDER BY ap.start_date DESC, ap.id DESC
+  `;
+  db.query(sql, [clientId], (err, results) => {
+    if (err) {
+      console.error("Failed to fetch assigned plans:", err);
+      return res.status(500).json({ success: false, message: "Failed to fetch assigned plans", error: err });
+    }
+    res.json({ success: true, data: results });
+  });
+});
+
+// Delete a specific assigned plan
+app.delete("/api/assigned-plans/:assignmentId", (req, res) => {
+  const assignmentId = req.params.assignmentId;
+  db.query("DELETE FROM assigned_plans WHERE id = ?", [assignmentId], (err, result) => {
+    if (err) {
+      console.error("Failed to delete assigned plan:", err);
+      return res.status(500).json({ success: false, message: "Failed to delete assigned plan", error: err });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Assigned plan not found" });
+    }
+    res.json({ success: true, message: "Assigned plan removed" });
+  });
 });
 
 // --- Admin Users API ---
@@ -3941,25 +3980,27 @@ app.post("/api/test-email", async (req, res) => {
 
 // Reset monthly usage for all clients (for monthly renewal)
 app.post("/api/clients/reset-monthly-usage", (req, res) => {
-  db.query(
-    `UPDATE clients c 
-     LEFT JOIN plans p ON c.plan_id = p.id 
-     SET c.monthlyCallsMade = 0, 
-         c.monthlyCallLimit = CAST(p.totalCallsAllowedPerMonth AS UNSIGNED),
-         c.lastMonthlyReset = CURDATE()
-     WHERE p.totalCallsAllowedPerMonth IS NOT NULL`,
-    (err, result) => {
-      if (err) {
-        console.error("Failed to reset monthly usage:", err);
-        return res.status(500).json({ success: false, message: "Failed to reset monthly usage", error: err });
-      }
-      
-      console.log(`✅ Monthly usage reset for ${result.affectedRows} clients`);
-      res.json({ 
-        success: true, 
-        message: `Monthly usage reset for ${result.affectedRows} clients`,
-        affectedClients: result.affectedRows
-      });
+  // Reset and recompute monthly limit as sum of all active assigned plans
+  const sql = `
+    UPDATE clients c
+    LEFT JOIN (
+      SELECT ap.client_id, COALESCE(SUM(CAST(p.totalCallsAllowedPerMonth AS UNSIGNED)), 0) AS summedLimit
+      FROM assigned_plans ap
+      LEFT JOIN plans p ON ap.plan_id = p.id
+      WHERE (ap.start_date IS NULL OR ap.start_date <= CURDATE())
+        AND (ap.duration_override_days IS NULL OR DATE_ADD(ap.start_date, INTERVAL ap.duration_override_days DAY) >= CURDATE())
+      GROUP BY ap.client_id
+    ) agg ON agg.client_id = c.id
+    SET c.monthlyCallsMade = 0,
+        c.monthlyCallLimit = COALESCE(agg.summedLimit, 0),
+        c.lastMonthlyReset = CURDATE();
+  `;
+  db.query(sql, (err, result) => {
+    if (err) {
+      console.error("Failed to reset monthly usage:", err);
+      return res.status(500).json({ success: false, message: "Failed to reset monthly usage", error: err });
     }
-  );
+    console.log(`✅ Monthly usage reset for ${result.affectedRows} clients`);
+    res.json({ success: true, message: `Monthly usage reset for ${result.affectedRows} clients`, affectedClients: result.affectedRows });
+  });
 });

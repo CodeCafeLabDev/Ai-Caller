@@ -81,7 +81,7 @@ type Client = {
   phone: string;
   clientId: string;
   status: "Active" | "Suspended" | "Trial";
-  plan: string;
+  plans: string[];
   totalCallsMade: number;
   monthlyCallsMade: number;
   monthlyCallLimit: number;
@@ -127,6 +127,8 @@ function AllClientsListPageInner() {
 
   const [clients, setClients] = React.useState<Client[]>([]);
   const [plans, setPlans] = React.useState<{ id: number; name: string }[]>([]);
+  const [managePlansForClient, setManagePlansForClient] = React.useState<null | { id: string; name: string }>(null);
+  const [assignedPlans, setAssignedPlans] = React.useState<any[]>([]);
   const [lastUpdated, setLastUpdated] = React.useState<Date>(new Date());
 
   // Fetch clients from API and update state
@@ -146,7 +148,10 @@ function AllClientsListPageInner() {
               phone: c.phoneNumber,
               clientId: String(c.id), // Keep original ID for API calls
               status: c.status || "Active", // Default or map from DB if you have
-              plan: c.planName || "", // planName from join
+              plans: String(c.planNames || "")
+                .split(',')
+                .map((s: string) => s.trim())
+                .filter((s: string) => s.length > 0),
               totalCallsMade: c.totalCallsMade || 0, // Total calls ever made
               monthlyCallsMade: c.monthlyCallsMade || 0, // Calls made this month
               monthlyCallLimit: c.monthlyCallLimit || 0, // Monthly limit from plan
@@ -178,6 +183,17 @@ function AllClientsListPageInner() {
     
     return () => clearInterval(intervalId);
   }, [toast, fetchClients]);
+
+  // Load assigned plans when manage sheet is open
+  React.useEffect(() => {
+    if (managePlansForClient) {
+      api.getAssignedPlansForClient(managePlansForClient.id)
+        .then(res => res.json())
+        .then(data => setAssignedPlans(Array.isArray(data.data) ? data.data : []));
+    } else {
+      setAssignedPlans([]);
+    }
+  }, [managePlansForClient]);
 
   React.useEffect(() => {
     if (searchParams.get('addClient') === '1') {
@@ -228,7 +244,9 @@ function AllClientsListPageInner() {
   // Plan filter options are now dynamic
   const dynamicPlanOptions = [
     { value: "all", label: "All Plans" },
-    ...plans.map((p) => ({ value: p.name.toLowerCase(), label: p.name }))
+    ...Array.from(new Set(plans.map((p) => p.name)))
+      .sort((a, b) => a.localeCompare(b))
+      .map((name) => ({ value: name.toLowerCase(), label: name }))
   ];
 
   const filteredClients = clients.filter((client) => {
@@ -240,7 +258,7 @@ function AllClientsListPageInner() {
         client.contactPerson.toLowerCase().includes(lowerSearchTerm) ||
         client.phone.toLowerCase().includes(lowerSearchTerm)) &&
       (statusFilter === "all" || client.status.toLowerCase() === statusFilter) &&
-      (planFilter === "all" || client.plan.toLowerCase() === planFilter)
+      (planFilter === "all" || client.plans.some(p => p.toLowerCase() === planFilter))
     );
   });
 
@@ -590,7 +608,19 @@ function AllClientsListPageInner() {
                         />
                       </div>
                     </TableCell>
-                    <TableCell>{client.plan}</TableCell>
+                    <TableCell>
+                      {client.plans && client.plans.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {client.plans.map((planName, idx) => (
+                            <Badge key={`${client.clientId}-plan-${idx}`} variant="secondary" className="text-xs">
+                              {planName}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">No plan</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-sm">
@@ -633,6 +663,9 @@ function AllClientsListPageInner() {
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEditClient(client)}>
                           <Edit2 className="mr-2 h-4 w-4" /> Edit Client
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setManagePlansForClient({ id: client.clientId, name: client.name })}>
+                          <UserCog className="mr-2 h-4 w-4" /> Manage Plans
                         </DropdownMenuItem>
                         <DropdownMenuItem asChild>
                             <Link href={`/client-admin/dashboard`}> {}
@@ -688,6 +721,49 @@ function AllClientsListPageInner() {
            </div>
         </CardFooter>
       </Card>
+
+      {/* Manage Plans Sheet */}
+      <Sheet open={!!managePlansForClient} onOpenChange={(open) => {
+        if (!open) setManagePlansForClient(null);
+      }}>
+        <SheetContent side="right" className="sm:max-w-sm w-full flex flex-col">
+          <SheetHeader>
+            <SheetTitle>Manage Plans{managePlansForClient ? ` – ${managePlansForClient.name}` : ''}</SheetTitle>
+            <SheetDescription>View and remove assigned plans for this client.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-3">
+            {assignedPlans.length === 0 && (
+              <div className="text-sm text-muted-foreground">No plans assigned.</div>
+            )}
+            {assignedPlans.map((ap) => (
+              <div key={ap.assignmentId} className="flex items-center justify-between border rounded-md p-3">
+                <div className="space-y-0.5">
+                  <div className="font-medium">{ap.planName || 'Plan'}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {ap.monthlyLimit ? `${ap.monthlyLimit} calls/mo` : 'Unlimited'} {ap.isActive ? '(Active)' : '(Inactive)'}
+                  </div>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={async () => {
+                    await api.deleteAssignedPlan(String(ap.assignmentId));
+                    // Refresh both assigned plans and clients list
+                    if (managePlansForClient) {
+                      const r = await api.getAssignedPlansForClient(managePlansForClient.id);
+                      const j = await r.json();
+                      setAssignedPlans(Array.isArray(j.data) ? j.data : []);
+                    }
+                    fetchClients();
+                  }}
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Sheet open={isEditClientSheetOpen} onOpenChange={open => {
         setIsEditClientSheetOpen(open);

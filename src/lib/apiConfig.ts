@@ -83,6 +83,8 @@ export const API_ENDPOINTS = {
   // Assigned Plans
   ASSIGNED_PLANS: {
     BASE: '/api/assigned-plans',
+    BY_ID: (assignmentId: string) => `/api/assigned-plans/${assignmentId}`,
+    BY_CLIENT: (clientId: string) => `/api/clients/${clientId}/assigned-plans`,
   },
 
   // Knowledge Base
@@ -288,7 +290,9 @@ export const api = {
   
   // Assigned Plans
   getAssignedPlans: () => apiUtils.get(API_ENDPOINTS.ASSIGNED_PLANS.BASE),
+  getAssignedPlansForClient: (clientId: string) => apiUtils.get(API_ENDPOINTS.ASSIGNED_PLANS.BY_CLIENT(clientId)),
   assignPlan: (data: any) => apiUtils.post(API_ENDPOINTS.ASSIGNED_PLANS.BASE, data),
+  deleteAssignedPlan: (assignmentId: string) => apiUtils.delete(API_ENDPOINTS.ASSIGNED_PLANS.BY_ID(assignmentId)),
   
   // Knowledge Base
   getKnowledgeBase: () => apiUtils.get(API_ENDPOINTS.KNOWLEDGE_BASE.BASE),
