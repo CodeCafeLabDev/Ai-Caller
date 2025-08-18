@@ -83,6 +83,7 @@ type Client = {
   status: "Active" | "Suspended" | "Trial";
   plan: string;
   totalCallsMade: number;
+  monthlyCallsMade: number;
   monthlyCallLimit: number;
   joinedDate: string;
   avatarUrl?: string;
@@ -126,6 +127,7 @@ function AllClientsListPageInner() {
 
   const [clients, setClients] = React.useState<Client[]>([]);
   const [plans, setPlans] = React.useState<{ id: number; name: string }[]>([]);
+  const [lastUpdated, setLastUpdated] = React.useState<Date>(new Date());
 
   // Fetch clients from API and update state
   const fetchClients = React.useCallback(() => {
@@ -133,23 +135,27 @@ function AllClientsListPageInner() {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          // Map backend fields to frontend Client type
-          setClients(
-            data.data.map((c: any) => ({
-              id: c.id,
+          // Map backend fields to frontend Client type and ensure unique IDs
+          const processedData = data.data
+            .filter((c: any) => c.id != null && c.id !== undefined) // Filter out clients without valid IDs
+            .map((c: any, index: number) => ({
+              id: `${String(c.id)}-${index}`, // Ensure truly unique id for React keys
               name: c.companyName,
               contactPerson: c.contactPersonName,
               email: c.companyEmail,
               phone: c.phoneNumber,
-              clientId: String(c.id), // Ensure clientId is always a string
+              clientId: String(c.id), // Keep original ID for API calls
               status: c.status || "Active", // Default or map from DB if you have
               plan: c.planName || "", // planName from join
-              totalCallsMade: c.totalCallsMade || 0, // If you have this in DB, else 0
-              monthlyCallLimit: c.monthlyCallLimit || 0, // If you have this in DB, else 0
+              totalCallsMade: c.totalCallsMade || 0, // Total calls ever made
+              monthlyCallsMade: c.monthlyCallsMade || 0, // Calls made this month
+              monthlyCallLimit: c.monthlyCallLimit || 0, // Monthly limit from plan
               joinedDate: c.created_at || new Date().toISOString(),
               avatarUrl: "", // If you have an avatar field, else empty
-            }))
-          );
+            }));
+          
+          setClients(processedData);
+          setLastUpdated(new Date());
         } else {
           toast({ title: 'Error', description: 'Failed to fetch clients', variant: 'destructive' });
         }
@@ -164,6 +170,13 @@ function AllClientsListPageInner() {
       .then(data => {
         if (data.success) setPlans(data.data.map((p: any) => ({ id: p.id, name: p.name })));
       });
+    
+    // Set up real-time usage refresh every 30 seconds
+    const intervalId = setInterval(() => {
+      fetchClients();
+    }, 30000); // Refresh every 30 seconds
+    
+    return () => clearInterval(intervalId);
   }, [toast, fetchClients]);
 
   React.useEffect(() => {
@@ -193,13 +206,13 @@ function AllClientsListPageInner() {
   const handleEditClient = (client: any) => {
     setEditingClient(client);
     setIsEditClientSheetOpen(true);
-    router.push(`/clients/list?editClient=${client.id}`);
+    router.push(`/clients/list?editClient=${client.clientId}`);
   };
 
   const handleEditClientSuccess = async (formData: any) => {
     if (!editingClient) return;
     const { planName, ...formToSend } = formData;
-    const res = await api.updateClient(editingClient.id, formToSend);
+    const res = await api.updateClient(editingClient.clientId, formToSend);
     const data = await res.json();
     if (data.success) {
       setIsEditClientSheetOpen(false);
@@ -322,28 +335,35 @@ function AllClientsListPageInner() {
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div>
             <h1 className="text-3xl font-bold font-headline">Manage Clients</h1>
-            <p className="text-muted-foreground">Manage and view all client accounts.</p>
+            <p className="text-muted-foreground">
+              Manage and view all client accounts. 
+              <span className="ml-2 text-xs text-blue-600">
+                Last updated: {lastUpdated.toLocaleTimeString()}
+              </span>
+            </p>
         </div>
-        <Sheet open={isAddClientSheetOpen} onOpenChange={setIsAddClientSheetOpen}>
-          <SheetTrigger asChild>
-            <Button size="lg" onClick={() => setIsAddClientSheetOpen(true)}>
-              <PlusCircle className="mr-2 h-5 w-5" />
-              Add New Client
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="sm:max-w-sm w-full flex flex-col" side="right">
-            <SheetHeader>
-              <SheetTitle>Add New Client</SheetTitle>
-              <SheetDescription>
-                Fill in the details below to add a new client to the system.
-              </SheetDescription>
-            </SheetHeader>
-            <AddClientForm
-              onSuccess={handleAddClientSuccess}
-              onCancel={() => setIsAddClientSheetOpen(false)}
-            />
-          </SheetContent>
-        </Sheet>
+        <div className="flex gap-2">
+          <Sheet open={isAddClientSheetOpen} onOpenChange={setIsAddClientSheetOpen}>
+            <SheetTrigger asChild>
+              <Button size="lg" onClick={() => setIsAddClientSheetOpen(true)}>
+                <PlusCircle className="mr-2 h-5 w-5" />
+                Add New Client
+              </Button>
+            </SheetTrigger>
+                      <SheetContent className="sm:max-w-sm w-full flex flex-col" side="right">
+              <SheetHeader>
+                <SheetTitle>Add New Client</SheetTitle>
+                <SheetDescription>
+                  Fill in the details below to add a new client to the system.
+                </SheetDescription>
+              </SheetHeader>
+              <AddClientForm
+                onSuccess={handleAddClientSuccess}
+                onCancel={() => setIsAddClientSheetOpen(false)}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
 
       <Card className="shadow-lg">
@@ -525,7 +545,12 @@ function AllClientsListPageInner() {
                 <TableHead>Contact Info</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Plan</TableHead>
-                <TableHead>Usage</TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-2">
+                    <span>Usage</span>
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Real-time data"></div>
+                  </div>
+                </TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -534,7 +559,7 @@ function AllClientsListPageInner() {
                 {paginatedClients.map((client) => (
                 <TableRow key={client.id}>
                     <TableCell>
-                      <Link href={`/clients/details-usage?clientId=${client.id}`} className="hover:underline">
+                      <Link href={`/clients/details-usage?clientId=${client.clientId}`} className="hover:underline">
                         <div className="flex items-center gap-3">
                             <Avatar className="h-10 w-10">
                             <AvatarImage src={client.avatarUrl} alt={client.name} data-ai-hint="company logo" />
@@ -560,13 +585,37 @@ function AllClientsListPageInner() {
                         <Badge className={`text-xs font-semibold px-2 py-0.5 rounded-full ${statusVariants[client.status]}`}>{client.status}</Badge>
                         <Switch
                           checked={client.status === "Active"}
-                          onCheckedChange={() => handleStatusChange(client.id, client.status === "Active" ? "Suspended" : "Active")}
+                          onCheckedChange={() => handleStatusChange(client.clientId, client.status === "Active" ? "Suspended" : "Active")}
                           aria-label="Toggle client status"
                         />
                       </div>
                     </TableCell>
                     <TableCell>{client.plan}</TableCell>
-                    <TableCell>{`${client.totalCallsMade} / ${client.monthlyCallLimit}`}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">{client.monthlyCallsMade}</span>
+                          <span className="text-muted-foreground">/ {client.monthlyCallLimit}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                            style={{ 
+                              width: `${Math.min((client.monthlyCallsMade / client.monthlyCallLimit) * 100, 100)}%` 
+                            }}
+                          ></div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {client.monthlyCallLimit > 0 ? 
+                            `${Math.round((client.monthlyCallsMade / client.monthlyCallLimit) * 100)}% used` : 
+                            'Unlimited'
+                          }
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Total: {client.totalCallsMade}
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell>{new Date(client.joinedDate).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
                     <DropdownMenu>
@@ -578,7 +627,7 @@ function AllClientsListPageInner() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                            <Link href={`/clients/details-usage?clientId=${client.id}`}>
+                            <Link href={`/clients/details-usage?clientId=${client.clientId}`}>
                                 <Eye className="mr-2 h-4 w-4" /> View Details
                             </Link>
                         </DropdownMenuItem>
@@ -592,12 +641,12 @@ function AllClientsListPageInner() {
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {client.status === "Active" && (
-                            <DropdownMenuItem className="text-yellow-600 focus:bg-yellow-50 focus:text-yellow-700" onClick={() => handleStatusChange(client.id, 'Suspended')}>
+                            <DropdownMenuItem className="text-yellow-600 focus:bg-yellow-50 focus:text-yellow-700" onClick={() => handleStatusChange(client.clientId, 'Suspended')}>
                             <UserX className="mr-2 h-4 w-4" /> Suspend
                             </DropdownMenuItem>
                         )}
                         {client.status === "Suspended" && (
-                            <DropdownMenuItem className="text-green-600 focus:bg-green-50 focus:text-green-700" onClick={() => handleStatusChange(client.id, 'Active')}>
+                            <DropdownMenuItem className="text-green-600 focus:bg-green-50 focus:text-green-700" onClick={() => handleStatusChange(client.clientId, 'Active')}>
                             <UserCheck className="mr-2 h-4 w-4" /> Activate
                             </DropdownMenuItem>
                         )}
