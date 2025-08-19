@@ -73,6 +73,7 @@ export const API_ENDPOINTS = {
     INCREMENT_CALL: (clientId: string) => `/api/clients/${clientId}/increment-call`,
     RESET_MONTHLY_USAGE: '/api/clients/reset-monthly-usage',
     ELEVENLABS_USAGE: (clientId: string) => `/api/clients/${clientId}/elevenlabs-usage`,
+    AGENTS_ANALYTICS: (clientId: string, days?: number) => `/api/clients/${clientId}/agents-analytics${days ? `?days=${days}` : ''}`,
   },
 
   // Plans
@@ -86,6 +87,7 @@ export const API_ENDPOINTS = {
     BASE: '/api/assigned-plans',
     BY_ID: (assignmentId: string) => `/api/assigned-plans/${assignmentId}`,
     BY_CLIENT: (clientId: string) => `/api/clients/${clientId}/assigned-plans`,
+    TOGGLE_ENABLED: (assignmentId: string) => `/api/assigned-plans/${assignmentId}/enable`,
   },
 
   // Knowledge Base
@@ -282,6 +284,7 @@ export const api = {
     incrementCallCount: (clientId: string) => apiUtils.post(API_ENDPOINTS.CLIENTS.INCREMENT_CALL(clientId)),
     resetMonthlyUsage: () => apiUtils.post(API_ENDPOINTS.CLIENTS.RESET_MONTHLY_USAGE),
     getElevenLabsUsage: (clientId: string) => apiUtils.get(API_ENDPOINTS.CLIENTS.ELEVENLABS_USAGE(clientId)),
+    getAgentsAnalytics: (clientId: string, days?: number) => apiUtils.get(API_ENDPOINTS.CLIENTS.AGENTS_ANALYTICS(clientId, days)),
   
   // Plans
   getPlans: () => apiUtils.get(API_ENDPOINTS.PLANS.BASE),
@@ -295,6 +298,7 @@ export const api = {
   getAssignedPlansForClient: (clientId: string) => apiUtils.get(API_ENDPOINTS.ASSIGNED_PLANS.BY_CLIENT(clientId)),
   assignPlan: (data: any) => apiUtils.post(API_ENDPOINTS.ASSIGNED_PLANS.BASE, data),
   deleteAssignedPlan: (assignmentId: string) => apiUtils.delete(API_ENDPOINTS.ASSIGNED_PLANS.BY_ID(assignmentId)),
+  toggleAssignedPlanEnabled: (assignmentId: string, isEnabled: boolean) => apiUtils.patch(API_ENDPOINTS.ASSIGNED_PLANS.TOGGLE_ENABLED(assignmentId), { is_enabled: isEnabled ? 1 : 0 }),
   
   // Knowledge Base
   getKnowledgeBase: () => apiUtils.get(API_ENDPOINTS.KNOWLEDGE_BASE.BASE),

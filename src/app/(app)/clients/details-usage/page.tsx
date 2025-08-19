@@ -20,6 +20,7 @@ import { useSearchParams } from "next/navigation";
 import { api } from '@/lib/apiConfig';
 import { useRouter } from "next/navigation";
 import { Suspense } from "react";
+import { elevenLabsApi } from '@/lib/elevenlabsApi';
 
 // Metadata should be defined in a server component or route handler if possible.
 // For client components, the nearest server layout/page handles overall metadata.
@@ -37,11 +38,46 @@ function ClientDetailsUsagePageInner() {
   const clientId = searchParams.get("clientId");
   const [client, setClient] = React.useState<any | null>(null);
   const [monthlyCalls, setMonthlyCalls] = React.useState<number>(0);
+  const [assignedPlans, setAssignedPlans] = React.useState<any[]>([]);
+  const [analyticsTotals, setAnalyticsTotals] = React.useState<{ totalCalls: number; successRate: number; totalDurationSecs: number; usedAgents: number; totalAgents: number } | null>(null);
+  const aggregatedEnabledLimit = React.useMemo(() => {
+    try {
+      return assignedPlans
+        .filter((ap: any) => (ap.isEnabled === 1 || ap.isEnabled === true) && (ap.isActive === 1 || ap.isActive === true))
+        .reduce((sum: number, ap: any) => sum + (parseInt(ap.monthlyLimit, 10) || 0), 0);
+    } catch {
+      return 0;
+    }
+  }, [assignedPlans]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [clientStatus, setClientStatus] = React.useState(true);
   const [newNote, setNewNote] = React.useState("");
   const router = useRouter();
+
+  // Stable handler to update KPI cards only when values actually change
+  const handleTotalsChange = React.useCallback((totals: any, totalAgents: number) => {
+    const newVals = {
+      totalCalls: totals?.totalCalls || 0,
+      successRate: totals?.successRate || 0,
+      totalDurationSecs: totals?.totalDurationSecs || 0,
+      usedAgents: totals?.usedAgents || 0,
+      totalAgents: totalAgents || 0,
+    };
+    setAnalyticsTotals((prev) => {
+      if (
+        !prev ||
+        prev.totalCalls !== newVals.totalCalls ||
+        prev.successRate !== newVals.successRate ||
+        prev.totalDurationSecs !== newVals.totalDurationSecs ||
+        prev.usedAgents !== newVals.usedAgents ||
+        prev.totalAgents !== newVals.totalAgents
+      ) {
+        return newVals;
+      }
+      return prev;
+    });
+  }, []);
 
   React.useEffect(() => {
     if (!clientId) {
@@ -52,9 +88,10 @@ function ClientDetailsUsagePageInner() {
     setLoading(true);
     Promise.all([
       api.getClient(clientId).then((r) => r.json()),
-      api.getElevenLabsUsage(clientId).then((r) => r.json()).catch(() => null),
+      api.getAgentsAnalytics(clientId, 30).then((r) => r.json()).catch(() => null),
+      api.getAssignedPlansForClient(clientId).then((r) => r.json()).catch(() => ({ data: [] })),
     ])
-      .then(([clientResp, usageResp]) => {
+      .then(([clientResp, analyticsResp, plansResp]) => {
         if (clientResp?.success) {
           setClient(clientResp.data);
           setClientStatus(clientResp.data.status === "Active");
@@ -62,8 +99,16 @@ function ClientDetailsUsagePageInner() {
         } else {
           setError(clientResp?.message || "Failed to fetch client data.");
         }
-        if (usageResp?.success && usageResp?.data && typeof usageResp.data.monthlyCalls === 'number') {
-          setMonthlyCalls(usageResp.data.monthlyCalls);
+        if (analyticsResp?.success && analyticsResp?.data) {
+          const totals = analyticsResp.data.totals || { totalCalls: 0, successRate: 0, totalDurationSecs: 0 };
+          const agents = Array.isArray(analyticsResp.data.agents) ? analyticsResp.data.agents : [];
+          const usedAgents = agents.filter((a: any) => (a.totalCalls || 0) > 0).length;
+          const totalAgents = agents.length;
+          setAnalyticsTotals({ totalCalls: totals.totalCalls || 0, successRate: totals.successRate || 0, totalDurationSecs: totals.totalDurationSecs || 0, usedAgents, totalAgents });
+          setMonthlyCalls(Number(totals.totalCalls || 0));
+        }
+        if (Array.isArray(plansResp?.data)) {
+          setAssignedPlans(plansResp.data);
         }
         setLoading(false);
       })
@@ -76,8 +121,18 @@ function ClientDetailsUsagePageInner() {
   const handleStatusChange = async (checked: boolean) => {
     if (!client) return;
     const newStatus = checked ? "Active" : "Suspended";
-    // Remove planName before sending to backend
-    const { planName, ...clientData } = client;
+    // Sanitize payload: remove computed/aggregated fields not present in DB
+    const blacklist = [
+      'planName',
+      'planNames',
+      'totalMonthlyLimit',
+      'monthlyCallLimit',
+      'monthlyCallsMade',
+      'totalCallsMade',
+      'created_at',
+      'updated_at'
+    ];
+    const clientData: any = Object.fromEntries(Object.entries(client).filter(([k]) => !blacklist.includes(String(k))));
     try {
       // Send update to backend
       const res = await api.updateClient(client.id.toString(), { ...clientData, status: newStatus });
@@ -138,7 +193,7 @@ function ClientDetailsUsagePageInner() {
     phone: client.phoneNumber,
     clientId: client.id,
     status: client.status || "Active",
-    plan: client.planName || "",
+    plan: client.planNames || "",
     totalCallsMade: client.totalCallsMade || 0,
     monthlyCallLimit: client.monthlyCallLimit || 0,
     joinedDate: client.created_at || new Date().toISOString(),
@@ -227,24 +282,22 @@ function ClientDetailsUsagePageInner() {
             <Card>
               <CardHeader><CardTitle>Total Calls</CardTitle></CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold">{monthlyCalls} / {displayClient.monthlyCallLimit}</p>
-                <Progress value={(displayClient.monthlyCallLimit > 0 ? (monthlyCalls / displayClient.monthlyCallLimit) * 100 : 0)} className="mt-2 h-2" />
-                <p className="text-xs text-muted-foreground mt-1">Monthly Limit</p>
+                <p className="text-3xl font-bold">{analyticsTotals?.totalCalls ?? 0}</p>
+                <p className="text-xs text-muted-foreground mt-1">Conversations across all agents (last 30 days)</p>
               </CardContent>
             </Card>
              <Card>
               <CardHeader><CardTitle>Voice Minutes</CardTitle></CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold">{displayClient.voiceMinutesUsed} / {displayClient.voiceMinutesLimit}</p>
-                <Progress value={(displayClient.voiceMinutesUsed / displayClient.voiceMinutesLimit) * 100} className="mt-2 h-2" />
-                <p className="text-xs text-muted-foreground mt-1">Monthly Limit</p>
+                <p className="text-3xl font-bold">{Math.round(((analyticsTotals?.totalDurationSecs || 0) / 60))}</p>
+                <p className="text-xs text-muted-foreground mt-1">Total minutes spoken (last 30 days)</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader><CardTitle>Call Success Rate</CardTitle></CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold">{displayClient.callSuccessRate}</p>
-                 <p className="text-xs text-muted-foreground mt-1">Based on last 30 days</p>
+                <p className="text-3xl font-bold">{analyticsTotals?.successRate ?? 0}%</p>
+                 <p className="text-xs text-muted-foreground mt-1">Successful / All conversations</p>
               </CardContent>
             </Card>
           </div>
@@ -253,29 +306,18 @@ function ClientDetailsUsagePageInner() {
                 <CardTitle>Agents Used</CardTitle>
             </CardHeader>
             <CardContent>
-                <p className="text-2xl font-bold">{displayClient.agentsUsed} / {displayClient.agentsLimit}</p>
-                <Progress value={(displayClient.agentsUsed / displayClient.agentsLimit) * 100} className="mt-2 h-2" />
-                <p className="text-xs text-muted-foreground mt-1">Monthly Limit</p>
+                <p className="text-2xl font-bold">{analyticsTotals ? `${analyticsTotals.usedAgents} / ${analyticsTotals.totalAgents}` : '0 / 0'}</p>
+                <Progress value={(analyticsTotals && analyticsTotals.totalAgents > 0) ? (analyticsTotals.usedAgents / analyticsTotals.totalAgents) * 100 : 0} className="mt-2 h-2" />
+                <p className="text-xs text-muted-foreground mt-1">Agents that had at least one conversation</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Top Performing Campaigns</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Agent Analytics (last 30 days)</CardTitle></CardHeader>
             <CardContent>
-              {displayClient.topCampaigns.length > 0 ? (
-                <ul className="space-y-2">
-                  {displayClient.topCampaigns.map((campaign: any) => (
-                    <li key={campaign.id} className="flex justify-between items-center p-2 border rounded-md">
-                      <span>{campaign.name}</span>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={campaign.status === "Active" ? "default" : "outline"}>{campaign.status}</Badge>
-                        <span>Success: {campaign.successRate}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-muted-foreground">No campaign data available.</p>
-              )}
+              <AgentAnalytics
+                clientId={String(displayClient.clientId)}
+                onTotalsChange={handleTotalsChange}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -283,16 +325,57 @@ function ClientDetailsUsagePageInner() {
         <TabsContent value="plan-info" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Current Plan: {displayClient.plan}</CardTitle>
-              <CardDescription>Details about the client's current subscription plan.</CardDescription>
+              <CardTitle>Current Plans</CardTitle>
+              <CardDescription>Active plans contribute to the monthly call limit.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {assignedPlans.length > 0 ? (
+                <div className="space-y-3">
+                  {assignedPlans.map((ap: any) => {
+                    const isEnabled = ap.isEnabled === 1 || ap.isEnabled === true;
+                    const isActive = ap.isActive === 1 || ap.isActive === true;
+                    return (
+                      <div key={ap.assignmentId} className="flex items-center justify-between p-3 border rounded-md">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{ap.planName}</span>
+                            {isEnabled && isActive ? (
+                              <Badge className="bg-green-600 text-white">Active</Badge>
+                            ) : (
+                              <Badge variant="secondary">Inactive</Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">Monthly Limit: {ap.monthlyLimit || 0}</div>
+                          <div className="text-xs text-muted-foreground">Start: {ap.startDate ? new Date(ap.startDate).toLocaleDateString() : 'N/A'}{ap.durationDays ? ` • Duration: ${ap.durationDays} days` : ''}</div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Label htmlFor={`enable-${ap.assignmentId}`} className="text-xs">Enable</Label>
+                          <Switch
+                            id={`enable-${ap.assignmentId}`}
+                            checked={!!isEnabled}
+                            onCheckedChange={async (checked) => {
+                              try {
+                                await api.toggleAssignedPlanEnabled(String(ap.assignmentId), !!checked);
+                                // refresh assigned plans
+                                const resp = await api.getAssignedPlansForClient(String(displayClient.clientId));
+                                const j = await resp.json();
+                                setAssignedPlans(Array.isArray(j.data) ? j.data : []);
+                              } catch {}
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">No plans assigned yet.</div>
+              )}
+              <Separator className="my-2" />
               <div>
-                <h3 className="font-semibold mb-1">Limits Overview:</h3>
+                <h3 className="font-semibold mb-1">Aggregated Limits:</h3>
                 <ul className="list-disc list-inside pl-4 space-y-1 text-sm text-muted-foreground">
-                  <li>Monthly Calls: {displayClient.monthlyCallLimit}</li>
-                  <li>Voice Minutes: {displayClient.voiceMinutesLimit} / month</li>
-                  <li>AI Agents: {displayClient.agentsLimit}</li>
+                  <li>Monthly Calls Total (enabled & active): {aggregatedEnabledLimit}</li>
                 </ul>
               </div>
               <div>
@@ -356,5 +439,169 @@ export default function ClientDetailsUsagePage() {
     <Suspense fallback={<div>Loading...</div>}>
       <ClientDetailsUsagePageInner />
     </Suspense>
+  );
+}
+
+function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTotalsChange?: (totals: any, totalAgents: number) => void }) {
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [data, setData] = React.useState<{ agents: any[]; totals: any } | null>(null);
+  const [allClientAgents, setAllClientAgents] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    let mounted = true;
+    async function load() {
+      setLoading(true);
+      try {
+        const res = await api.getAgentsAnalytics(clientId, 30);
+        const j = await res.json();
+        if (mounted) {
+          if (j?.success) setData(j.data);
+          else setError(j?.message || 'Failed to fetch');
+        }
+      } catch (e: any) {
+        if (mounted) setError(String(e?.message || e));
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    // Poll every 30s, but only if mounted
+    const interval = setInterval(() => { if (mounted) load(); }, 30000);
+    return () => { mounted = false; clearInterval(interval); };
+  }, [clientId]);
+
+  // Always load the complete agent list for this client (to include zero-activity agents)
+  React.useEffect(() => {
+    let active = true;
+    async function loadAgents() {
+      try {
+        const agentsRes = await fetch('/api/agents', { credentials: 'include' });
+        const agentsJson = await agentsRes.json();
+        const allAgents = Array.isArray(agentsJson?.data) ? agentsJson.data : [];
+        const clientAgents = allAgents.filter((a: any) => String(a.client_id || '') === String(clientId) || (a.created_by_type === 'client' && String(a.created_by) === String(clientId)));
+        if (active) setAllClientAgents(clientAgents);
+      } catch {
+        if (active) setAllClientAgents([]);
+      }
+    }
+    loadAgents();
+    return () => { active = false; };
+  }, [clientId]);
+
+  // Frontend fallback and normalization to include ALL client agents (0-activity too) and correct success logic
+  React.useEffect(() => {
+    async function fallbackIfEmpty() {
+      if (data && (data.totals?.totalCalls ?? 0) > 0) {
+        // even if backend has data, ensure zero-activity agents are present
+        try {
+          const agentIdSet = new Set((data.agents || []).map((a: any) => String(a.agentId || a.agent_id)));
+          const missing = allClientAgents.filter((a: any) => !agentIdSet.has(String(a.agent_id))).map((a: any) => ({ agentId: String(a.agent_id), agentName: a.name || a.agent_name || String(a.agent_id), totalCalls: 0, successCount: 0, successRate: 0, totalDurationSecs: 0, avgDurationSecs: 0 }));
+          if (missing.length > 0) {
+            const mergedAgents = [...(data.agents || []), ...missing];
+            const totals = mergedAgents.reduce((acc: any, x: any) => { acc.totalCalls += x.totalCalls || 0; acc.successCount += x.successCount || 0; acc.totalDurationSecs += x.totalDurationSecs || 0; return acc; }, { totalCalls: 0, successCount: 0, totalDurationSecs: 0 });
+            totals.successRate = totals.totalCalls > 0 ? Math.round((totals.successCount / totals.totalCalls) * 100) : 0;
+            const usedAgents = mergedAgents.filter((a: any) => (a.totalCalls || 0) > 0).length;
+            setData({ agents: mergedAgents, totals });
+            onTotalsChange?.({ ...totals, usedAgents }, mergedAgents.length);
+          } else {
+            const usedAgents = (data.agents || []).filter((a: any) => (a.totalCalls || 0) > 0).length;
+            onTotalsChange?.({ ...(data.totals || { totalCalls: 0, successRate: 0, totalDurationSecs: 0 }), usedAgents }, (data.agents || []).length);
+          }
+        } catch {}
+        return;
+      }
+      try {
+        // 1) get all agents and filter by client
+        const agentsRes = await fetch('/api/agents', { credentials: 'include' });
+        const agentsJson = await agentsRes.json();
+        const allAgents = Array.isArray(agentsJson?.data) ? agentsJson.data : [];
+        const clientAgents = allAgents.filter((a: any) => String(a.client_id || '') === String(clientId) || (a.created_by_type === 'client' && String(a.created_by) === String(clientId)));
+        if (clientAgents.length === 0) return;
+
+        // 2) Fetch ALL conversations for the last 30 days (no agent filter), then filter for client's agents
+        const clientAgentIdSet = new Set(clientAgents.map((a: any) => String(a.agent_id)));
+        const end = Math.floor(Date.now() / 1000);
+        const start = end - 30 * 24 * 60 * 60;
+        let cursor: string | undefined = undefined;
+        let loops = 0;
+        const convs: any[] = [];
+        do {
+          const resp = await elevenLabsApi.listConversations({ call_start_after_unix: start, call_start_before_unix: end, page_size: 100, summary_mode: 'include', ...(cursor ? { cursor } : {}) } as any);
+          if (!resp.ok) break;
+          const json = await resp.json();
+          const list = Array.isArray(json.conversations) ? json.conversations : [];
+          convs.push(...list);
+          cursor = json.next_cursor || json.cursor || undefined;
+          loops += 1;
+        } while (cursor && loops < 100);
+
+        const filtered = convs.filter((c: any) => clientAgentIdSet.has(String(c.agent_id || c.agent?.id || c.agentId)));
+        const perAgentMap = new Map<string, any>();
+        for (const c of filtered) {
+          const id = String(c.agent_id || c.agent?.id || c.agentId);
+          const name = c.agent_name || c.agent?.name || id;
+          const e = perAgentMap.get(id) || { agentId: id, agentName: name, totalCalls: 0, successCount: 0, totalDurationSecs: 0 };
+          e.totalCalls += 1;
+          // Normalize success using Reports page mapping
+          const candidates = [c.call_successful, c.status, c.call_status, c.analysis?.call_successful, c.metadata?.call_successful].filter(Boolean);
+          const normalized = String((candidates.length ? candidates[0] : 'unknown')).toLowerCase().trim();
+          const successValues = ['successful', 'success', 'true', '1', 'completed'];
+          if (successValues.includes(normalized)) e.successCount += 1;
+          e.totalDurationSecs += (c.call_duration_secs || 0);
+          perAgentMap.set(id, e);
+        }
+        // Ensure zero-activity agents are present
+        for (const a of clientAgents) {
+          const id = String(a.agent_id);
+          if (!perAgentMap.has(id)) {
+            perAgentMap.set(id, { agentId: id, agentName: a.name || a.agent_name || id, totalCalls: 0, successCount: 0, totalDurationSecs: 0 });
+          }
+        }
+        const perAgent = Array.from(perAgentMap.values()).map(a => ({ ...a, successRate: a.totalCalls > 0 ? Math.round((a.successCount / a.totalCalls) * 100) : 0, avgDurationSecs: a.totalCalls > 0 ? Math.round(a.totalDurationSecs / a.totalCalls) : 0 }));
+        const totals = perAgent.reduce((acc: any, x: any) => { acc.totalCalls += x.totalCalls; acc.successCount += x.successCount; acc.totalDurationSecs += x.totalDurationSecs; return acc; }, { totalCalls: 0, successCount: 0, totalDurationSecs: 0 });
+        totals.successRate = totals.totalCalls > 0 ? Math.round((totals.successCount / totals.totalCalls) * 100) : 0;
+        const usedAgents = perAgent.filter((a: any) => (a.totalCalls || 0) > 0).length;
+        setData({ agents: perAgent, totals });
+        onTotalsChange?.({ ...totals, usedAgents }, perAgent.length);
+      } catch {}
+    }
+    fallbackIfEmpty();
+  }, [clientId, data, allClientAgents, onTotalsChange]);
+
+  if (loading) return <div className="text-sm text-muted-foreground">Loading analytics…</div>;
+  if (error) return <div className="text-sm text-red-600">{error}</div>;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-4">
+      <div className="text-sm text-muted-foreground">
+        Total Calls: <strong>{data.totals.totalCalls}</strong> • Success Rate: <strong>{data.totals.successRate}%</strong> • Total Duration: <strong>{Math.round((data.totals.totalDurationSecs||0)/60)} min</strong>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left border-b">
+              <th className="py-2 pr-4">Agent</th>
+              <th className="py-2 pr-4">Calls</th>
+              <th className="py-2 pr-4">Success</th>
+              <th className="py-2 pr-4">Success Rate</th>
+              <th className="py-2 pr-4">Avg Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.agents.map((a) => (
+              <tr key={a.agentId} className="border-b last:border-0">
+                <td className="py-2 pr-4">{a.agentName}</td>
+                <td className="py-2 pr-4">{a.totalCalls}</td>
+                <td className="py-2 pr-4">{a.successCount}</td>
+                <td className="py-2 pr-4">{a.successRate}%</td>
+                <td className="py-2 pr-4">{Math.round((a.avgDurationSecs||0)/60)} min</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

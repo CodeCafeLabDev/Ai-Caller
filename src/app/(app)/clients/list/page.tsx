@@ -179,6 +179,24 @@ function AllClientsListPageInner() {
       });
   }, [toast]);
 
+  // Fetch only ElevenLabs usage to update the Usage column in near real-time
+  const fetchUsageData = React.useCallback(async () => {
+    try {
+      const updated = await Promise.all(clients.map(async (cl) => {
+        try {
+          const r = await api.getElevenLabsUsage(cl.clientId);
+          const j = await r.json();
+          if (j?.success && j?.data && typeof j.data.monthlyCalls === 'number') {
+            return { ...cl, monthlyCallsMade: j.data.monthlyCalls };
+          }
+        } catch {}
+        return cl;
+      }));
+      setClients(updated);
+      setLastUpdated(new Date());
+    } catch {}
+  }, [clients]);
+
   React.useEffect(() => {
     fetchClients();
     // Fetch plans from API
@@ -188,13 +206,21 @@ function AllClientsListPageInner() {
         if (data.success) setPlans(data.data.map((p: any) => ({ id: p.id, name: p.name })));
       });
     
-    // Set up real-time usage refresh every 30 seconds
-    const intervalId = setInterval(() => {
+    // Near real-time usage refresh every 10 seconds
+    const usageIntervalId = setInterval(() => {
+      fetchUsageData();
+    }, 10000);
+
+    // Full client refresh every 30 seconds (keeps plan/limit/etc. fresh)
+    const fullRefreshIntervalId = setInterval(() => {
       fetchClients();
-    }, 30000); // Refresh every 30 seconds
-    
-    return () => clearInterval(intervalId);
-  }, [toast, fetchClients]);
+    }, 30000);
+
+    return () => {
+      clearInterval(usageIntervalId);
+      clearInterval(fullRefreshIntervalId);
+    };
+  }, [toast, fetchClients, fetchUsageData]);
 
   // Load assigned plans when manage sheet is open
   React.useEffect(() => {
@@ -239,7 +265,9 @@ function AllClientsListPageInner() {
 
   const handleEditClientSuccess = async (formData: any) => {
     if (!editingClient) return;
-    const { planName, ...formToSend } = formData;
+    // Remove aggregated/computed fields that don't exist in DB
+    const blacklist = ['planName','planNames','totalMonthlyLimit','monthlyCallLimit','monthlyCallsMade','totalCallsMade','joinedDate','created_at','updated_at'];
+    const formToSend: any = Object.fromEntries(Object.entries(formData).filter(([k]) => !blacklist.includes(String(k))));
     const res = await api.updateClient(editingClient.clientId, formToSend);
     const data = await res.json();
     if (data.success) {
@@ -373,26 +401,26 @@ function AllClientsListPageInner() {
             </p>
         </div>
         <div className="flex gap-2">
-          <Sheet open={isAddClientSheetOpen} onOpenChange={setIsAddClientSheetOpen}>
-            <SheetTrigger asChild>
-              <Button size="lg" onClick={() => setIsAddClientSheetOpen(true)}>
-                <PlusCircle className="mr-2 h-5 w-5" />
-                Add New Client
-              </Button>
-            </SheetTrigger>
-                      <SheetContent className="sm:max-w-sm w-full flex flex-col" side="right">
-              <SheetHeader>
-                <SheetTitle>Add New Client</SheetTitle>
-                <SheetDescription>
-                  Fill in the details below to add a new client to the system.
-                </SheetDescription>
-              </SheetHeader>
-              <AddClientForm
-                onSuccess={handleAddClientSuccess}
-                onCancel={() => setIsAddClientSheetOpen(false)}
-              />
-            </SheetContent>
-          </Sheet>
+        <Sheet open={isAddClientSheetOpen} onOpenChange={setIsAddClientSheetOpen}>
+          <SheetTrigger asChild>
+            <Button size="lg" onClick={() => setIsAddClientSheetOpen(true)}>
+              <PlusCircle className="mr-2 h-5 w-5" />
+              Add New Client
+            </Button>
+          </SheetTrigger>
+          <SheetContent className="sm:max-w-sm w-full flex flex-col" side="right">
+            <SheetHeader>
+              <SheetTitle>Add New Client</SheetTitle>
+              <SheetDescription>
+                Fill in the details below to add a new client to the system.
+              </SheetDescription>
+            </SheetHeader>
+            <AddClientForm
+              onSuccess={handleAddClientSuccess}
+              onCancel={() => setIsAddClientSheetOpen(false)}
+            />
+          </SheetContent>
+        </Sheet>
         </div>
       </div>
 

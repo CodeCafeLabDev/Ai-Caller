@@ -457,6 +457,26 @@ db.connect(err => {
       console.log('✅ MCP servers table ready');
     }
   });
+
+  // Ensure assigned_plans.is_enabled column exists (for enabling/disabling plans per client)
+  try {
+    db.query(
+      "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'ai-caller' AND TABLE_NAME = 'assigned_plans' AND COLUMN_NAME = 'is_enabled'",
+      (checkErr, rows) => {
+        if (!checkErr && (!Array.isArray(rows) || rows.length === 0)) {
+          db.query(
+            "ALTER TABLE assigned_plans ADD COLUMN is_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER auto_send_notifications",
+            (altErr) => {
+              if (altErr) console.error("Failed to add assigned_plans.is_enabled column:", altErr);
+              else console.log("✅ Added assigned_plans.is_enabled column");
+            }
+          );
+        }
+      }
+    );
+  } catch (e) {
+    console.warn('Warning checking assigned_plans.is_enabled:', e);
+  }
 });
 
 // Add error handler for lost connections
@@ -1208,6 +1228,7 @@ app.get("/api/clients", (req, res) => {
     LEFT JOIN assigned_plans ap ON ap.client_id = c.id
       AND (ap.start_date IS NULL OR ap.start_date <= CURDATE())
       AND (ap.duration_override_days IS NULL OR DATE_ADD(ap.start_date, INTERVAL ap.duration_override_days DAY) >= CURDATE())
+      AND (ap.is_enabled IS NULL OR ap.is_enabled = 1)
     LEFT JOIN plans p ON ap.plan_id = p.id
     GROUP BY c.id
   `;
@@ -1236,6 +1257,7 @@ app.get("/api/clients/:id", (req, res) => {
     LEFT JOIN assigned_plans ap ON ap.client_id = c.id
       AND (ap.start_date IS NULL OR ap.start_date <= CURDATE())
       AND (ap.duration_override_days IS NULL OR DATE_ADD(ap.start_date, INTERVAL ap.duration_override_days DAY) >= CURDATE())
+      AND (ap.is_enabled IS NULL OR ap.is_enabled = 1)
     LEFT JOIN plans p ON ap.plan_id = p.id
     WHERE c.id = ?
     GROUP BY c.id
@@ -1291,13 +1313,24 @@ app.post("/api/clients", async (req, res) => {
 
 // Update a client
 app.put("/api/clients/:id", (req, res) => {
-  const client = req.body;
-  const clientId = Number(req.params.id);
+  const clientIncoming = req.body || {};
+  let clientId = Number.parseInt(String(req.params.id ?? ''), 10);
+  if (Number.isNaN(clientId)) {
+    const fallbackId = Number.parseInt(String(clientIncoming.id ?? ''), 10);
+    if (!Number.isNaN(fallbackId)) clientId = fallbackId;
+  }
+  if (Number.isNaN(clientId)) {
+    console.error('[PUT /api/clients/:id] Invalid client id in params/body:', req.params.id, clientIncoming.id);
+    return res.status(400).json({ success: false, message: 'Invalid client id' });
+  }
 
   // Log the incoming request body for debugging
-  console.log("[PUT /api/clients/:id] Incoming body:", client);
+  console.log("[PUT /api/clients/:id] Incoming body:", clientIncoming);
 
   // Remove undefined fields
+  const client = { ...clientIncoming };
+  // Ensure we do not update primary key directly
+  delete client.id;
   Object.keys(client).forEach((key) => {
     if (client[key] === undefined) {
       delete client[key];
@@ -1310,28 +1343,50 @@ app.put("/api/clients/:id", (req, res) => {
     client.trialEndsAt = ends;
   }
 
-  db.query(
-    "UPDATE clients SET ? WHERE id = ?",
-    [client, clientId],
-    (err, result) => {
-      if (err) {
-        // Log the MySQL error for debugging
-        console.error("[PUT /api/clients/:id] MySQL error:", err);
-        return res.status(500).json({ success: false, message: "Failed to update client", error: err });
-      }
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ success: false, message: "Client not found" });
-      }
-      db.query("SELECT * FROM clients WHERE id = ?", [clientId], (err, results) => {
-        if (err) {
-          // Log the MySQL error for debugging
-          console.error("[PUT /api/clients/:id] MySQL error (fetch after update):", err);
-          return res.status(500).json({ success: false, message: "Client updated but failed to fetch", error: err });
-        }
-        res.json({ success: true, message: "Client updated successfully", data: results[0] });
-      });
+  // Strip computed/aggregated fields that are not columns in clients
+  const blacklist = new Set([
+    'totalMonthlyLimit',
+    'planNames',
+    'monthlyCallLimit',
+    'monthlyCallsMade',
+    'totalCallsMade'
+  ]);
+  Object.keys(client).forEach((k) => {
+    if (blacklist.has(k)) delete client[k];
+  });
+
+  // Whitelist by actual table columns to avoid sending unknown keys
+  db.query("SHOW COLUMNS FROM clients", (colsErr, colsRows) => {
+    if (colsErr) {
+      console.error('[PUT /api/clients/:id] Failed to introspect columns:', colsErr);
+      return res.status(500).json({ success: false, message: 'Failed to update client (introspection)', error: colsErr });
     }
-  );
+    const allowed = new Set((colsRows || []).map((r) => r.Field));
+    const filtered = {};
+    Object.keys(client).forEach((k) => {
+      if (allowed.has(k)) filtered[k] = client[k];
+    });
+    db.query(
+      "UPDATE clients SET ? WHERE id = ?",
+      [filtered, clientId],
+      (err, result) => {
+        if (err) {
+          console.error("[PUT /api/clients/:id] MySQL error:", err);
+          return res.status(500).json({ success: false, message: "Failed to update client", error: err });
+        }
+        if (result.affectedRows === 0) {
+          return res.status(404).json({ success: false, message: "Client not found" });
+        }
+        db.query("SELECT * FROM clients WHERE id = ?", [clientId], (err2, results) => {
+          if (err2) {
+            console.error("[PUT /api/clients/:id] MySQL error (fetch after update):", err2);
+            return res.status(500).json({ success: false, message: "Client updated but failed to fetch", error: err2 });
+          }
+          res.json({ success: true, message: "Client updated successfully", data: results[0] });
+        });
+      }
+    );
+  });
 });
 
 // Delete a client
@@ -1345,6 +1400,141 @@ app.delete("/api/clients/:id", (req, res) => {
     }
     res.json({ success: true, message: "Client deleted" });
   });
+});
+
+// --- Client Agents Analytics (calls, success rate) ---
+app.get('/api/clients/:id/agents-analytics', async (req, res) => {
+  try {
+    const clientId = req.params.id;
+    const daysParam = Number.parseInt(String(req.query.days ?? ''), 10);
+    const lastDays = Number.isNaN(daysParam) ? 30 : Math.max(1, Math.min(daysParam, 180));
+
+    const xiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+    if (!xiKey) {
+      return res.status(400).json({ success: false, message: 'ElevenLabs API key missing' });
+    }
+    const headers = { 'xi-api-key': xiKey };
+
+    // Get agents for client
+    const agents = await new Promise((resolve, reject) => {
+      db.query('SELECT agent_id, name FROM agents WHERE client_id = ? OR (created_by_type = "client" AND created_by = ?)', [clientId, clientId], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      });
+    });
+    let agentList = Array.isArray(agents) ? agents : [];
+
+    // Fallback: include agent IDs stored on client record (elevenlabs_agent_ids)
+    try {
+      const clientRows = await new Promise((resolve, reject) => {
+        db.query('SELECT elevenlabs_agent_ids FROM clients WHERE id = ? LIMIT 1', [clientId], (e, r) => {
+          if (e) return reject(e);
+          resolve(r || []);
+        });
+      });
+      if (Array.isArray(clientRows) && clientRows.length > 0) {
+        const raw = clientRows[0].elevenlabs_agent_ids;
+        if (raw) {
+          try {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              const extra = arr.map((id) => ({ agent_id: String(id), name: String(id) }));
+              agentList = [...agentList, ...extra];
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+
+    // De-duplicate by agent_id
+    const seen = new Set();
+    agentList = agentList.filter((a) => {
+      const key = String(a.agent_id);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return !!key;
+    });
+
+    if (agentList.length === 0) return res.json({ success: true, data: { agents: [], totals: { totalCalls: 0, successCount: 0, successRate: 0, totalDurationSecs: 0 } } });
+
+    // For parity with the client Reports page, fetch ALL conversations (no date filter)
+    const now = new Date();
+    const start = new Date(now.getTime() - lastDays * 24 * 60 * 60 * 1000);
+    const startUnix = Math.floor(start.getTime() / 1000);
+    const endUnix = Math.floor(now.getTime() / 1000);
+
+    const perAgent = [];
+    for (const a of agentList) {
+      const agentId = a.agent_id;
+      let totalCalls = 0;
+      let successCount = 0;
+      let totalDurationSecs = 0;
+      try {
+        // Use cursor-based pagination exactly like reports page implementation
+        let cursor = undefined;
+        let fetched = 0;
+        let safety = 0;
+        do {
+          const u = new URL('https://api.elevenlabs.io/v1/convai/conversations');
+          u.searchParams.set('agent_id', String(agentId));
+          u.searchParams.set('page_size', '100');
+          u.searchParams.set('summary_mode', 'true');
+          if (cursor) u.searchParams.set('cursor', String(cursor));
+          const resp = await fetch(u.toString(), { headers });
+          if (!resp.ok) break;
+          const json = await resp.json();
+          const conversations = Array.isArray(json.conversations) ? json.conversations : [];
+          fetched += conversations.length;
+          successCount += conversations.filter((c) => {
+            const v = c.call_successful;
+            const s = c.status || c.call_status;
+            const ended = c.call_ended_reason || '';
+            return v === 'success' || v === true || s === 'Completed' || /completed/i.test(String(ended));
+          }).length;
+          totalDurationSecs += conversations.reduce((sum, c) => sum + (c.call_duration_secs || 0), 0);
+          cursor = json.next_cursor || json.cursor || undefined;
+          safety += 1;
+        } while (cursor && safety < 50);
+
+        // Fallback: try alternate endpoint if we still have zero
+        if (fetched === 0) {
+          try {
+            const alt = await fetch(`https://api.elevenlabs.io/v1/agents/${encodeURIComponent(agentId)}/conversations`, { headers });
+            if (alt.ok) {
+              const j = await alt.json();
+              const conversations = Array.isArray(j.conversations) ? j.conversations : [];
+              fetched += conversations.length;
+              successCount += conversations.filter((c) => c.call_successful === 'success' || c.call_successful === true).length;
+              totalDurationSecs += conversations.reduce((sum, c) => sum + (c.call_duration_secs || 0), 0);
+            }
+          } catch {}
+        }
+        totalCalls = fetched;
+      } catch {}
+      const successRate = totalCalls > 0 ? Math.round((successCount / totalCalls) * 100) : 0;
+      perAgent.push({
+        agentId,
+        agentName: a.name || agentId,
+        totalCalls,
+        successCount,
+        successRate,
+        totalDurationSecs,
+        avgDurationSecs: totalCalls > 0 ? Math.round(totalDurationSecs / totalCalls) : 0,
+      });
+    }
+
+    const totals = perAgent.reduce((acc, x) => {
+      acc.totalCalls += x.totalCalls;
+      acc.successCount += x.successCount;
+      acc.totalDurationSecs += x.totalDurationSecs;
+      return acc;
+    }, { totalCalls: 0, successCount: 0, totalDurationSecs: 0 });
+    totals.successRate = totals.totalCalls > 0 ? Math.round((totals.successCount / totals.totalCalls) * 100) : 0;
+
+    res.json({ success: true, data: { agents: perAgent, totals } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Failed to fetch agents analytics', error: String(e) });
+  }
 });
 
 // Import email service
@@ -1799,8 +1989,8 @@ app.post("/api/assigned-plans", (req, res) => {
 
   const sql = `
     INSERT INTO assigned_plans
-    (client_id, plan_id, start_date, duration_override_days, is_trial, discount_type, discount_value, notes, auto_send_notifications)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (client_id, plan_id, start_date, duration_override_days, is_trial, discount_type, discount_value, notes, auto_send_notifications, is_enabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `;
 
   db.query(
@@ -1890,6 +2080,7 @@ app.get("/api/clients/:id/assigned-plans", (req, res) => {
       ap.discount_value AS discountValue,
       ap.notes AS notes,
       ap.auto_send_notifications AS autoSendNotifications,
+      COALESCE(ap.is_enabled, 1) AS isEnabled,
       ( (ap.start_date IS NULL OR ap.start_date <= CURDATE())
         AND (ap.duration_override_days IS NULL OR DATE_ADD(ap.start_date, INTERVAL ap.duration_override_days DAY) >= CURDATE())
       ) AS isActive
@@ -1904,6 +2095,43 @@ app.get("/api/clients/:id/assigned-plans", (req, res) => {
       return res.status(500).json({ success: false, message: "Failed to fetch assigned plans", error: err });
     }
     res.json({ success: true, data: results });
+  });
+});
+
+// Toggle enable/disable of a specific assigned plan for a client
+app.patch('/api/assigned-plans/:assignmentId/enable', (req, res) => {
+  const assignmentId = req.params.assignmentId;
+  const { is_enabled } = req.body;
+  const val = (is_enabled === 0 || is_enabled === false) ? 0 : 1;
+  db.query('UPDATE assigned_plans SET is_enabled = ? WHERE id = ?', [val, assignmentId], (err, result) => {
+    if (err) {
+      // If column missing, create it on the fly and retry once
+      if (String(err.code) === 'ER_BAD_FIELD_ERROR') {
+        db.query("ALTER TABLE assigned_plans ADD COLUMN IF NOT EXISTS is_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER auto_send_notifications", (altErr) => {
+          if (altErr) {
+            console.error('Failed to add assigned_plans.is_enabled column:', altErr);
+            return res.status(500).json({ success: false, message: 'Failed to add is_enabled column', error: altErr });
+          }
+          db.query('UPDATE assigned_plans SET is_enabled = ? WHERE id = ?', [val, assignmentId], (retryErr, retryResult) => {
+            if (retryErr) {
+              console.error('Retry failed updating is_enabled:', retryErr);
+              return res.status(500).json({ success: false, message: 'Failed to update plan state after migration', error: retryErr });
+            }
+            if (retryResult.affectedRows === 0) {
+              return res.status(404).json({ success: false, message: 'Assigned plan not found' });
+            }
+            return res.json({ success: true });
+          });
+        });
+        return;
+      }
+      console.error('Failed to update assigned plan enable state:', err);
+      return res.status(500).json({ success: false, message: 'Failed to update plan state', error: err });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Assigned plan not found' });
+    }
+    res.json({ success: true });
   });
 });
 

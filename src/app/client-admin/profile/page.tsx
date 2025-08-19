@@ -25,6 +25,9 @@ import { useUser } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/apiConfig';
 import ProfilePictureUploader from "@/components/ui/ProfilePictureUploader";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 
 const passwordFormSchema = z.object({
   currentPassword: z.string().min(6, { message: "Password must be at least 6 characters."}),
@@ -49,6 +52,8 @@ export default function ClientAdminProfilePage() {
     companyName: '',
   });
   const [saving, setSaving] = React.useState(false);
+  const [plansLoading, setPlansLoading] = React.useState(true);
+  const [assignedPlans, setAssignedPlans] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     api.getCurrentUser()
@@ -88,6 +93,25 @@ export default function ClientAdminProfilePage() {
         router.push('/signin');
       });
   }, [router, setUser]);
+
+  // Fetch assigned plans for this client
+  const fetchAssignedPlans = React.useCallback(async (clientId: string) => {
+    try {
+      setPlansLoading(true);
+      const res = await api.getAssignedPlansForClient(clientId);
+      const data = await res.json();
+      setAssignedPlans(Array.isArray(data?.data) ? data.data : []);
+    } catch (e) {
+      setAssignedPlans([]);
+    } finally {
+      setPlansLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const cid = (profile.id || user?.clientId || user?.userId || '').toString();
+    if (cid) fetchAssignedPlans(cid);
+  }, [profile.id, user?.clientId, user?.userId, fetchAssignedPlans]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setProfile({ ...profile, [e.target.name]: e.target.value });
@@ -268,6 +292,69 @@ export default function ClientAdminProfilePage() {
         </CardContent>
       </Card>
       
+      <Separator />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Plans</CardTitle>
+          <CardDescription>Enable or disable your assigned plans. Only enabled, active plans count toward your monthly call limit.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {plansLoading ? (
+            <div>Loading plans...</div>
+          ) : assignedPlans.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No plans assigned yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {assignedPlans.map((ap: any) => {
+                const isEnabled = ap.isEnabled === 1 || ap.isEnabled === true;
+                const isActive = ap.isActive === 1 || ap.isActive === true;
+                return (
+                  <div key={ap.assignmentId} className="flex items-center justify-between p-3 border rounded-md">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{ap.planName}</span>
+                        {isEnabled && isActive ? (
+                          <Badge className="bg-green-600 text-white">Active</Badge>
+                        ) : (
+                          <Badge variant="secondary">Inactive</Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Monthly Limit: {ap.monthlyLimit || 0}</div>
+                      <div className="text-xs text-muted-foreground">Start: {ap.startDate ? new Date(ap.startDate).toLocaleDateString() : 'N/A'}{ap.durationDays ? ` • Duration: ${ap.durationDays} days` : ''}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Label htmlFor={`enable-${ap.assignmentId}`} className="text-xs">Enable</Label>
+                      <Switch
+                        id={`enable-${ap.assignmentId}`}
+                        checked={!!isEnabled}
+                        onCheckedChange={async (checked) => {
+                          try {
+                            await api.toggleAssignedPlanEnabled(String(ap.assignmentId), !!checked);
+                            const cid = (profile.id || user?.clientId || user?.userId || '').toString();
+                            if (cid) await fetchAssignedPlans(cid);
+                            toast({ title: 'Plan updated', description: `${ap.planName} ${checked ? 'enabled' : 'disabled'}` });
+                          } catch (e) {
+                            toast({ title: 'Error', description: 'Failed to update plan', variant: 'destructive' });
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="text-xs text-muted-foreground">
+                Aggregated monthly calls limit from enabled, active plans: {
+                  assignedPlans
+                    .filter((ap: any) => (ap.isEnabled === 1 || ap.isEnabled === true) && (ap.isActive === 1 || ap.isActive === true))
+                    .reduce((sum: number, ap: any) => sum + (parseInt(ap.monthlyLimit, 10) || 0), 0)
+                }
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Separator />
 
       <Card>
