@@ -1366,26 +1366,26 @@ app.put("/api/clients/:id", (req, res) => {
     Object.keys(client).forEach((k) => {
       if (allowed.has(k)) filtered[k] = client[k];
     });
-    db.query(
-      "UPDATE clients SET ? WHERE id = ?",
+  db.query(
+    "UPDATE clients SET ? WHERE id = ?",
       [filtered, clientId],
-      (err, result) => {
-        if (err) {
-          console.error("[PUT /api/clients/:id] MySQL error:", err);
-          return res.status(500).json({ success: false, message: "Failed to update client", error: err });
-        }
-        if (result.affectedRows === 0) {
-          return res.status(404).json({ success: false, message: "Client not found" });
-        }
+    (err, result) => {
+      if (err) {
+        console.error("[PUT /api/clients/:id] MySQL error:", err);
+        return res.status(500).json({ success: false, message: "Failed to update client", error: err });
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: "Client not found" });
+      }
         db.query("SELECT * FROM clients WHERE id = ?", [clientId], (err2, results) => {
           if (err2) {
             console.error("[PUT /api/clients/:id] MySQL error (fetch after update):", err2);
             return res.status(500).json({ success: false, message: "Client updated but failed to fetch", error: err2 });
-          }
-          res.json({ success: true, message: "Client updated successfully", data: results[0] });
-        });
-      }
-    );
+        }
+        res.json({ success: true, message: "Client updated successfully", data: results[0] });
+      });
+    }
+  );
   });
 });
 
@@ -1534,6 +1534,134 @@ app.get('/api/clients/:id/agents-analytics', async (req, res) => {
     res.json({ success: true, data: { agents: perAgent, totals } });
   } catch (e) {
     res.status(500).json({ success: false, message: 'Failed to fetch agents analytics', error: String(e) });
+  }
+});
+
+// Real-time usage for Manage Clients usage column
+// Returns { monthlyCalls, monthlyLimit, lifetimeCalls } filtered by client's agent IDs
+app.get('/api/clients/:id/elevenlabs-usage', async (req, res) => {
+  try {
+    const clientId = req.params.id;
+    const daysParam = Number.parseInt(String(req.query.days ?? ''), 10);
+    const lastDays = Number.isNaN(daysParam) ? 30 : Math.max(1, Math.min(daysParam, 180));
+
+    const xiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+    if (!xiKey) return res.status(400).json({ success: false, message: 'ElevenLabs API key missing' });
+    const headers = { 'xi-api-key': xiKey };
+
+    // Resolve agents for this client (owned, created_by client, plus optional elevenlabs_agent_ids)
+    const agents = await new Promise((resolve, reject) => {
+      db.query('SELECT agent_id, name FROM agents WHERE client_id = ? OR (created_by_type = "client" AND created_by = ?)', [clientId, clientId], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows || []);
+      });
+    });
+    let agentList = Array.isArray(agents) ? agents : [];
+    try {
+      const rows = await new Promise((resolve, reject) => {
+        db.query('SELECT elevenlabs_agent_ids FROM clients WHERE id = ? LIMIT 1', [clientId], (e, r) => {
+          if (e) return reject(e);
+          resolve(r || []);
+        });
+      });
+      if (Array.isArray(rows) && rows.length > 0) {
+        const raw = rows[0].elevenlabs_agent_ids;
+        if (raw) {
+          let ids = [];
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) ids = parsed.map((x) => String(x));
+          } catch {
+            ids = String(raw).split(',').map((x) => x.trim()).filter(Boolean);
+          }
+          const extra = ids.map((id) => ({ agent_id: String(id), name: String(id) }));
+          agentList = [...agentList, ...extra];
+        }
+      }
+    } catch {}
+    // Deduplicate
+    const seen = new Set();
+    const agentIds = agentList
+      .map((a) => String(a.agent_id))
+      .filter((id) => {
+        if (!id) return false; if (seen.has(id)) return false; seen.add(id); return true;
+      });
+
+    const now = new Date();
+    const start = new Date(now.getTime() - lastDays * 24 * 60 * 60 * 1000);
+    const startUnix = Math.floor(start.getTime() / 1000);
+    const endUnix = Math.floor(now.getTime() / 1000);
+
+    // Fetch conversations in the window and filter by agent IDs in one pass
+    let monthlyCalls = 0;
+    try {
+      const set = new Set(agentIds.map(String));
+      let cursor = undefined;
+      let safety = 0;
+      do {
+        const u = new URL('https://api.elevenlabs.io/v1/convai/conversations');
+        u.searchParams.set('page_size', '100');
+        u.searchParams.set('summary_mode', 'include');
+        u.searchParams.set('call_start_after_unix', String(startUnix));
+        u.searchParams.set('call_start_before_unix', String(endUnix));
+        if (cursor) u.searchParams.set('cursor', String(cursor));
+        const resp = await fetch(u.toString(), { headers });
+        if (!resp.ok) break;
+        const json = await resp.json();
+        const list = Array.isArray(json.conversations) ? json.conversations : [];
+        for (const c of list) {
+          const id = String(c.agent_id || c.agent?.id || c.agentId || '');
+          if (id && set.has(id)) monthlyCalls += 1;
+        }
+        cursor = json.next_cursor || json.cursor || undefined;
+        safety += 1;
+      } while (cursor && safety < 100);
+    } catch {}
+
+    // Lifetime calls across all time, filtered by same agent IDs
+    let lifetimeCalls = 0;
+    try {
+      const set = new Set(agentIds.map(String));
+      let cursor = undefined; let safety = 0;
+      do {
+        const u = new URL('https://api.elevenlabs.io/v1/convai/conversations');
+        u.searchParams.set('page_size', '100');
+        u.searchParams.set('summary_mode', 'include');
+        if (cursor) u.searchParams.set('cursor', String(cursor));
+        const resp = await fetch(u.toString(), { headers });
+        if (!resp.ok) break;
+        const json = await resp.json();
+        const list = Array.isArray(json.conversations) ? json.conversations : [];
+        for (const c of list) {
+          const id = String(c.agent_id || c.agent?.id || c.agentId || '');
+          if (id && set.has(id)) lifetimeCalls += 1;
+        }
+        cursor = json.next_cursor || json.cursor || undefined;
+        safety += 1;
+      } while (cursor && safety < 200);
+    } catch {}
+
+    // Aggregate monthly limit from enabled and active-with-dates plans
+    const limitRow = await new Promise((resolve, reject) => {
+      const sql = `
+        SELECT COALESCE(SUM(CAST(p.totalCallsAllowedPerMonth AS UNSIGNED)), 0) AS totalMonthlyLimit
+        FROM assigned_plans ap
+        LEFT JOIN plans p ON ap.plan_id = p.id
+        WHERE ap.client_id = ?
+          AND (ap.start_date IS NULL OR ap.start_date <= CURDATE())
+          AND (ap.duration_override_days IS NULL OR DATE_ADD(ap.start_date, INTERVAL ap.duration_override_days DAY) >= CURDATE())
+          AND (ap.is_enabled = 1 OR ap.is_enabled = '1' OR ap.is_enabled = TRUE OR ap.is_enabled IS NULL)
+      `;
+      db.query(sql, [clientId], (err, rows) => {
+        if (err) return reject(err);
+        resolve(Array.isArray(rows) && rows.length > 0 ? rows[0] : { totalMonthlyLimit: 0 });
+      });
+    });
+
+    const monthlyLimit = parseInt(limitRow.totalMonthlyLimit) || 0;
+    return res.json({ success: true, data: { monthlyCalls, monthlyLimit, lifetimeCalls } });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: 'Failed to fetch ElevenLabs usage', error: String(e) });
   }
 });
 

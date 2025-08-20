@@ -479,8 +479,48 @@ function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTota
         const agentsRes = await fetch('/api/agents', { credentials: 'include' });
         const agentsJson = await agentsRes.json();
         const allAgents = Array.isArray(agentsJson?.data) ? agentsJson.data : [];
-        const clientAgents = allAgents.filter((a: any) => String(a.client_id || '') === String(clientId) || (a.created_by_type === 'client' && String(a.created_by) === String(clientId)));
-        if (active) setAllClientAgents(clientAgents);
+        // Base filter: owned by client, created by client, or linked via client_ids
+        const prelim = allAgents.filter((a: any) => {
+          const owned = String(a.client_id || '') === String(clientId);
+          const created = a.created_by_type === 'client' && String(a.created_by) === String(clientId);
+          const linkedRaw = a.client_ids;
+          const linkedIds: string[] = Array.isArray(linkedRaw)
+            ? linkedRaw.map((x: any) => String(x))
+            : typeof linkedRaw === 'string'
+              ? linkedRaw.split(',').map((x: string) => x.trim()).filter(Boolean)
+              : [];
+          const linked = linkedIds.includes(String(clientId));
+          return owned || created || linked;
+        });
+
+        // Also include elevenlabs_agent_ids stored on the client record
+        try {
+          const clientResp = await api.getClient(String(clientId));
+          const clientJson = await clientResp.json();
+          const rawIds = clientJson?.data?.elevenlabs_agent_ids;
+          let ids: string[] = [];
+          if (Array.isArray(rawIds)) ids = rawIds.map((x: any) => String(x));
+          else if (typeof rawIds === 'string') {
+            try {
+              const parsed = JSON.parse(rawIds);
+              if (Array.isArray(parsed)) ids = parsed.map((x: any) => String(x));
+              else ids = rawIds.split(',').map((x: string) => x.trim()).filter(Boolean);
+            } catch {
+              ids = rawIds.split(',').map((x: string) => x.trim()).filter(Boolean);
+            }
+          }
+          const byId = new Map<string, any>();
+          for (const a of prelim) byId.set(String(a.agent_id || a.id), a);
+          for (const id of ids) {
+            if (!byId.has(String(id))) {
+              byId.set(String(id), { agent_id: String(id), name: `Agent ${id}`, client_id: clientId });
+            }
+          }
+          const merged = Array.from(byId.values());
+          if (active) setAllClientAgents(merged);
+        } catch {
+          if (active) setAllClientAgents(prelim);
+        }
       } catch {
         if (active) setAllClientAgents([]);
       }
@@ -520,7 +560,7 @@ function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTota
         if (clientAgents.length === 0) return;
 
         // 2) Fetch ALL conversations for the last 30 days (no agent filter), then filter for client's agents
-        const clientAgentIdSet = new Set(clientAgents.map((a: any) => String(a.agent_id)));
+        const clientAgentIdSet = new Set(clientAgents.map((a: any) => String(a.agent_id || a.id)));
         const end = Math.floor(Date.now() / 1000);
         const start = end - 30 * 24 * 60 * 60;
         let cursor: string | undefined = undefined;
@@ -553,7 +593,7 @@ function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTota
         }
         // Ensure zero-activity agents are present
         for (const a of clientAgents) {
-          const id = String(a.agent_id);
+          const id = String(a.agent_id || a.id);
           if (!perAgentMap.has(id)) {
             perAgentMap.set(id, { agentId: id, agentName: a.name || a.agent_name || id, totalCalls: 0, successCount: 0, totalDurationSecs: 0 });
           }
@@ -595,8 +635,8 @@ function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTota
                 <td className="py-2 pr-4">{a.agentName}</td>
                 <td className="py-2 pr-4">{a.totalCalls}</td>
                 <td className="py-2 pr-4">{a.successCount}</td>
-                <td className="py-2 pr-4">{a.successRate}%</td>
-                <td className="py-2 pr-4">{Math.round((a.avgDurationSecs||0)/60)} min</td>
+                <td className="py-2 pr-4">{typeof a.successRate === 'number' ? a.successRate : (a.totalCalls > 0 ? Math.round(((a.successCount || 0) / a.totalCalls) * 100) : 0)}%</td>
+                <td className="py-2 pr-4">{Math.round(((typeof a.avgDurationSecs === 'number' ? a.avgDurationSecs : (a.totalCalls > 0 ? Math.round((a.totalDurationSecs || 0) / a.totalCalls) : 0)) || 0)/60)} min</td>
               </tr>
             ))}
           </tbody>

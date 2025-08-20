@@ -180,33 +180,71 @@ export default function CallReportsPage() {
         }
         
         // First try to get agents from local database
-        const localAgentsRes = await fetch('/api/agents');
+        const localAgentsRes = await fetch('/api/agents', { credentials: 'include' });
         const localAgentsData = await localAgentsRes.json();
         console.log("All agents from API:", localAgentsData.data);
         
-        // Filter agents for the current client
-        const clientAgents = (localAgentsData.data || []).filter((agent: any) => {
+        // Filter agents for the current client (align with analytics logic)
+        const allLocalAgents: any[] = Array.isArray(localAgentsData?.data) ? localAgentsData.data : [];
+        const clientAgents = allLocalAgents.filter((agent: any) => {
           const agentClientId = agent.client_id || agent.clientId;
-          return String(agentClientId) === String(clientId);
+          const createdByClient = agent.created_by_type === 'client' && String(agent.created_by) === String(clientId);
+          const linkedClientIdsRaw = agent.client_ids;
+          const linkedClientIds: string[] = Array.isArray(linkedClientIdsRaw)
+            ? linkedClientIdsRaw.map((x: any) => String(x))
+            : typeof linkedClientIdsRaw === 'string'
+              ? linkedClientIdsRaw.split(',').map((x: string) => x.trim()).filter(Boolean)
+              : [];
+          const inLinked = linkedClientIds.includes(String(clientId));
+          return String(agentClientId) === String(clientId) || createdByClient || inLinked;
         });
         console.log("Filtered agents for client:", clientAgents);
         
-        if (clientAgents.length === 0) {
-          // If no agents found in local DB, try to fetch from ElevenLabs
-          console.log("No agents found in local DB, trying ElevenLabs...");
-          try {
-            // This would require an API endpoint to get agents by client
-            // For now, we'll show a message
-            setError("No agents found for this client. Please contact your administrator.");
-          } catch (error) {
-            console.error("Error fetching from ElevenLabs:", error);
+        // Also include agent IDs linked on the client record (elevenlabs_agent_ids)
+        try {
+          const clientResp = await api.getClient(String(clientId));
+          const clientJson = await clientResp.json();
+          const rawIds = clientJson?.data?.elevenlabs_agent_ids;
+          let ids: string[] = [];
+          if (Array.isArray(rawIds)) ids = rawIds.map((x: any) => String(x));
+          else if (typeof rawIds === 'string') {
+            try {
+              const parsed = JSON.parse(rawIds);
+              if (Array.isArray(parsed)) ids = parsed.map((x: any) => String(x));
+              else ids = rawIds.split(',').map((x: string) => x.trim()).filter(Boolean);
+            } catch {
+              ids = rawIds.split(',').map((x: string) => x.trim()).filter(Boolean);
+            }
           }
+          const existingIds = new Set(clientAgents.map((a: any) => String(a.agent_id || a.id)));
+          for (const id of ids) {
+            if (!existingIds.has(String(id))) {
+              clientAgents.push({
+                agent_id: String(id),
+                agent_name: `Agent ${id}`,
+                client_id: clientId,
+                description: '',
+                status: 'active',
+              });
+              existingIds.add(String(id));
+            }
+          }
+        } catch (err) {
+          console.log('Failed to include elevenlabs_agent_ids from client record:', err);
         }
         
-        const processedAgents = clientAgents.map((localAgent: any) => ({
+        // De-duplicate by agent_id
+        const byId = new Map<string, any>();
+        for (const ag of clientAgents) {
+          const key = String(ag.agent_id || ag.id);
+          if (!byId.has(key)) byId.set(key, ag);
+        }
+        const uniqueClientAgents = Array.from(byId.values());
+
+        const processedAgents = uniqueClientAgents.map((localAgent: any) => ({
           agent_id: localAgent.agent_id || localAgent.id,
           agent_name: localAgent.name || localAgent.agent_name || `Agent ${localAgent.agent_id || localAgent.id}`,
-          client_id: localAgent.client_id || localAgent.clientId,
+          client_id: localAgent.client_id || localAgent.clientId || clientId,
           local_agent_id: localAgent.agent_id || localAgent.id,
           description: localAgent.description || '',
           status: localAgent.status || 'active'
@@ -242,29 +280,37 @@ export default function CallReportsPage() {
       let usageData = null;
       try {
         if (selectedAgentId === "all" || !selectedAgentId) {
-          // For client admin: fetch conversations for all agents of the current client only
-          const clientAgentIds = agents.map(agent => agent.agent_id);
-          console.log("Fetching conversations for client agents:", clientAgentIds);
-          
-          // Fetch conversations for each agent of the current client
-          for (const agentId of clientAgentIds) {
+          // Robust pagination: fetch all conversations for date range, then filter to this client's agents
+          const clientAgentIds = new Set(agents.map(agent => String(agent.agent_id)));
+          console.log("Fetching conversations for client agents (paginated):", Array.from(clientAgentIds));
+
+          let cursor: string | undefined = undefined;
+          let loops = 0;
+          const allConvs: any[] = [];
+          do {
+            const params: any = {
+              call_start_after_unix: startUnix,
+              call_start_before_unix: endUnix,
+              page_size: 100,
+              summary_mode: "include",
+            };
+            if (cursor) params.cursor = cursor;
             try {
-              const conversationsRes = await elevenLabsApi.listConversations({
-                agent_id: agentId,
-                call_start_after_unix: startUnix,
-                call_start_before_unix: endUnix,
-                page_size: 100,
-                summary_mode: "include"
-              });
-              if (conversationsRes.ok) {
-                const conversationsJson = await conversationsRes.json();
-                conversationsData = [...conversationsData, ...(conversationsJson.conversations || [])];
-              }
-            } catch (error) {
-              console.error(`Error fetching conversations for agent ${agentId}:`, error);
+              const resp = await elevenLabsApi.listConversations(params);
+              if (!resp.ok) break;
+              const json = await resp.json();
+              const list = Array.isArray(json.conversations) ? json.conversations : [];
+              allConvs.push(...list);
+              cursor = json.next_cursor || json.cursor || undefined;
+              loops += 1;
+            } catch (err) {
+              console.error('Error fetching paginated conversations:', err);
+              break;
             }
-          }
-          
+          } while (cursor && loops < 100);
+
+          conversationsData = allConvs.filter((c: any) => clientAgentIds.has(String(c.agent_id || c.agent?.id || c.agentId)));
+
           // Fetch usage stats for the date range
           try {
             const usageRes = await elevenLabsApi.getUsageStats({
@@ -278,19 +324,29 @@ export default function CallReportsPage() {
             console.error("Error fetching usage stats:", error);
           }
         } else {
-          // Fetch conversations for selected agent only
+          // Fetch conversations for selected agent only (with pagination)
           try {
-            const conversationsRes = await elevenLabsApi.listConversations({
-              agent_id: selectedAgentId,
-              call_start_after_unix: startUnix,
-              call_start_before_unix: endUnix,
-              page_size: 100,
-              summary_mode: "include"
-            });
-            if (conversationsRes.ok) {
-              const conversationsJson = await conversationsRes.json();
-              conversationsData = conversationsJson.conversations || [];
-            }
+            let cursor: string | undefined = undefined;
+            let loops = 0;
+            const allConvs: any[] = [];
+            do {
+              const params: any = {
+                agent_id: selectedAgentId,
+                call_start_after_unix: startUnix,
+                call_start_before_unix: endUnix,
+                page_size: 100,
+                summary_mode: "include",
+              };
+              if (cursor) params.cursor = cursor;
+              const resp = await elevenLabsApi.listConversations(params);
+              if (!resp.ok) break;
+              const json = await resp.json();
+              const list = Array.isArray(json.conversations) ? json.conversations : [];
+              allConvs.push(...list);
+              cursor = json.next_cursor || json.cursor || undefined;
+              loops += 1;
+            } while (cursor && loops < 100);
+            conversationsData = allConvs;
           } catch (error) {
             console.error("Error fetching conversations for agent:", error);
           }

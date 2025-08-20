@@ -164,8 +164,11 @@ function AllClientsListPageInner() {
             try {
               const r = await api.getElevenLabsUsage(cl.clientId);
               const j = await r.json();
-              if (j?.success && j?.data && typeof j.data.monthlyCalls === 'number') {
-                return { ...cl, monthlyCallsMade: j.data.monthlyCalls };
+              if (j?.success && j?.data) {
+                const monthlyCalls = typeof j.data.monthlyCalls === 'number' ? j.data.monthlyCalls : cl.monthlyCallsMade;
+                const monthlyLimit = typeof j.data.monthlyLimit === 'number' ? j.data.monthlyLimit : cl.monthlyCallLimit;
+                const lifetime = typeof j.data.lifetimeCalls === 'number' ? j.data.lifetimeCalls : cl.totalCallsMade;
+                return { ...cl, monthlyCallsMade: monthlyCalls, monthlyCallLimit: monthlyLimit, totalCallsMade: lifetime };
               }
             } catch {}
             return cl;
@@ -186,8 +189,13 @@ function AllClientsListPageInner() {
         try {
           const r = await api.getElevenLabsUsage(cl.clientId);
           const j = await r.json();
-          if (j?.success && j?.data && typeof j.data.monthlyCalls === 'number') {
-            return { ...cl, monthlyCallsMade: j.data.monthlyCalls };
+          if (j?.success && j?.data) {
+            return {
+              ...cl,
+              monthlyCallsMade: typeof j.data.monthlyCalls === 'number' ? j.data.monthlyCalls : cl.monthlyCallsMade,
+              monthlyCallLimit: typeof j.data.monthlyLimit === 'number' ? j.data.monthlyLimit : cl.monthlyCallLimit,
+              totalCallsMade: typeof j.data.lifetimeCalls === 'number' ? j.data.lifetimeCalls : cl.totalCallsMade,
+            };
           }
         } catch {}
         return cl;
@@ -671,14 +679,14 @@ function AllClientsListPageInner() {
                           <div 
                             className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
                             style={{ 
-                              width: `${Math.min((client.monthlyCallsMade / client.monthlyCallLimit) * 100, 100)}%` 
+                              width: `${client.monthlyCallLimit > 0 ? Math.min((client.monthlyCallsMade / client.monthlyCallLimit) * 100, 100) : 0}%` 
                             }}
                           ></div>
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {client.monthlyCallLimit > 0 ? 
-                            `${Math.round((client.monthlyCallsMade / client.monthlyCallLimit) * 100)}% used` : 
-                            'Unlimited'
+                            `${Math.max(0, Math.min(100, Math.round((client.monthlyCallsMade / client.monthlyCallLimit) * 100)))}% used` : 
+                            (client.plans.length > 0 ? '0% used' : 'Unlimited')
                           }
                         </div>
                         <div className="text-xs text-gray-500">
