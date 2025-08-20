@@ -29,7 +29,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast"; 
+import { Checkbox } from "@/components/ui/checkbox";
+ 
 import { UserCog, PlusCircle, MoreHorizontal, Edit2, UserX, UserCheck, ListChecks, ShieldCheck, Activity, Eye, KeyRound, LogOut, Trash2, Search, ListFilterIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { format } from "date-fns";
@@ -113,6 +115,26 @@ export default function UsersAdminsPage() {
   const [createRoleOpen, setCreateRoleOpen] = React.useState(false);
   const [createRoleLoading, setCreateRoleLoading] = React.useState(false);
   const [createRoleForm, setCreateRoleForm] = React.useState({ name: "", description: "", permission_summary: "", status: "active" });
+  const [permEditorOpen, setPermEditorOpen] = React.useState(false);
+  const [permEditorRole, setPermEditorRole] = React.useState<AdminRole | null>(null);
+  const [permList, setPermList] = React.useState<string[]>([]);
+  const [permSelectAll, setPermSelectAll] = React.useState<boolean>(false);
+  const [editPermSelectAll, setEditPermSelectAll] = React.useState<boolean>(false);
+  const PERMISSION_OPTIONS = React.useMemo(() => [
+    { key: 'view:dashboard', label: 'Dashboard' },
+    { key: 'view:clients', label: 'Clients' },
+    { key: 'view:plans', label: 'Plans & Billing' },
+    { key: 'view:campaigns', label: 'Campaigns' },
+    { key: 'view:agents', label: 'AI Agents' },
+    { key: 'view:reports', label: 'Reports & Analytics' },
+    { key: 'view:users_admins', label: 'Users & Admins' },
+    { key: 'view:developer_tools', label: 'Developer Tools' },
+    { key: 'view:test_lab', label: 'Test Lab' },
+    { key: 'view:alerts_logs', label: 'Alerts & Logs' },
+    { key: 'view:supabase', label: 'Supabase CRUD' },
+    { key: 'view:system_settings', label: 'System Settings' },
+    { key: 'view:profile', label: 'Profile' },
+  ], []);
   const [viewDetailsOpen, setViewDetailsOpen] = React.useState(false);
   const [userDetails, setUserDetails] = React.useState<AdminUser | null>(null);
   const [userDetailsLoading, setUserDetailsLoading] = React.useState(false);
@@ -159,6 +181,29 @@ export default function UsersAdminsPage() {
         if (data.success) setAdminRoles(data.data);
       });
   }, []);
+
+  async function openPermEditor(role: AdminRole) {
+    setPermEditorRole(role);
+    try {
+      const res = await api.getAdminRolePermissions(role.id);
+      const j = await res.json();
+      setPermList(Array.isArray(j.data) ? j.data : []);
+    } catch {
+      setPermList([]);
+    }
+    setPermEditorOpen(true);
+  }
+
+  async function savePerms() {
+    if (!permEditorRole) return;
+    const res = await api.setAdminRolePermissions(permEditorRole.id, permList);
+    if (res.ok) {
+      toast({ title: 'Permissions saved', description: `Updated permissions for ${permEditorRole.name}` });
+      setPermEditorOpen(false);
+    } else {
+      toast({ title: 'Failed to save permissions', variant: 'destructive' });
+    }
+  }
 
   const adminUserStatusVariants: Record<AdminUserStatus, string> = {
     Active: "bg-green-100 text-green-700 dark:bg-green-700 dark:text-green-100",
@@ -223,6 +268,16 @@ export default function UsersAdminsPage() {
       });
     }
   }, [roleBeingEdited]);
+
+  React.useEffect(() => {
+    // Keep edit "Select all" checkbox in sync with chosen permissions
+    try {
+      const current: string[] = JSON.parse(editRoleForm.permission_summary || '[]');
+      setEditPermSelectAll(current.length === PERMISSION_OPTIONS.length);
+    } catch {
+      setEditPermSelectAll(false);
+    }
+  }, [editRoleForm.permission_summary, PERMISSION_OPTIONS.length]);
 
   async function handleEditPermissionsSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -656,7 +711,22 @@ export default function UsersAdminsPage() {
                 <TableRow key={role.id}>
                   <TableCell className="font-medium">{role.name || '—'}</TableCell>
                   <TableCell>{role.description || '—'}</TableCell>
-                  <TableCell>{role.permission_summary || role.permissionsSummary || '—'}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const raw = role.permission_summary || role.permissionsSummary || '';
+                      let full = '';
+                      try {
+                        const arr = JSON.parse(raw);
+                        full = Array.isArray(arr) ? arr.join(', ') : String(raw);
+                      } catch {
+                        full = String(raw);
+                      }
+                      if (!full) return '—';
+                      return (
+                        <div className="max-w-[420px] whitespace-nowrap overflow-hidden text-ellipsis">{full}</div>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell>
                     <Badge className={cn("text-xs", adminRoleStatusVariants[role.status] || "bg-gray-200 text-gray-700")}>{
                       role.status === 'Active' ? 'Active' : role.status === 'Archived' ? 'Archived' : 'Inactive'
@@ -672,7 +742,7 @@ export default function UsersAdminsPage() {
                         <DropdownMenuItem onClick={() => { setRoleBeingEdited(role); setEditRoleOpen(true); }}>
                           <Edit2 className="mr-2 h-4 w-4" /> Edit Role
                         </DropdownMenuItem>
-                         <DropdownMenuItem onClick={() => { setSelectedRole(role); setEditPermissionsOpen(true); }}>
+                         <DropdownMenuItem onClick={() => openPermEditor(role)}>
                           <ListChecks className="mr-2 h-4 w-4" /> Edit Permissions
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -745,50 +815,56 @@ export default function UsersAdminsPage() {
         </CardContent>
       </Card>
 
-      <Sheet open={editPermissionsOpen} onOpenChange={setEditPermissionsOpen}>
-        <SheetContent side="right">
+      <Sheet open={permEditorOpen} onOpenChange={setPermEditorOpen}>
+        <SheetContent side="right" className="sm:max-w-sm w-full flex flex-col">
           <SheetHeader>
             <SheetTitle>Edit Role Permissions</SheetTitle>
-            <SheetDescription>Update the role name and permissions summary.</SheetDescription>
+            <SheetDescription>Assign granular permissions for this role. Use slugs like view:clients, edit:agents, view:reports:call-reports.</SheetDescription>
           </SheetHeader>
-          <div className="py-4">
-            <form onSubmit={handleEditPermissionsSubmit} className="space-y-6 bg-card p-6 rounded-lg shadow">
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Role Name</label>
-                <Input
-                  value={editForm.name}
-                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                  required
-                />
+          <div className="py-4 space-y-4 overflow-y-auto max-h-[calc(100vh-120px)]">
+            <div>
+              <label className="block text-sm font-medium mb-1">Role</label>
+              <Input value={permEditorRole?.name || ''} readOnly />
+            </div>
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <Checkbox id="perm-editor-select-all" checked={permList.length === PERMISSION_OPTIONS.length} onCheckedChange={(v: any) => {
+                  const next = !!v; setPermList(next ? PERMISSION_OPTIONS.map(p => p.key) : []);
+                }} />
+                <label htmlFor="perm-editor-select-all" className="text-sm">Select all</label>
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Permissions Summary</label>
-                <Input
-                  value={editForm.permission_summary}
-                  onChange={e => setEditForm(f => ({ ...f, permission_summary: e.target.value }))}
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-auto border rounded p-2">
+                {PERMISSION_OPTIONS.map(opt => {
+                  const checked = permList.includes(opt.key);
+                  return (
+                    <label key={opt.key} className="flex items-center gap-2 text-sm">
+                      <Checkbox checked={checked} onCheckedChange={(v: any) => {
+                        const isOn = !!v; const next = new Set(permList);
+                        if (isOn) next.add(opt.key); else next.delete(opt.key);
+                        setPermList(Array.from(next));
+                      }} />
+                      <span>{opt.label}</span>
+                    </label>
+                  );
+                })}
               </div>
-              <SheetFooter>
-                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setEditPermissionsOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={editLoading} className="w-full sm:w-auto">
-                  {editLoading ? "Updating..." : "Update Permissions"}
-                </Button>
-              </SheetFooter>
-            </form>
+              <p className="text-xs text-muted-foreground mt-2">Only the selected pages will be visible to users with this role.</p>
+            </div>
+            <SheetFooter>
+              <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setPermEditorOpen(false)}>Cancel</Button>
+              <Button type="button" onClick={savePerms} className="w-full sm:w-auto">Save</Button>
+            </SheetFooter>
           </div>
         </SheetContent>
       </Sheet>
 
       <Sheet open={editRoleOpen} onOpenChange={setEditRoleOpen}>
-        <SheetContent side="right">
+        <SheetContent side="right" className="sm:max-w-sm w-full flex flex-col">
           <SheetHeader>
             <SheetTitle>Edit Admin Role</SheetTitle>
             <SheetDescription>Update all details for this admin role.</SheetDescription>
           </SheetHeader>
-          <div className="py-4">
+          <div className="py-4 overflow-y-auto max-h-[calc(100vh-120px)]">
             <form onSubmit={handleEditRoleSubmit} className="space-y-6 bg-card p-6 rounded-lg shadow">
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Role Name*</label>
@@ -806,11 +882,32 @@ export default function UsersAdminsPage() {
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Permission Summary</label>
-                <Input
-                  value={editRoleForm.permission_summary}
-                  onChange={e => setEditRoleForm(f => ({ ...f, permission_summary: e.target.value }))}
-                />
+                <label className="block text-sm font-medium mb-2">Permissions</label>
+                <div className="mb-2 flex items-center gap-2">
+                  <Checkbox id="edit-perm-select-all" checked={editPermSelectAll} onCheckedChange={(v: any) => {
+                    const next = !!v; setEditPermSelectAll(next);
+                    if (next) setEditRoleForm(f => ({ ...f, permission_summary: JSON.stringify(PERMISSION_OPTIONS.map(p => p.key)) }));
+                    else setEditRoleForm(f => ({ ...f, permission_summary: JSON.stringify([]) }));
+                  }} />
+                  <label htmlFor="edit-perm-select-all" className="text-sm">Select all</label>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-auto border rounded p-2">
+                  {PERMISSION_OPTIONS.map(opt => {
+                    const current: string[] = (() => { try { return JSON.parse(editRoleForm.permission_summary || '[]'); } catch { return []; } })();
+                    const checked = current.includes(opt.key);
+                    return (
+                      <label key={opt.key} className="flex items-center gap-2 text-sm">
+                        <Checkbox checked={checked} onCheckedChange={(v: any) => {
+                          const isOn = !!v; const next = new Set(current);
+                          if (isOn) next.add(opt.key); else next.delete(opt.key);
+                          setEditRoleForm(f => ({ ...f, permission_summary: JSON.stringify(Array.from(next)) }));
+                        }} />
+                        <span>{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Adjust which pages are visible to users with this role.</p>
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-1">Status*</label>
@@ -941,8 +1038,8 @@ export default function UsersAdminsPage() {
       </Sheet>
 
       <Sheet open={createRoleOpen} onOpenChange={setCreateRoleOpen}>
-        <SheetContent side="right">
-          <div className="py-6 px-4">
+        <SheetContent side="right" className="sm:max-w-sm w-full flex flex-col">
+          <div className="py-6 px-4 overflow-y-auto max-h-[calc(100vh-80px)]">
             <h2 className="text-2xl font-bold mb-1">Add New Admin Role</h2>
             <p className="text-muted-foreground mb-6">Fill in the details below to add a new admin role to the system.</p>
             <form onSubmit={handleCreateRoleSubmit} className="space-y-5">
@@ -964,12 +1061,32 @@ export default function UsersAdminsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Permission Summary</label>
-                <Input
-                  placeholder="e.g., All Permissions"
-                  value={createRoleForm.permission_summary}
-                  onChange={e => setCreateRoleForm(f => ({ ...f, permission_summary: e.target.value }))}
-                />
+                <label className="block text-sm font-medium mb-2">Permissions</label>
+                <div className="mb-2 flex items-center gap-2">
+                  <Checkbox id="perm-select-all" checked={permSelectAll} onCheckedChange={(v: any) => {
+                    const next = !!v; setPermSelectAll(next);
+                    if (next) setCreateRoleForm(f => ({ ...f, permission_summary: JSON.stringify(PERMISSION_OPTIONS.map(p => p.key)) }));
+                    else setCreateRoleForm(f => ({ ...f, permission_summary: JSON.stringify([]) }));
+                  }} />
+                  <label htmlFor="perm-select-all" className="text-sm">Select all</label>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-auto border rounded p-2">
+                  {PERMISSION_OPTIONS.map(opt => {
+                    const current: string[] = (() => { try { return JSON.parse(createRoleForm.permission_summary || '[]'); } catch { return []; } })();
+                    const checked = current.includes(opt.key);
+                    return (
+                      <label key={opt.key} className="flex items-center gap-2 text-sm">
+                        <Checkbox checked={checked} onCheckedChange={(v: any) => {
+                          const isOn = !!v; const next = new Set(current);
+                          if (isOn) next.add(opt.key); else next.delete(opt.key);
+                          setCreateRoleForm(f => ({ ...f, permission_summary: JSON.stringify(Array.from(next)) }));
+                        }} />
+                        <span>{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Only the selected pages will be visible to users with this role.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Status</label>

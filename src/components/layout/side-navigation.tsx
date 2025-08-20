@@ -178,6 +178,32 @@ export function SideNavigation() {
 
   const { user } = useUser();
 
+  const hasPerm = React.useCallback((perm: string) => {
+    if (!perm) return true;
+    const perms = user?.permissions;
+    // If permissions are undefined (legacy users), allow; if defined but empty array, deny
+    if (perms === undefined) return true;
+    if (!perms || perms.length === 0) return false;
+    return perms.includes('*') || perms.includes(perm) || perms.some((p) => perm.startsWith(p + ':'));
+  }, [user?.permissions]);
+
+  // Map nav items to permission keys
+  const navPermission: Record<string, string> = {
+    'Dashboard': 'view:dashboard',
+    'Clients': 'view:clients',
+    'Plans & Billing': 'view:plans',
+    'Campaigns': 'view:campaigns',
+    'AI Agents': 'view:agents',
+    'Reports & Analytics': 'view:reports',
+    'Users & Admins': 'view:users_admins',
+    'Developer Tools': 'view:developer_tools',
+    'Test Lab': 'view:test_lab',
+    'Alerts & Logs': 'view:alerts_logs',
+    'Supabase CRUD': 'view:supabase',
+    'System Settings': 'view:system_settings',
+    'Profile': 'view:profile',
+  };
+
   return (
     <Sidebar collapsible="icon" variant="sidebar" side="left" className="border-r">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
@@ -185,7 +211,9 @@ export function SideNavigation() {
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
-          {initialNavItems.map((item) => (
+          {initialNavItems
+            .filter((item) => hasPerm(navPermission[item.label] || ''))
+            .map((item) => (
             <SidebarMenuItem key={item.label}>
               <SidebarMenuButton
                 asChild={!item.subItems} 
@@ -209,7 +237,13 @@ export function SideNavigation() {
               </SidebarMenuButton>
               {item.subItems && openSubmenus[item.label] && (
                 <SidebarMenuSub>
-                  {item.subItems.map((subItem) => (
+                  {item.subItems
+                    .filter((si) => {
+                      const base = navPermission[item.label] || '';
+                      const sub = `${base}:${si.label.toLowerCase().replace(/\s+/g,'_')}`;
+                      return hasPerm(sub);
+                    })
+                    .map((subItem) => (
                     <SidebarMenuSubItem key={subItem.href}>
                       <SidebarMenuSubButton
                         asChild

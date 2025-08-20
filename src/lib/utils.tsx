@@ -15,6 +15,7 @@ export type AuthUser = {
   avatarUrl?: string;
   companyName?: string;
   clientId?: string; // <-- Add this line
+  permissions?: string[];
 };
 
 interface UserContextType {

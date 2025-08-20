@@ -50,6 +50,7 @@ export const API_ENDPOINTS = {
   ADMIN_ROLES: {
     BASE: '/api/admin_roles',
     BY_ID: (roleId: string) => `/api/admin_roles/${roleId}`,
+    PERMISSIONS: (roleId: string) => `/api/admin_roles/${roleId}/permissions`,
   },
 
   // User Roles
@@ -259,6 +260,8 @@ export const api = {
   getAdminRole: (roleId: string) => apiUtils.get(API_ENDPOINTS.ADMIN_ROLES.BY_ID(roleId)),
   createAdminRole: (data: any) => apiUtils.post(API_ENDPOINTS.ADMIN_ROLES.BASE, data),
   updateAdminRole: (roleId: string, data: any) => apiUtils.put(API_ENDPOINTS.ADMIN_ROLES.BY_ID(roleId), data),
+  getAdminRolePermissions: (roleId: string) => apiUtils.get(API_ENDPOINTS.ADMIN_ROLES.PERMISSIONS(roleId)),
+  setAdminRolePermissions: (roleId: string, permissions: string[]) => apiUtils.put(API_ENDPOINTS.ADMIN_ROLES.PERMISSIONS(roleId), { permissions }),
   deleteAdminRole: (roleId: string) => apiUtils.delete(API_ENDPOINTS.ADMIN_ROLES.BY_ID(roleId)),
   
   // User Roles

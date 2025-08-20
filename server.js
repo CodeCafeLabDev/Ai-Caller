@@ -2082,6 +2082,37 @@ app.put('/api/admin_roles/:id', (req, res) => {
   );
 });
 
+// Permissions: attach structured JSON to admin_roles.permission_summary and expose as array
+// GET permissions for a role
+app.get('/api/admin_roles/:id/permissions', (req, res) => {
+  db.query('SELECT permission_summary FROM admin_roles WHERE id = ?', [req.params.id], (err, rows) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: 'Role not found' });
+    const raw = rows[0].permission_summary || '';
+    let permissions = [];
+    try { permissions = JSON.parse(raw); if (!Array.isArray(permissions)) permissions = []; }
+    catch {
+      const trimmed = String(raw || '').trim();
+      if (trimmed && trimmed.toLowerCase().includes('all')) {
+        permissions = ['*'];
+      } else {
+        permissions = (trimmed || '').split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+    return res.json({ success: true, data: permissions });
+  });
+});
+
+// PUT permissions for a role
+app.put('/api/admin_roles/:id/permissions', (req, res) => {
+  const permissions = Array.isArray(req.body?.permissions) ? req.body.permissions : [];
+  const json = JSON.stringify(permissions);
+  db.query('UPDATE admin_roles SET permission_summary = ? WHERE id = ?', [json, req.params.id], (err) => {
+    if (err) return res.status(500).json({ success: false, message: err.message });
+    return res.json({ success: true, data: permissions });
+  });
+});
+
 // DELETE an admin role
 app.delete('/api/admin_roles/:id', (req, res) => {
   const { id } = req.params;
@@ -2321,7 +2352,7 @@ app.get('/api/admin_users/me', authenticateJWT, async (req, res) => {
   }
 
   // If user is an admin
-  db.query('SELECT * FROM admin_users WHERE id = ?', [req.user.id], (err, results) => {
+  db.query('SELECT * FROM admin_users WHERE id = ?', [req.user.id], async (err, results) => {
     if (err) {
       console.error('Error fetching admin profile:', err);
       return res.status(500).json({ success: false, message: 'DB error', error: err });
@@ -2330,7 +2361,26 @@ app.get('/api/admin_users/me', authenticateJWT, async (req, res) => {
       console.error('Admin not found:', req.user.id);
       return res.status(404).json({ success: false, message: 'Admin user not found' });
     }
-    res.json({ success: true, data: results[0] });
+    const admin = results[0];
+    let permissions = [];
+    try {
+      const roleRows = await new Promise((resolve, reject) => {
+        db.query('SELECT permission_summary FROM admin_roles WHERE name = ? LIMIT 1', [admin.roleName], (e, r) => {
+          if (e) return reject(e); resolve(r || []);
+        });
+      });
+      const raw = roleRows?.[0]?.permission_summary || '';
+      try { permissions = JSON.parse(raw); if (!Array.isArray(permissions)) permissions = []; }
+      catch {
+        const trimmed = String(raw || '').trim();
+        if (trimmed && trimmed.toLowerCase().includes('all')) {
+          permissions = ['*'];
+        } else {
+          permissions = (trimmed || '').split(',').map(s => s.trim()).filter(Boolean);
+        }
+      }
+    } catch {}
+    res.json({ success: true, data: { ...admin, permissions } });
   });
 });
 
