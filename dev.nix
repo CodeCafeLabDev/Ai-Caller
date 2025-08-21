@@ -15,8 +15,6 @@ in {
 
       # **THIS IS WHERE YOU ADD YOUR VARIABLES FOR THE STUDIO PREVIEW**
       env = {
-        NEXT_PUBLIC_SUPABASE_URL = "https://pjpuivahnacrpmwwlvbq.supabase.co";       # <--- Add this line
-        NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqcHVpdmFobmFjcnBtd3dsdmJxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkxOTIwNjgsImV4cCI6MjA2NDc2ODA2OH0.IUXrdiSIx3SFCjTiaKmAqHPsv9FRrPQlZmBE9-UBB8U"; # <--- Add this line (if needed)
         # Add any other NEXT_PUBLIC_ variables your app requires
         # e.g., NEXT_PUBLIC_FIREBASE_API_KEY = "AIzaSy...";
         # e.g., NEXT_PUBLIC_FIREBASE_PROJECT_ID = "AI Caller";

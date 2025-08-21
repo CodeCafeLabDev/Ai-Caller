@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks, CheckSquare, FileText, Database, PhoneOff } from 'lucide-react'; // Added PhoneOff
+import { LayoutDashboard, UserCircle, LogOut, Users, CreditCard, Megaphone, Bot, BarChartBig, TerminalSquare, FlaskConical, ShieldAlert, Settings, ChevronDown, ChevronRight, UserCog, ClipboardList, ShieldCheck, UserPlus, Receipt, ListFilter, PhoneCall, Award, History, Languages, FileJson, CalendarClock, FileDown, TrendingUp, AlertTriangle, BookOpen, ArrowRightLeft, KeyRound, ListChecks, CheckSquare, FileText, PhoneOff } from 'lucide-react'; // Removed Database, added PhoneOff
 import {
   Sidebar,
   SidebarHeader,
@@ -142,12 +142,7 @@ const initialNavItems: NavItemType[] = [
       { href: '/alerts-logs/client-activity', label: 'Client Activity Feed', icon: Users },
     ]
   },
-  { 
-    label: 'Supabase CRUD', 
-    icon: Database, 
-    href: '/supabase-crud-example',
-    basePath: '/supabase-crud-example',
-  },
+  
   { href: '/system-settings', label: 'System Settings', icon: Settings },
   { href: '/profile', label: 'Profile', icon: UserCircle },
 ];
@@ -199,7 +194,6 @@ export function SideNavigation() {
     'Developer Tools': 'view:developer_tools',
     'Test Lab': 'view:test_lab',
     'Alerts & Logs': 'view:alerts_logs',
-    'Supabase CRUD': 'view:supabase',
     'System Settings': 'view:system_settings',
     'Profile': 'view:profile',
   };

@@ -180,7 +180,7 @@ export default function CallReportsPage() {
         }
         
         // First try to get agents from local database
-        const localAgentsRes = await fetch('/api/agents', { credentials: 'include' });
+        const localAgentsRes = await api.getAgents();
         const localAgentsData = await localAgentsRes.json();
         console.log("All agents from API:", localAgentsData.data);
         
@@ -896,7 +896,7 @@ export default function CallReportsPage() {
               <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" aria-expanded={agentOpen} className="w-full justify-between h-9">
                   <Users className="mr-2 h-4 w-4 opacity-50 shrink-0" />
-                  {agents.find(agent => agent.agent_id === pendingFilters.agentId)?.agent_name || "Select Agent"}
+                  {pendingFilters.agentId === 'all' ? 'All Agents' : (agents.find(agent => agent.agent_id === pendingFilters.agentId)?.agent_name || 'Select Agent')}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -905,6 +905,10 @@ export default function CallReportsPage() {
                   <CommandInput placeholder="Search agent..." />
                   <CommandList><CommandEmpty>No agent found.</CommandEmpty>
                   <CommandGroup>
+                    <CommandItem key="all" value="All Agents" onSelect={() => { setPendingFilters(prev => ({ ...prev, agentId: 'all' })); setAgentOpen(false); }}>
+                      <Check className={cn("mr-2 h-4 w-4", pendingFilters.agentId === 'all' ? "opacity-100" : "opacity-0")} />
+                      All Agents
+                    </CommandItem>
                     {agents.map(agent => (
                       <CommandItem key={agent.agent_id} value={agent.agent_name} onSelect={() => { setPendingFilters(prev => ({ ...prev, agentId: agent.agent_id })); setAgentOpen(false); }}>
                         <Check className={cn("mr-2 h-4 w-4", pendingFilters.agentId === agent.agent_id ? "opacity-100" : "opacity-0")} />

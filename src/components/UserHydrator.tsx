@@ -30,7 +30,8 @@ export function UserHydrator({ children }: { children: React.ReactNode }) {
             role: data.data.roleName,
             type: data.data.type,
             companyName: data.data.companyName,
-            clientId: data.data.type === 'client' ? data.data.id?.toString() : data.data.clientId?.toString(),
+            // Prefer explicit clientId fields; do NOT fall back to the user's own id
+            clientId: (data.data.clientId ?? data.data.client_id)?.toString(),
             permissions: Array.isArray(data.data.permissions) ? data.data.permissions : undefined,
           };
           setUser(userObj);

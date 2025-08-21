@@ -113,6 +113,11 @@ export const API_ENDPOINTS = {
     BASE: '/api/voices',
   },
 
+  // Agents
+  AGENTS: {
+    BASE: '/api/agents',
+  },
+
   // Workspace Secrets
   WORKSPACE_SECRETS: {
     LOCAL: '/api/workspace-secrets/local',
@@ -319,6 +324,9 @@ export const api = {
   
   // Voices
   getVoices: () => apiUtils.get(API_ENDPOINTS.VOICES.BASE),
+
+  // Agents
+  getAgents: () => apiUtils.get(API_ENDPOINTS.AGENTS.BASE),
 
   // Workspace Secrets
   getWorkspaceSecretsLocal: () => apiUtils.get(API_ENDPOINTS.WORKSPACE_SECRETS.LOCAL),

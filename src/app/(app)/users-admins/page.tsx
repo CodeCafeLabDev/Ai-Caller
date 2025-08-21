@@ -131,7 +131,6 @@ export default function UsersAdminsPage() {
     { key: 'view:developer_tools', label: 'Developer Tools' },
     { key: 'view:test_lab', label: 'Test Lab' },
     { key: 'view:alerts_logs', label: 'Alerts & Logs' },
-    { key: 'view:supabase', label: 'Supabase CRUD' },
     { key: 'view:system_settings', label: 'System Settings' },
     { key: 'view:profile', label: 'Profile' },
   ], []);
