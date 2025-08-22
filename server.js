@@ -35,10 +35,10 @@ const JWT_SECRET = 'your-very-secret-key'; // Use env variable in production!
 
 // DB config
 const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
+  host: "localhost",
+  user: "aiuser",
+  password: "AiCaller@1",
+  database: "ai-caller",
   multipleStatements: true // Allow multiple statements
 });
 
