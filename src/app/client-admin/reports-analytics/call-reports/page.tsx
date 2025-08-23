@@ -180,7 +180,7 @@ export default function CallReportsPage() {
         }
         
         // First try to get agents from local database
-        const localAgentsRes = await api.getAgents();
+        const localAgentsRes = await fetch('/api/agents', { credentials: 'include' });
         const localAgentsData = await localAgentsRes.json();
         console.log("All agents from API:", localAgentsData.data);
         
@@ -231,6 +231,39 @@ export default function CallReportsPage() {
           }
         } catch (err) {
           console.log('Failed to include elevenlabs_agent_ids from client record:', err);
+        }
+        
+        // Also check for any agents that might be linked via other fields
+        const additionalAgents = allLocalAgents.filter((agent: any) => {
+          // Check if agent has this client in any linked fields
+          const linkedFields = [
+            agent.linked_clients,
+            agent.assigned_clients,
+            agent.client_assignments
+          ].filter(Boolean);
+          
+          return linkedFields.some((field: any) => {
+            if (Array.isArray(field)) {
+              return field.some((item: any) => String(item) === String(clientId));
+            } else if (typeof field === 'string') {
+              try {
+                const parsed = JSON.parse(field);
+                return Array.isArray(parsed) && parsed.some((item: any) => String(item) === String(clientId));
+              } catch {
+                return field.includes(String(clientId));
+              }
+            }
+            return false;
+          });
+        });
+        
+        // Add any additional agents found
+        const additionalIds = new Set(clientAgents.map((a: any) => String(a.agent_id || a.id)));
+        for (const agent of additionalAgents) {
+          if (!additionalIds.has(String(agent.agent_id || agent.id))) {
+            clientAgents.push(agent);
+            additionalIds.add(String(agent.agent_id || agent.id));
+          }
         }
         
         // De-duplicate by agent_id

@@ -7,12 +7,12 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Base URLs
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || (isDevelopment 
-  ? (typeof window !== 'undefined' && window.location.hostname.includes('ngrok') 
-     ? window.location.origin 
+  ? (typeof window !== 'undefined' && (window.location.hostname.includes('ngrok') || window.location.hostname.includes('devtunnels') || window.location.hostname.includes('tunnel'))
+     ? 'http://localhost:5000'  // Always use localhost:5000 for backend, even with ngrok frontend
      : 'http://localhost:5000')
-  : 'https://aicaller.codecafelab.in/api');
+  : 'https://aicaller.codecafelab.in');
 // Use NEXT_PUBLIC_API_BASE_URL if set, otherwise fallback to localhost:5000 (dev) or prod URL
-// For ngrok development, automatically detect and use the ngrok URL
+// For ngrok/tunnel development, always use localhost:5000 for backend API calls
 
 export const EXTERNAL_APIS = {
   ELEVENLABS: {
@@ -147,6 +147,15 @@ export const defaultFetchOptions = {
     'Content-Type': 'application/json',
   },
 };
+
+// Debug logging for API configuration
+if (typeof window !== 'undefined') {
+  console.log('🔧 API Configuration Debug:');
+  console.log('- NODE_ENV:', process.env.NODE_ENV);
+  console.log('- NEXT_PUBLIC_API_BASE_URL:', process.env.NEXT_PUBLIC_API_BASE_URL);
+  console.log('- Window location:', window.location.href);
+  console.log('- Final API_BASE_URL:', API_BASE_URL);
+}
 
 // API utility functions
 export const apiUtils = {

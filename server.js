@@ -17,29 +17,51 @@ console.log("🟡 Starting backend server...");
 
 const app = express();
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://aicaller.codecafelab.in',
-    'https://2nq68jpg-3000.inc1.devtunnels.ms', // <-- Add your tunnel URL here
-    /^https:\/\/.*\.ngrok-free\.app$/, // Allow all ngrok-free.app subdomains
-    /^https:\/\/.*\.ngrok\.io$/, // Allow all ngrok.io subdomains
-    /^https:\/\/.*\.ngrok\.app$/ // Allow all ngrok.app subdomains
-  ],
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'https://aicaller.codecafelab.in',
+      'https://2nq68jpg-3000.inc1.devtunnels.ms'
+    ];
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Check if origin matches ngrok patterns
+    if (origin.match(/^https:\/\/.*\.ngrok-free\.app$/) ||
+        origin.match(/^https:\/\/.*\.ngrok\.io$/) ||
+        origin.match(/^https:\/\/.*\.ngrok\.app$/) ||
+        origin.match(/^https:\/\/.*\.devtunnels\.ms$/) ||
+        origin.match(/^https:\/\/.*\.tunnel\.app$/)) {
+      return callback(null, true);
+    }
+    
+    console.log('CORS blocked origin:', origin);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Set-Cookie']
 }));
 app.use(express.json());
 app.use(cookieParser());
 
 
 
-const JWT_SECRET = 'your-very-secret-key'; // Use env variable in production!
+const JWT_SECRET = process.env.JWT_SECRET || 'your-very-secret-key'; // Use env variable in production!
 
 // DB config
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "aiuser",
-  password: "AiCaller@1",
-  database: "ai-caller",
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "ai-caller",
   multipleStatements: true // Allow multiple statements
 });
 
@@ -49,9 +71,9 @@ db.connect(err => {
     console.error("❌ Database connection failed:", err.stack);
     // Try to create database and table if they don't exist
     const tempDb = mysql.createConnection({
-      host: "localhost",
-      user: "root",
-      password: ""
+      host: process.env.DB_HOST || "localhost",
+      user: process.env.DB_USER || "root",
+      password: process.env.DB_PASSWORD || ""
     });
 
     tempDb.connect(err => {
@@ -2554,12 +2576,28 @@ app.post('/api/login', async (req, res) => {
           { expiresIn: '1d' }
         );
 
-        res.cookie('token', token, {
-          httpOnly: true,
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 24*60*60*1000
-        });
+        // Set cookie for both same-origin and cross-origin scenarios
+        const isSecure = req.headers.origin && req.headers.origin.startsWith('https://');
+        const isLocalhost = req.headers.origin && req.headers.origin.includes('localhost');
+        
+        if (isLocalhost) {
+          // For localhost, use lax sameSite
+          res.cookie('token', token, {
+            httpOnly: true,
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 24*60*60*1000
+          });
+        } else {
+          // For cross-origin (ngrok, server), use none sameSite with secure
+          res.cookie('token', token, {
+            httpOnly: true,
+            sameSite: 'none',
+            secure: true,
+            path: '/',
+            maxAge: 24*60*60*1000
+          });
+        }
 
         return res.json({ 
           success: true, 
@@ -2668,12 +2706,27 @@ app.post('/api/login', async (req, res) => {
           { expiresIn: '1d' }
         );
 
-        res.cookie('token', token, {
-          httpOnly: true,
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 24*60*60*1000
-        });
+        // Set cookie for both same-origin and cross-origin scenarios
+        const isLocalhost = req.headers.origin && req.headers.origin.includes('localhost');
+        
+        if (isLocalhost) {
+          // For localhost, use lax sameSite
+          res.cookie('token', token, {
+            httpOnly: true,
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 24*60*60*1000
+          });
+        } else {
+          // For cross-origin (ngrok, server), use none sameSite with secure
+          res.cookie('token', token, {
+            httpOnly: true,
+            sameSite: 'none',
+            secure: true,
+            path: '/',
+            maxAge: 24*60*60*1000
+          });
+        }
 
         return res.json({ 
           success: true, 
@@ -2883,9 +2936,23 @@ app.post('/api/upload', authenticateJWT, upload.single('file'), (req, res) => {
   res.json({ success: true, file_path: `/uploads/${req.file.filename}` });
 });
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    cors: {
+      origin: req.headers.origin,
+      allowed: true
+    }
+  });
+});
+
 // Start server
 app.listen(5000, () => {
   console.log("🚀 Server running at http://localhost:5000");
+  console.log("🔧 Health check available at http://localhost:5000/api/health");
 });
 
 // Client Admin Login endpoint
@@ -2942,12 +3009,27 @@ app.post('/api/client-admin/login', async (req, res) => {
         { expiresIn: '1d' }
       );
 
-      res.cookie('token', token, {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 24*60*60*1000
-      });
+      // Set cookie for both same-origin and cross-origin scenarios
+      const isLocalhost = req.headers.origin && req.headers.origin.includes('localhost');
+      
+      if (isLocalhost) {
+        // For localhost, use lax sameSite
+        res.cookie('token', token, {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 24*60*60*1000
+        });
+      } else {
+        // For cross-origin (ngrok, server), use none sameSite with secure
+        res.cookie('token', token, {
+          httpOnly: true,
+          sameSite: 'none',
+          secure: true,
+          path: '/',
+          maxAge: 24*60*60*1000
+        });
+      }
 
       res.json({ 
         success: true, 

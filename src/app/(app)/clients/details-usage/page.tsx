@@ -476,7 +476,7 @@ function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTota
     let active = true;
     async function loadAgents() {
       try {
-        const agentsRes = await fetch('/api/agents', { credentials: 'include' });
+        const agentsRes = await api.getAgents();
         const agentsJson = await agentsRes.json();
         const allAgents = Array.isArray(agentsJson?.data) ? agentsJson.data : [];
         // Base filter: owned by client, created by client, or linked via client_ids
@@ -553,7 +553,7 @@ function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTota
       }
       try {
         // 1) get all agents and filter by client
-        const agentsRes = await fetch('/api/agents', { credentials: 'include' });
+        const agentsRes = await api.getAgents();
         const agentsJson = await agentsRes.json();
         const allAgents = Array.isArray(agentsJson?.data) ? agentsJson.data : [];
         const clientAgents = allAgents.filter((a: any) => String(a.client_id || '') === String(clientId) || (a.created_by_type === 'client' && String(a.created_by) === String(clientId)));

@@ -10,7 +10,11 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "setup-ngrok": "node setup-ngrok.js"
+    "setup-ngrok": "node setup-ngrok.js",
+    "setup:localhost": "node setup-env-comprehensive.js localhost",
+    "setup:ngrok": "node setup-env-comprehensive.js ngrok",
+    "setup:server": "node setup-env-comprehensive.js server",
+    "setup:menu": "node setup-env-comprehensive.js menu"
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.4.0",
@@ -61,6 +65,7 @@
     "lucide-react": "^0.475.0",
     "multer": "^2.0.1",
     "mysql": "^2.18.1",
+    "mysql2": "^3.14.3",
     "next": "^15.3.4",
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.5",
