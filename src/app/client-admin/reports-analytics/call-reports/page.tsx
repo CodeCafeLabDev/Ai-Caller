@@ -171,7 +171,7 @@ export default function CallReportsPage() {
       setAgents([]);
       setSelectedAgentId("all");
       try {
-        const clientId = user?.clientId;
+        const clientId = user?.clientId || user?.userId;
         console.log("Fetching agents for client admin:", clientId);
         
         if (!clientId) {
@@ -179,7 +179,7 @@ export default function CallReportsPage() {
           return;
         }
         
-        // First try to get agents from local database
+        // First try to get agents from local database (same-origin; includes auth cookie)
         const localAgentsRes = await fetch('/api/agents', { credentials: 'include' });
         const localAgentsData = await localAgentsRes.json();
         console.log("All agents from API:", localAgentsData.data);
@@ -283,10 +283,33 @@ export default function CallReportsPage() {
           status: localAgent.status || 'active'
         }));
         console.log("Processed agents:", processedAgents);
-        setAgents(processedAgents);
-        
+        // If none found locally, fall back to analytics endpoint for agent IDs/names
         if (processedAgents.length === 0) {
-          setError("No agents assigned to this client. Please contact your administrator.");
+          try {
+            console.log('Falling back to agents analytics for client:', clientId);
+            const analyticsRes = await api.getAgentsAnalytics(String(clientId));
+            const analyticsJson = await analyticsRes.json();
+            const analyticsAgents = Array.isArray(analyticsJson?.data?.agents) ? analyticsJson.data.agents : [];
+            const fallbackAgents = analyticsAgents.map((a: any) => ({
+              agent_id: String(a.agentId || a.agent_id || a.id),
+              agent_name: a.agentName || a.name || `Agent ${a.agentId || a.id}`,
+              client_id: clientId,
+              local_agent_id: String(a.agentId || a.agent_id || a.id),
+              description: '',
+              status: 'active',
+            })).filter((x: any) => x.agent_id);
+            console.log('Fallback agents from analytics:', fallbackAgents);
+            setAgents(fallbackAgents);
+            if (fallbackAgents.length === 0) {
+              setError("No agents assigned to this client. Please contact your administrator.");
+            }
+          } catch (e) {
+            console.log('Agents analytics fallback failed:', e);
+            setAgents([]);
+            setError("No agents assigned to this client. Please contact your administrator.");
+          }
+        } else {
+          setAgents(processedAgents);
         }
       } catch (error) {
         console.error("Error fetching agents:", error);
@@ -294,13 +317,13 @@ export default function CallReportsPage() {
       }
     }
     
-    if (user?.clientId) {
+    if (user?.clientId || user?.userId) {
       fetchAgents();
     } else {
       console.log("No clientId found in user:", user);
       setError("User not properly authenticated. Please log in again.");
     }
-  }, [user?.clientId]);
+  }, [user?.clientId, user?.userId]);
 
   // Fetch agent data when agent is selected
   React.useEffect(() => {

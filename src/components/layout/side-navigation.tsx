@@ -111,6 +111,16 @@ const initialNavItems: NavItemType[] = [
     href: '/users-admins', 
   },
   { 
+    label: 'Reseller Management', 
+    icon: Users, 
+    href: '/sales-persons', 
+  },
+  { 
+    label: 'Track Referrals', 
+    icon: TrendingUp, 
+    href: '/track-referrals', 
+  },
+  { 
     label: 'Developer Tools', 
     icon: TerminalSquare,
     basePath: '/developer-tools',
@@ -191,6 +201,8 @@ export function SideNavigation() {
     'AI Agents': 'view:agents',
     'Reports & Analytics': 'view:reports',
     'Users & Admins': 'view:users_admins',
+    'Reseller Management': 'view:sales_persons',
+    'Track Referrals': 'view:track_referrals',
     'Developer Tools': 'view:developer_tools',
     'Test Lab': 'view:test_lab',
     'Alerts & Logs': 'view:alerts_logs',

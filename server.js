@@ -22,8 +22,8 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
-      'http://localhost:3000',
-      'https://aicaller.codecafelab.in',
+    'http://localhost:3000',
+    'https://aicaller.codecafelab.in',
       'https://2nq68jpg-3000.inc1.devtunnels.ms'
     ];
     
@@ -131,6 +131,71 @@ db.connect(err => {
               return;
             }
             console.log("✅ Successfully connected to database");
+
+            // Ensure core referral-related tables always exist (idempotent)
+            // Note: We no longer create sales_persons table, using admin_users + sales_admin_referral_codes instead
+            
+            const ensureReferrals = `
+              CREATE TABLE IF NOT EXISTS referrals (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                admin_user_id INT NOT NULL,
+                client_id INT NOT NULL,
+                referral_code VARCHAR(64) NOT NULL,
+                referred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status ENUM('pending', 'converted', 'expired') DEFAULT 'pending',
+                FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
+                FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+                UNIQUE KEY unique_client_referral (client_id)
+              );
+            `;
+            db.query(ensureReferrals, (rfErr) => {
+              if (rfErr) console.error("Failed to ensure referrals table:", rfErr);
+            });
+
+            const ensureSalesAdminCodes = `
+              CREATE TABLE IF NOT EXISTS sales_admin_referral_codes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                admin_user_id INT NOT NULL,
+                referral_code VARCHAR(64) NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_admin_user (admin_user_id),
+                FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE CASCADE
+              );
+            `;
+            db.query(ensureSalesAdminCodes, (rcErr) => {
+              if (rcErr) console.error("Failed to ensure sales_admin_referral_codes table:", rcErr);
+            });
+
+            // Ensure extended referral tracking columns exist (idempotent)
+            const ensureColumn = (table, column, definition) => {
+              const sql = `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${column} ${definition}`;
+              db.query(sql, (colErr) => {
+                if (colErr) {
+                  // Fallback for older MySQL without IF NOT EXISTS
+                  if (colErr.code === 'ER_PARSE_ERROR' || colErr.code === 'ER_BAD_FIELD_ERROR') {
+                    const checkInfoSchema = `SELECT COUNT(*) as cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`;
+                    db.query(checkInfoSchema, [table, column], (chkErr, rows) => {
+                      if (!chkErr && rows && rows[0] && rows[0].cnt === 0) {
+                        const alter = `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`;
+                        db.query(alter, (altErr) => {
+                          if (altErr) console.error(`Failed adding ${table}.${column}:`, altErr);
+                        });
+                      }
+                    });
+                  } else {
+                    console.error(`Failed ensuring column ${table}.${column}:`, colErr);
+                  }
+                }
+              });
+            };
+
+            ensureColumn('referrals', 'plan_subscribed', "VARCHAR(64) NULL");
+            ensureColumn('referrals', 'is_trial', "TINYINT(1) NOT NULL DEFAULT 1");
+            ensureColumn('referrals', 'conversion_date', "DATETIME NULL");
+            ensureColumn('referrals', 'revenue_generated', "DECIMAL(12,2) NOT NULL DEFAULT 0.00");
+            ensureColumn('referrals', 'commission_amount', "DECIMAL(12,2) NULL");
+            ensureColumn('referrals', 'commission_status', "ENUM('pending','approved','paid') NOT NULL DEFAULT 'pending'");
           });
         });
 
@@ -282,6 +347,46 @@ db.connect(err => {
               }
             }
           );
+
+          // Ensure sales_admin_referral_codes table exists for mapping admin users to referral codes
+          const createSalesAdminReferralCodes = `
+            CREATE TABLE IF NOT EXISTS sales_admin_referral_codes (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              admin_user_id INT NOT NULL,
+              referral_code VARCHAR(64) NOT NULL UNIQUE,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              UNIQUE KEY unique_admin_user (admin_user_id),
+              FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE CASCADE
+            );
+          `;
+          tempDb.query(createSalesAdminReferralCodes, (err) => {
+            if (err) console.error("Failed to create sales_admin_referral_codes table:", err);
+            else console.log("✅ sales_admin_referral_codes table ensured");
+          });
+
+          // Create referrals table (updated to use admin_user_id instead of sales_person_id)
+          const createReferralsTable = `
+            CREATE TABLE IF NOT EXISTS referrals (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              admin_user_id INT NOT NULL,
+              client_id INT NOT NULL,
+              referral_code VARCHAR(64) NOT NULL,
+              referred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              status ENUM('pending', 'converted', 'expired') DEFAULT 'pending',
+              FOREIGN KEY (admin_user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
+              FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+              UNIQUE KEY unique_client_referral (client_id)
+            );
+          `;
+
+          tempDb.query(createReferralsTable, (err) => {
+            if (err) {
+              console.error("Failed to create referrals table:", err);
+              return;
+            }
+            console.log("✅ Referrals table created successfully");
+          });
         });
 
         // --- LANGUAGES TABLE CREATION ---
@@ -1316,17 +1421,155 @@ app.post("/api/clients", async (req, res) => {
       client.trialEndsAt = ends;
     }
 
+    // Start transaction for client creation and referral handling
+    db.beginTransaction(async (err) => {
+      if (err) {
+        console.error("Error starting transaction:", err);
+        return res.status(500).json({ success: false, message: "Database error", error: err.message });
+      }
+
+      try {
+        // Create the client
     db.query("INSERT INTO clients SET ?", client, (err, result) => {
       if (err) {
         console.error("Failed to create client:", err);
-        return res.status(500).json({ success: false, message: "Failed to create client", error: err });
-      }
-      db.query("SELECT * FROM clients WHERE id = ?", [result.insertId], (err, results) => {
+            return db.rollback(() => {
+              res.status(500).json({ success: false, message: "Failed to create client", error: err });
+            });
+          }
+
+          const clientId = result.insertId;
+
+          // Handle referral code if provided
+          if (client.referralCode) {
+            // Find sales admin by referral code from sales_admin_referral_codes table
+            db.query(`
+              SELECT au.id, au.name, sarc.referral_code 
+              FROM admin_users au 
+              JOIN sales_admin_referral_codes sarc ON au.id = sarc.admin_user_id 
+              WHERE sarc.referral_code = ? AND au.status = "Active"
+            `, [client.referralCode], (err, salesResults) => {
+              if (err) {
+                console.error("Error finding sales admin by referral code:", err);
+                return db.rollback(() => {
+                  res.status(500).json({ success: false, message: "Database error", error: err.message });
+                });
+              }
+
+              if (salesResults.length > 0) {
+                const salesAdmin = salesResults[0];
+                
+                // Create referral record with all necessary fields
+                const insertReferralQuery = `
+                  INSERT INTO referrals (
+                    admin_user_id, 
+                    client_id, 
+                    referral_code, 
+                    status, 
+                    plan_subscribed, 
+                    is_trial, 
+                    revenue_generated, 
+                    commission_status
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `;
+                const referralValues = [
+                  salesAdmin.id, 
+                  clientId, 
+                  client.referralCode,
+                  'pending', // Default status
+                  client.plan_id ? 'Trial' : 'Basic', // Default plan (you can adjust this logic)
+                  1, // Default to trial (is_trial = 1)
+                  0.00, // Default revenue
+                  'pending' // Default commission status
+                ];
+                db.query(insertReferralQuery, referralValues, (err, referralResult) => {
+                  if (err) {
+                    console.error("Error creating referral:", err);
+                    return db.rollback(() => {
+                      res.status(500).json({ success: false, message: "Database error", error: err.message });
+                    });
+                  }
+
+                  // Note: We don't update referral counts here since we're not using sales_persons table
+                  // The counts will be calculated dynamically from the referrals table
+
+                  // Commit transaction and return success
+                  db.commit((err) => {
+                    if (err) {
+                      console.error("Error committing transaction:", err);
+                      return db.rollback(() => {
+                        res.status(500).json({ success: false, message: "Database error", error: err.message });
+                      });
+                    }
+
+                    // Fetch the created client
+                    db.query("SELECT * FROM clients WHERE id = ?", [clientId], (err, results) => {
+                      if (err) {
+                        return res.status(500).json({ success: false, message: "Client created but failed to fetch", error: err });
+                      }
+                      res.status(201).json({ 
+                        success: true, 
+                        message: "Client created with referral", 
+                        data: results[0],
+                        referral: {
+                          salesAdminId: salesAdmin.id,
+                          salesAdminName: salesAdmin.name,
+                          referralCode: client.referralCode
+                        }
+                      });
+                    });
+                  });
+                });
+              } else {
+                // No valid sales admin found, but still create client
+                db.commit((err) => {
+                  if (err) {
+                    console.error("Error committing transaction:", err);
+                    return db.rollback(() => {
+                      res.status(500).json({ success: false, message: "Database error", error: err.message });
+                    });
+                  }
+
+                  // Fetch the created client
+                  db.query("SELECT * FROM clients WHERE id = ?", [clientId], (err, results) => {
+                    if (err) {
+                      return res.status(500).json({ success: false, message: "Client created but failed to fetch", error: err });
+                    }
+                    res.status(201).json({ 
+                      success: true, 
+                      message: "Client created (invalid referral code)", 
+                      data: results[0] 
+                    });
+                  });
+                });
+              }
+            });
+          } else {
+            // No referral code provided, just commit the transaction
+            db.commit((err) => {
+              if (err) {
+                console.error("Error committing transaction:", err);
+                return db.rollback(() => {
+                  res.status(500).json({ success: false, message: "Database error", error: err.message });
+                });
+              }
+
+              // Fetch the created client
+              db.query("SELECT * FROM clients WHERE id = ?", [clientId], (err, results) => {
         if (err) {
           return res.status(500).json({ success: false, message: "Client created but failed to fetch", error: err });
         }
         res.status(201).json({ success: true, message: "Client created", data: results[0] });
       });
+            });
+          }
+        });
+      } catch (error) {
+        console.error("Error in client creation transaction:", error);
+        return db.rollback(() => {
+          res.status(500).json({ success: false, message: "Database error", error: error.message });
+        });
+      }
     });
   } catch (err) {
     console.error("Error hashing password or creating client:", err);
@@ -1432,7 +1675,7 @@ app.get('/api/clients/:id/agents-analytics', async (req, res) => {
     const daysParam = Number.parseInt(String(req.query.days ?? ''), 10);
     const lastDays = Number.isNaN(daysParam) ? 30 : Math.max(1, Math.min(daysParam, 180));
 
-    const xiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+    const xiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY || sk_ab0b50095e39acea120f1e10a18f98439d9891f51fa5d317;
     if (!xiKey) {
       return res.status(400).json({ success: false, message: 'ElevenLabs API key missing' });
     }
@@ -1568,7 +1811,7 @@ app.get('/api/clients/:id/elevenlabs-usage', async (req, res) => {
     const daysParam = Number.parseInt(String(req.query.days ?? ''), 10);
     const lastDays = Number.isNaN(daysParam) ? 30 : Math.max(1, Math.min(daysParam, 180));
 
-    const xiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
+    const xiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY || sk_ab0b50095e39acea120f1e10a18f98439d9891f51fa5d317;
     if (!xiKey) return res.status(400).json({ success: false, message: 'ElevenLabs API key missing' });
     const headers = { 'xi-api-key': xiKey };
 
@@ -2419,17 +2662,54 @@ app.get('/api/admin_users/:id', (req, res) => {
 // Create a new admin user
 app.post('/api/admin_users', async (req, res) => {
   try {
-    const { name, email, roleName, password, lastLogin, status } = req.body;
+    const { name, email, roleName, password, lastLogin, status, referral_code } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
     db.query(
       'INSERT INTO admin_users (name, email, roleName, password, lastLogin, status) VALUES (?, ?, ?, ?, ?, ?)',
       [name, email, roleName, hashedPassword, lastLogin, status],
       (err, result) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
-        db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [result.insertId], (err2, rows) => {
-          if (err2) return res.status(500).json({ success: false, message: err2.message });
-          res.status(201).json({ success: true, data: rows[0] });
-        });
+
+        const newUserId = result.insertId;
+        const normalizedRole = String(roleName || '').toLowerCase().replace(/_/g, ' ');
+        if (normalizedRole === 'sales admin') {
+          const code = referral_code && String(referral_code).trim().length > 0 ? referral_code.trim().toUpperCase() : null;
+          const ensureCode = (finalCode) => {
+            const insertMap = 'INSERT INTO sales_admin_referral_codes (admin_user_id, referral_code) VALUES (?, ?) ON DUPLICATE KEY UPDATE referral_code = VALUES(referral_code)';
+            db.query(insertMap, [newUserId, finalCode], (mErr) => {
+              if (mErr) console.error('Failed to upsert sales admin referral code:', mErr);
+              db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [newUserId], (err2, rows) => {
+                if (err2) return res.status(500).json({ success: false, message: err2.message });
+                res.status(201).json({ success: true, data: rows[0] });
+              });
+            });
+          };
+
+          if (code) {
+            ensureCode(code);
+          } else {
+            // Auto-generate unique 8-char code
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            const gen = () => Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+            const tryGen = (attempts = 0) => {
+              const candidate = gen();
+              db.query('SELECT id FROM sales_admin_referral_codes WHERE referral_code = ?', [candidate], (chkErr, rows) => {
+                if (chkErr) {
+                  console.error('Failed checking referral code uniqueness:', chkErr);
+                  return ensureCode(candidate);
+                }
+                if (rows && rows.length > 0 && attempts < 10) return tryGen(attempts + 1);
+                ensureCode(candidate);
+              });
+            };
+            tryGen();
+          }
+        } else {
+          db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [newUserId], (err2, rows) => {
+            if (err2) return res.status(500).json({ success: false, message: err2.message });
+            res.status(201).json({ success: true, data: rows[0] });
+          });
+        }
       }
     );
   } catch (err) {
@@ -2440,7 +2720,7 @@ app.post('/api/admin_users', async (req, res) => {
 // Update an admin user
 app.put('/api/admin_users/:id', async (req, res) => {
   try {
-    const { name, email, roleName, password, lastLogin, status } = req.body;
+    const { name, email, roleName, password, lastLogin, status, referral_code } = req.body;
     console.log('[PUT /api/admin_users/:id] Incoming body:', req.body);
     let updateFields = [name, email, roleName, lastLogin, status, req.params.id];
     let query = 'UPDATE admin_users SET name = ?, email = ?, roleName = ?, lastLogin = ?, status = ? WHERE id = ?';
@@ -2451,11 +2731,33 @@ app.put('/api/admin_users/:id', async (req, res) => {
     }
     db.query(query, updateFields, (err) => {
       if (err) return res.status(500).json({ success: false, message: err.message });
-      db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [req.params.id], (err2, rows) => {
-        if (err2) return res.status(500).json({ success: false, message: err2.message });
-        console.log('[PUT /api/admin_users/:id] Updated user:', rows[0]);
-        res.json({ success: true, data: rows[0] });
-      });
+      const normalizedRole = String(roleName || '').toLowerCase().replace(/_/g, ' ');
+      if (normalizedRole === 'sales admin') {
+        const code = referral_code && String(referral_code).trim().length > 0 ? referral_code.trim().toUpperCase() : null;
+        if (code) {
+          const upsert = 'INSERT INTO sales_admin_referral_codes (admin_user_id, referral_code) VALUES (?, ?) ON DUPLICATE KEY UPDATE referral_code = VALUES(referral_code)';
+          db.query(upsert, [req.params.id, code], (mErr) => {
+            if (mErr) console.error('Failed to upsert sales admin referral code:', mErr);
+            db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [req.params.id], (err2, rows) => {
+              if (err2) return res.status(500).json({ success: false, message: err2.message });
+              console.log('[PUT /api/admin_users/:id] Updated user:', rows[0]);
+              res.json({ success: true, data: rows[0] });
+            });
+          });
+        } else {
+          db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [req.params.id], (err2, rows) => {
+            if (err2) return res.status(500).json({ success: false, message: err2.message });
+            console.log('[PUT /api/admin_users/:id] Updated user:', rows[0]);
+            res.json({ success: true, data: rows[0] });
+          });
+        }
+      } else {
+        db.query('SELECT id, name, email, roleName, lastLogin, status, createdOn FROM admin_users WHERE id = ?', [req.params.id], (err2, rows) => {
+          if (err2) return res.status(500).json({ success: false, message: err2.message });
+          console.log('[PUT /api/admin_users/:id] Updated user:', rows[0]);
+          res.json({ success: true, data: rows[0] });
+        });
+      }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -2544,6 +2846,359 @@ app.delete('/api/admin_users/me/avatar_url', authenticateJWT, (req, res) => {
   });
 });
 
+// ===== SALES PERSONS API ENDPOINTS =====
+
+// Get all sales persons (admin users with 'sales admin' role), joined with profiles and referral counts
+app.get('/api/sales-persons', authenticateJWT, (req, res) => {
+  if (req.user.type !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Access denied' });
+  }
+
+  const query = `
+    SELECT
+      au.id AS admin_user_id,
+      au.name AS name,
+      au.email AS email,
+      au.id AS id,
+      au.id AS sales_person_id,
+      au.phone AS phone,
+      COALESCE(sarc.referral_code, NULL) AS referral_code,
+      0 AS total_referrals,
+      0 AS monthly_referrals,
+      COALESCE(rc.total_referrals_count, 0) AS total_referrals_count,
+      COALESCE(rc.monthly_referrals_count, 0) AS monthly_referrals_count,
+      'active' AS status,
+      au.createdOn AS created_at
+    FROM admin_users au
+    LEFT JOIN sales_admin_referral_codes sarc ON sarc.admin_user_id = au.id
+    LEFT JOIN (
+      SELECT 
+        admin_user_id,
+        COUNT(*) AS total_referrals_count,
+        SUM(CASE WHEN referred_at >= DATE_FORMAT(NOW(), '%Y-%m-01') THEN 1 ELSE 0 END) AS monthly_referrals_count
+      FROM referrals
+      GROUP BY admin_user_id
+    ) rc ON rc.admin_user_id = au.id
+    WHERE LOWER(REPLACE(au.roleName, '_', ' ')) IN ('sales admin')
+    ORDER BY created_at DESC
+  `;
+
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error fetching sales persons (primary query):', err);
+      // Fallback if sales_persons or referrals table doesn't exist or schema differs
+      const fallbackQuery = `
+        SELECT 
+          au.id AS admin_user_id,
+          au.name AS name,
+          au.email AS email,
+          0 AS id,
+          NULL AS sales_person_id,
+          NULL AS phone,
+          sarc.referral_code AS referral_code,
+          0 AS total_referrals,
+          0 AS monthly_referrals,
+          0 AS total_referrals_count,
+          0 AS monthly_referrals_count,
+          'active' AS status,
+          au.createdOn AS created_at
+        FROM admin_users au
+        LEFT JOIN sales_admin_referral_codes sarc ON sarc.admin_user_id = au.id
+        WHERE LOWER(REPLACE(au.roleName, '_', ' ')) IN ('sales admin')
+        ORDER BY au.createdOn DESC
+      `;
+
+      return db.query(fallbackQuery, (fbErr, fbRows) => {
+        if (fbErr) {
+          console.error('Error fetching sales persons (fallback query):', fbErr);
+          return res.status(500).json({ success: false, message: 'Database error', error: fbErr.sqlMessage || fbErr.message });
+        }
+        return res.json({ success: true, data: fbRows });
+      });
+    }
+    res.json({ success: true, data: results });
+  });
+});
+
+// Create a new sales admin referral code
+app.post('/api/sales-persons', authenticateJWT, async (req, res) => {
+  if (req.user.type !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Access denied' });
+  }
+
+  const { name, email, phone } = req.body;
+
+  if (!name || !email) {
+    return res.status(400).json({ success: false, message: 'Name and email are required' });
+  }
+
+  // Generate unique referral code
+  const generateReferralCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
+  // Check if email already exists in admin_users
+  db.query('SELECT id FROM admin_users WHERE email = ?', [email], (err, results) => {
+    if (err) {
+      console.error('Error checking email uniqueness:', err);
+      return res.status(500).json({ success: false, message: 'Database error' });
+    }
+    
+    if (results.length > 0) {
+      return res.status(400).json({ success: false, message: 'Email already exists' });
+    }
+
+    // Generate unique referral code
+    let referralCode = generateReferralCode();
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    const checkAndCreate = () => {
+      db.query('SELECT id FROM sales_admin_referral_codes WHERE referral_code = ?', [referralCode], (err, results) => {
+        if (err) {
+          console.error('Error checking referral code uniqueness:', err);
+          return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        
+        if (results.length > 0) {
+          attempts++;
+          if (attempts >= maxAttempts) {
+            return res.status(500).json({ success: false, message: 'Failed to generate unique referral code' });
+          }
+          referralCode = generateReferralCode();
+          checkAndCreate();
+        } else {
+          // First create the admin user
+          const createAdminQuery = 'INSERT INTO admin_users (name, email, phone, roleName, status, password) VALUES (?, ?, ?, ?, ?, ?)';
+          bcryptjs.hash('defaultpassword123', 10).then(hashedPassword => {
+            db.query(createAdminQuery, [name, email, phone, 'sales admin', 'Active', hashedPassword], (err, result) => {
+              if (err) {
+                console.error('Error creating admin user:', err);
+                return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+              }
+
+              const adminUserId = result.insertId;
+
+              // Then create the referral code entry
+              const insertReferralQuery = 'INSERT INTO sales_admin_referral_codes (admin_user_id, referral_code) VALUES (?, ?)';
+              db.query(insertReferralQuery, [adminUserId, referralCode], (err, referralResult) => {
+                if (err) {
+                  console.error('Error creating sales admin referral code:', err);
+                  return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+                }
+
+                // Fetch the created sales admin with referral code
+                db.query(`
+                  SELECT au.id, au.name, au.email, au.phone, sarc.referral_code, au.status, au.created_at
+                  FROM admin_users au 
+                  LEFT JOIN sales_admin_referral_codes sarc ON au.id = sarc.admin_user_id 
+                  WHERE au.id = ?
+                `, [adminUserId], (err2, results) => {
+                  if (err2) {
+                    console.error('Error fetching created sales admin:', err2);
+                    return res.status(500).json({ success: false, message: 'Database error' });
+                  }
+                  res.json({ success: true, data: results[0] });
+                });
+              });
+            });
+          }).catch(err => {
+            console.error('Error hashing password:', err);
+            return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+          });
+        }
+      });
+    };
+
+    checkAndCreate();
+  });
+});
+
+// Update sales admin
+app.put('/api/sales-persons/:id', authenticateJWT, (req, res) => {
+  if (req.user.type !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Access denied' });
+  }
+
+  const { name, email, phone, status } = req.body;
+  const adminUserId = req.params.id;
+
+  const updateQuery = 'UPDATE admin_users SET name = ?, email = ?, phone = ?, status = ? WHERE id = ?';
+  db.query(updateQuery, [name, email, phone, status, adminUserId], (err, result) => {
+    if (err) {
+      console.error('Error updating sales admin:', err);
+      if (err.code === 'ER_DUP_ENTRY') {
+        return res.status(400).json({ success: false, message: 'Email already exists' });
+      }
+      return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Sales admin not found' });
+    }
+
+    // Fetch the updated sales admin with referral code
+    db.query(`
+      SELECT au.id, au.name, au.email, au.phone, sarc.referral_code, au.status, au.created_at
+      FROM admin_users au 
+      LEFT JOIN sales_admin_referral_codes sarc ON au.id = sarc.admin_user_id 
+      WHERE au.id = ?
+    `, [adminUserId], (err2, results) => {
+      if (err2) {
+        console.error('Error fetching updated sales admin:', err2);
+        return res.status(500).json({ success: false, message: 'Database error' });
+      }
+      res.json({ success: true, data: results[0] });
+    });
+  });
+});
+
+// Delete sales admin referral code
+app.delete('/api/sales-persons/:id', authenticateJWT, (req, res) => {
+  if (req.user.type !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Access denied' });
+  }
+
+  const adminUserId = req.params.id;
+
+  // Delete the referral code entry first
+  db.query('DELETE FROM sales_admin_referral_codes WHERE admin_user_id = ?', [adminUserId], (err, result) => {
+    if (err) {
+      console.error('Error deleting sales admin referral code:', err);
+      return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+    }
+
+    // Note: We don't delete the admin user, just their referral code
+    // The admin user can still exist in the system
+    res.json({ success: true, message: 'Sales admin referral code deleted successfully' });
+  });
+});
+
+// Get referrals for a specific sales admin
+app.get('/api/sales-persons/:id/referrals', authenticateJWT, (req, res) => {
+  const adminUserId = req.params.id;
+
+  // Check if user is admin or the sales admin themselves
+  if (req.user.type !== 'admin' && req.user.id !== parseInt(adminUserId)) {
+    return res.status(403).json({ success: false, message: 'Access denied' });
+  }
+
+  const query = `
+    SELECT 
+      r.*,
+      c.companyName,
+      c.companyEmail,
+      c.contactPersonName,
+      c.phoneNumber,
+      c.created_at as client_created_at
+    FROM referrals r
+    JOIN clients c ON r.client_id = c.id
+    WHERE r.admin_user_id = ?
+    ORDER BY r.referred_at DESC
+  `;
+
+  db.query(query, [adminUserId], (err, results) => {
+    if (err) {
+      console.error('Error fetching referrals:', err);
+      return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+    }
+    res.json({ success: true, data: results });
+  });
+});
+
+// Get sales admin by referral code (for client registration)
+app.get('/api/sales-persons/referral/:code', (req, res) => {
+  const referralCode = req.params.code;
+
+  db.query(`
+    SELECT au.id, au.name, au.email, au.phone, sarc.referral_code, au.status, au.created_at
+    FROM admin_users au 
+    JOIN sales_admin_referral_codes sarc ON au.id = sarc.admin_user_id 
+    WHERE sarc.referral_code = ? AND au.status = "Active"
+  `, [referralCode], (err, results) => {
+    if (err) {
+      console.error('Error fetching sales admin by referral code:', err);
+      return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ success: false, message: 'Invalid referral code' });
+    }
+
+    res.json({ success: true, data: results[0] });
+  });
+});
+
+// Create referral when client registers
+app.post('/api/referrals', async (req, res) => {
+  const { sales_person_id, client_id, referral_code } = req.body;
+
+  if (!sales_person_id || !client_id || !referral_code) {
+    return res.status(400).json({ success: false, message: 'All fields are required' });
+  }
+
+  // Start transaction
+  db.beginTransaction(async (err) => {
+    if (err) {
+      console.error('Error starting transaction:', err);
+      return res.status(500).json({ success: false, message: 'Database error' });
+    }
+
+    try {
+      // Create referral record linking to admin_user_id instead of sales_person_id
+      const insertReferralQuery = 'INSERT INTO referrals (admin_user_id, client_id, referral_code) VALUES (?, ?, ?)';
+      db.query(insertReferralQuery, [sales_person_id, client_id, referral_code], (err, result) => {
+        if (err) {
+          console.error('Error creating referral:', err);
+          return db.rollback(() => {
+            res.status(500).json({ success: false, message: 'Database error', error: err.message });
+          });
+        }
+
+        // Note: We don't update referral counts here since we're not using sales_persons table
+        // The counts will be calculated dynamically from the referrals table
+
+        // Commit transaction
+        db.commit((err3) => {
+          if (err3) {
+            console.error('Error committing transaction:', err3);
+            return db.rollback(() => {
+              res.status(500).json({ success: false, message: 'Database error', error: err3.message });
+            });
+          }
+
+          res.json({ success: true, message: 'Referral created successfully' });
+        });
+      });
+    } catch (error) {
+      console.error('Error in referral creation:', error);
+      return db.rollback(() => {
+        res.status(500).json({ success: false, message: 'Database error', error: error.message });
+      });
+    }
+  });
+});
+
+// Reset monthly referral counts (can be called by cron job)
+app.post('/api/sales-persons/reset-monthly-referrals', authenticateJWT, (req, res) => {
+  if (req.user.type !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Access denied' });
+  }
+
+  // Note: Since we're not using sales_persons table, this endpoint is now a no-op
+  // Monthly referral counts are calculated dynamically from the referrals table
+  res.json({ 
+    success: true, 
+    message: 'Monthly referral counts are now calculated dynamically from referrals table',
+    note: 'No manual reset needed'
+  });
+});
+
 // Combined Login endpoint for both admins and clients
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
@@ -2582,12 +3237,12 @@ app.post('/api/login', async (req, res) => {
         
         if (isLocalhost) {
           // For localhost, use lax sameSite
-          res.cookie('token', token, {
-            httpOnly: true,
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 24*60*60*1000
-          });
+        res.cookie('token', token, {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 24*60*60*1000
+        });
         } else {
           // For cross-origin (ngrok, server), use none sameSite with secure
           res.cookie('token', token, {
@@ -2711,12 +3366,12 @@ app.post('/api/login', async (req, res) => {
         
         if (isLocalhost) {
           // For localhost, use lax sameSite
-          res.cookie('token', token, {
-            httpOnly: true,
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 24*60*60*1000
-          });
+        res.cookie('token', token, {
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 24*60*60*1000
+        });
         } else {
           // For cross-origin (ngrok, server), use none sameSite with secure
           res.cookie('token', token, {
@@ -3014,12 +3669,12 @@ app.post('/api/client-admin/login', async (req, res) => {
       
       if (isLocalhost) {
         // For localhost, use lax sameSite
-        res.cookie('token', token, {
-          httpOnly: true,
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 24*60*60*1000
-        });
+      res.cookie('token', token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 24*60*60*1000
+      });
       } else {
         // For cross-origin (ngrok, server), use none sameSite with secure
         res.cookie('token', token, {
@@ -4492,4 +5147,286 @@ app.post("/api/clients/reset-monthly-usage", (req, res) => {
     console.log(`✅ Monthly usage reset for ${result.affectedRows} clients`);
     res.json({ success: true, message: `Monthly usage reset for ${result.affectedRows} clients`, affectedClients: result.affectedRows });
   });
+});
+
+// Get current admin user's sales person profile by email
+app.get('/api/sales-persons/me', authenticateJWT, (req, res) => {
+	if (req.user.type !== 'admin') {
+		return res.status(403).json({ success: false, message: 'Access denied' });
+	}
+
+	const userEmail = req.user.email;
+	if (!userEmail) {
+		return res.status(400).json({ success: false, message: 'Missing user email' });
+	}
+
+	const sql = `
+		SELECT 
+			au.id AS admin_user_id,
+			au.name,
+			au.email,
+			COALESCE(sarc.referral_code, '') AS referral_code,
+			au.createdOn AS created_at
+		FROM admin_users au
+		LEFT JOIN sales_admin_referral_codes sarc ON sarc.admin_user_id = au.id
+		WHERE au.email = ?
+		LIMIT 1
+	`;
+	db.query(sql, [userEmail], (err, rows) => {
+		if (err) {
+			console.error('Error fetching current sales admin profile:', err);
+			return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+		}
+		if (!rows || rows.length === 0) return res.json({ success: true, data: null });
+		const r = rows[0];
+		return res.json({ success: true, data: {
+			id: r.admin_user_id,
+			name: r.name,
+			email: r.email,
+			phone: null,
+			referral_code: r.referral_code,
+			total_referrals: 0,
+			monthly_referrals: 0,
+			total_referrals_count: 0,
+			monthly_referrals_count: 0,
+			status: 'active',
+			created_at: r.created_at,
+		}});
+	});
+});
+
+// Get referrals for current admin user's sales person profile
+app.get('/api/sales-persons/me/referrals', authenticateJWT, (req, res) => {
+	if (req.user.type !== 'admin') {
+		return res.status(403).json({ success: false, message: 'Access denied' });
+	}
+
+	const userId = req.user.id;
+	if (!userId) {
+		return res.status(400).json({ success: false, message: 'Missing user ID' });
+	}
+
+	const { q, plan, clientStatus, commissionStatus } = req.query;
+	const commissionPercent = Number(process.env.COMMISSION_PERCENT || 10);
+
+	// Get the current user's referral code from sales_admin_referral_codes using user ID
+	const fbSql = 'SELECT sarc.referral_code FROM sales_admin_referral_codes sarc WHERE sarc.admin_user_id = ? LIMIT 1';
+	db.query(fbSql, [userId], (fbErr, fbRows) => {
+		if (fbErr) {
+			console.error('Error fetching referral code for current admin:', fbErr);
+			return res.status(500).json({ success: false, message: 'Database error', error: fbErr.message });
+		}
+		const code = fbRows && fbRows[0] ? fbRows[0].referral_code : null;
+		if (!code) return res.json({ success: true, data: [] });
+
+		const whereClauses = ['r.referral_code = ?'];
+		const params = [code];
+		if (q) { whereClauses.push('(c.companyName LIKE ? OR c.companyEmail LIKE ? OR c.contactPersonName LIKE ? OR r.referral_code LIKE ?)'); const like = `%${q}%`; params.push(like, like, like, like); }
+		if (plan && plan !== 'ALL') { whereClauses.push('r.plan_subscribed = ?'); params.push(plan); }
+		if (clientStatus === 'trial') { whereClauses.push('r.is_trial = 1'); }
+		else if (clientStatus === 'paid') { whereClauses.push('r.is_trial = 0'); }
+		if (commissionStatus && commissionStatus !== 'ALL') { whereClauses.push('r.commission_status = ?'); params.push(commissionStatus); }
+
+		const sql = `
+			SELECT 
+				r.*, c.companyName, c.companyEmail, c.contactPersonName, c.phoneNumber, c.created_at as client_created_at,
+				CASE WHEN r.commission_amount IS NOT NULL THEN r.commission_amount ELSE ROUND(r.revenue_generated * ${commissionPercent} / 100, 2) END AS commission_calculated
+			FROM referrals r
+			JOIN clients c ON r.client_id = c.id
+			WHERE ${whereClauses.join(' AND ')}
+			ORDER BY r.referred_at DESC
+		`;
+		db.query(sql, params, (e2, rs) => {
+			if (e2) {
+				console.error('Error fetching referrals:', e2);
+				return res.status(500).json({ success: false, message: 'Database error', error: e2.message });
+			}
+			if (String(req.query.debug || '') === '1') {
+				return res.json({ success: true, data: rs, debug: { resolvedReferralCode: code, matched: rs.length } });
+			}
+			return res.json({ success: true, data: rs });
+		});
+	});
+});
+
+// Admin-only: Inspect referrals by referral code (diagnostic)
+app.get('/api/referrals/by-code/:code', authenticateJWT, (req, res) => {
+  if (req.user.type !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Access denied' });
+  }
+  const code = String(req.params.code || '').trim();
+  if (!code) return res.status(400).json({ success: false, message: 'Missing code' });
+  const sql = `
+    SELECT r.*, c.companyName, c.companyEmail, c.phoneNumber
+    FROM referrals r
+    JOIN clients c ON r.client_id = c.id
+    WHERE r.referral_code = ?
+    ORDER BY r.referred_at DESC
+  `;
+  db.query(sql, [code], (err, rows) => {
+    if (err) return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+    res.json({ success: true, data: rows });
+  });
+});
+
+// Update commission status/amount for a referral
+app.put('/api/referrals/:id/commission', authenticateJWT, (req, res) => {
+	if (req.user.type !== 'admin') {
+		return res.status(403).json({ success: false, message: 'Access denied' });
+	}
+
+	const referralId = Number(req.params.id);
+	const { commission_status, commission_amount } = req.body || {};
+	if (!referralId || !commission_status) {
+		return res.status(400).json({ success: false, message: 'Missing required fields' });
+	}
+
+	const allowed = ['pending', 'approved', 'paid'];
+	if (!allowed.includes(commission_status)) {
+		return res.status(400).json({ success: false, message: 'Invalid commission status' });
+	}
+
+	const fields = ['commission_status = ?'];
+	const params = [commission_status, referralId];
+	if (commission_amount !== undefined && commission_amount !== null && commission_amount !== '') {
+		fields.unshift('commission_amount = ?');
+		params.unshift(Number(commission_amount));
+	}
+
+	const sql = `UPDATE referrals SET ${fields.join(', ')} WHERE id = ?`;
+	db.query(sql, params, (err) => {
+		if (err) {
+			console.error('Failed updating commission:', err);
+			return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+		}
+		res.json({ success: true });
+	});
+});
+
+// Admin-only: Backfill referrals for existing clients that have referralCode but no row in referrals
+app.post('/api/referrals/backfill', authenticateJWT, (req, res) => {
+  if (req.user.type !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Access denied' });
+  }
+
+  // Find clients that have referralCode set but no corresponding referrals row
+  const findSql = `
+    SELECT c.id AS client_id, c.referralCode AS referral_code, au.id AS admin_user_id
+    FROM clients c
+    JOIN sales_admin_referral_codes sarc ON sarc.referral_code = c.referralCode
+    JOIN admin_users au ON au.id = sarc.admin_user_id
+    LEFT JOIN referrals r ON r.client_id = c.id
+    WHERE c.referralCode IS NOT NULL AND c.referralCode <> '' AND r.id IS NULL
+  `;
+
+  db.query(findSql, (err, rows) => {
+    if (err) {
+      console.error('Backfill lookup failed:', err);
+      return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+    }
+    if (!rows || rows.length === 0) {
+      return res.json({ success: true, message: 'No missing referrals to backfill', inserted: 0 });
+    }
+
+    const insertSql = `
+      INSERT INTO referrals (admin_user_id, client_id, referral_code, status, is_trial, revenue_generated, commission_status)
+      VALUES (?, ?, ?, 'pending', 1, 0.00, 'pending')
+    `;
+
+    let inserted = 0;
+    const tasks = rows.map(r => new Promise((resolve) => {
+      db.query(insertSql, [r.admin_user_id, r.client_id, r.referral_code], (e) => {
+        if (!e) inserted += 1; else console.error('Insert backfill referral failed for client', r.client_id, e);
+        resolve(true);
+      });
+    }));
+
+    Promise.all(tasks).then(() => {
+      res.json({ success: true, message: 'Backfill complete', inserted, totalCandidates: rows.length });
+    }).catch((e) => {
+      console.error('Backfill unexpected error:', e);
+      res.status(500).json({ success: false, message: 'Backfill failed', error: e.message });
+    });
+  });
+});
+
+// Export referrals CSV for current sales admin
+app.get('/api/sales-persons/me/referrals/export', authenticateJWT, (req, res) => {
+	if (req.user.type !== 'admin') {
+		return res.status(403).json({ success: false, message: 'Access denied' });
+	}
+	
+	// Get the current user's referral code from sales_admin_referral_codes
+	const userId = req.user.id;
+	const findReferralCodeSql = 'SELECT referral_code FROM sales_admin_referral_codes WHERE admin_user_id = ? LIMIT 1';
+	db.query(findReferralCodeSql, [userId], (err, rows) => {
+		if (err) return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+		if (!rows || rows.length === 0) return res.json({ success: true, data: [] });
+		const referralCode = rows[0].referral_code;
+
+		const { q, plan, clientStatus, commissionStatus } = req.query;
+		const whereClauses = ['r.referral_code = ?'];
+		const params = [referralCode];
+		if (q) {
+			whereClauses.push('(c.companyName LIKE ? OR c.companyEmail LIKE ? OR c.contactPersonName LIKE ? OR r.referral_code LIKE ?)');
+			const like = `%${q}%`;
+			params.push(like, like, like, like);
+		}
+		if (plan && plan !== 'ALL') { whereClauses.push('r.plan_subscribed = ?'); params.push(plan); }
+		if (clientStatus === 'trial') { whereClauses.push('r.is_trial = 1'); }
+		else if (clientStatus === 'paid') { whereClauses.push('r.is_trial = 0'); }
+		if (commissionStatus && commissionStatus !== 'ALL') { whereClauses.push('r.commission_status = ?'); params.push(commissionStatus); }
+
+		const commissionPercent = Number(process.env.COMMISSION_PERCENT || 10);
+		const sql = `
+			SELECT 
+				r.referral_code,
+				c.companyName,
+				c.companyEmail,
+				c.phoneNumber,
+				r.plan_subscribed,
+				r.is_trial,
+				r.status,
+				r.referred_at,
+				r.conversion_date,
+				r.revenue_generated,
+				COALESCE(r.commission_amount, ROUND(r.revenue_generated * ${commissionPercent} / 100, 2)) AS commission,
+				r.commission_status
+			FROM referrals r
+			JOIN clients c ON r.client_id = c.id
+			WHERE ${whereClauses.join(' AND ')}
+			ORDER BY r.referred_at DESC
+		`;
+
+		db.query(sql, params, (err2, rows2) => {
+			if (err2) return res.status(500).json({ success: false, message: 'Database error', error: err2.message });
+			// Build CSV
+			const headers = [
+				'Referral Code','Client Name','Client Email','Client Phone','Plan','Trial',
+				'Conversion Status','Signup Date','Conversion Date','Revenue','Commission','Commission Status'
+			];
+			const lines = [headers.join(',')];
+			for (const r of rows2) {
+				lines.push([
+					r.referral_code,
+					r.companyName,
+					r.companyEmail,
+					r.phoneNumber || '',
+					r.plan_subscribed || '',
+					r.is_trial ? 'Yes' : 'No',
+					r.status === 'converted' ? 'Converted to Paid' : 'Still in Trial',
+					new Date(r.referred_at).toISOString(),
+					r.conversion_date ? new Date(r.conversion_date).toISOString() : '',
+					Number(r.revenue_generated || 0).toFixed(2),
+					Number(r.commission || 0).toFixed(2),
+					r.commission_status
+				].map(v => `${String(v).replace(/"/g,'""')}`).join(',')
+				);
+			}
+			const csv = lines.join('\n');
+			res.setHeader('Content-Type', 'text/csv');
+			res.setHeader('Content-Disposition', 'attachment; filename="referrals.csv"');
+			res.send(csv);
+		});
+	});
 });

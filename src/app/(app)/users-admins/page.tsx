@@ -111,7 +111,7 @@ export default function UsersAdminsPage() {
   const [roleBeingEdited, setRoleBeingEdited] = React.useState<AdminRole | null>(null);
   const [addAdminOpen, setAddAdminOpen] = React.useState(false);
   const [addAdminLoading, setAddAdminLoading] = React.useState(false);
-  const [addAdminForm, setAddAdminForm] = React.useState({ name: "", email: "", roleName: "", password: "", confirmPassword: "", status: "Active" });
+  const [addAdminForm, setAddAdminForm] = React.useState({ name: "", email: "", roleName: "", password: "", confirmPassword: "", status: "Active", referral_code: "" });
   const [createRoleOpen, setCreateRoleOpen] = React.useState(false);
   const [createRoleLoading, setCreateRoleLoading] = React.useState(false);
   const [createRoleForm, setCreateRoleForm] = React.useState({ name: "", description: "", permission_summary: "", status: "active" });
@@ -128,6 +128,8 @@ export default function UsersAdminsPage() {
     { key: 'view:agents', label: 'AI Agents' },
     { key: 'view:reports', label: 'Reports & Analytics' },
     { key: 'view:users_admins', label: 'Users & Admins' },
+    { key: 'view:sales_persons', label: 'Sales Persons' },
+    { key: 'view:track_referrals', label: 'Track Referrals' },
     { key: 'view:developer_tools', label: 'Developer Tools' },
     { key: 'view:test_lab', label: 'Test Lab' },
     { key: 'view:alerts_logs', label: 'Alerts & Logs' },
@@ -139,7 +141,7 @@ export default function UsersAdminsPage() {
   const [userDetailsLoading, setUserDetailsLoading] = React.useState(false);
   const [editUserOpen, setEditUserOpen] = React.useState(false);
   const [editUserLoading, setEditUserLoading] = React.useState(false);
-  const [editUserForm, setEditUserForm] = React.useState({ id: '', name: '', email: '', roleName: '', status: 'Active', password: '', confirmPassword: '' });
+  const [editUserForm, setEditUserForm] = React.useState({ id: '', name: '', email: '', roleName: '', status: 'Active', password: '', confirmPassword: '', referral_code: '' });
   const [resetPasswordOpen, setResetPasswordOpen] = React.useState(false);
   const [resetPasswordLoading, setResetPasswordLoading] = React.useState(false);
   const [resetPasswordForm, setResetPasswordForm] = React.useState({ id: '', name: '', oldPassword: '', newPassword: '', confirmPassword: '' });
@@ -337,7 +339,7 @@ export default function UsersAdminsPage() {
     }
     setAddAdminLoading(true);
     // Always send all required fields, remove confirmPassword, set lastLogin to null if not present
-    const payload = {
+    const payload: any = {
       name: addAdminForm.name,
       email: addAdminForm.email,
       roleName: addAdminForm.roleName,
@@ -345,6 +347,9 @@ export default function UsersAdminsPage() {
       status: addAdminForm.status,
       lastLogin: null
     };
+    if ((addAdminForm.roleName || '').toLowerCase().replace(/_/g, ' ') === 'sales admin') {
+      payload.referral_code = addAdminForm.referral_code || '';
+    }
     const res = await api.createAdminUser(payload);
     setAddAdminLoading(false);
     if (res.ok) {
@@ -361,7 +366,7 @@ export default function UsersAdminsPage() {
       };
       setAdminUsers((prev) => [newUser, ...prev]);
       setAddAdminOpen(false);
-      setAddAdminForm({ name: "", email: "", roleName: "", password: "", confirmPassword: "", status: "Active" });
+      setAddAdminForm({ name: "", email: "", roleName: "", password: "", confirmPassword: "", status: "Active", referral_code: "" });
       toast({ title: "Admin User Created", description: "The admin user was created successfully." });
     } else {
       toast({ title: "Create Failed", description: "Could not create admin user.", variant: "destructive" });
@@ -415,6 +420,7 @@ export default function UsersAdminsPage() {
         status: data.data.status || 'Active',
         password: '',
         confirmPassword: '',
+        referral_code: data.data.referral_code || ''
       });
     }
     setEditUserLoading(false);
@@ -435,6 +441,9 @@ export default function UsersAdminsPage() {
       roleName: rest.roleName,
       status: rest.status,
     };
+    if ((rest.roleName || '').toLowerCase().replace(/_/g, ' ') === 'sales admin') {
+      payload.referral_code = rest.referral_code || '';
+    }
     if (rest.password) payload.password = rest.password;
     const res = await api.updateAdminUser(editUserForm.id, payload);
     setEditUserLoading(false);
@@ -949,8 +958,8 @@ export default function UsersAdminsPage() {
       </AlertDialog>
 
       <Sheet open={addAdminOpen} onOpenChange={setAddAdminOpen}>
-        <SheetContent side="right">
-          <div className="py-6 px-4">
+        <SheetContent side="right" className="sm:max-w-md w-full flex flex-col">
+          <div className="py-6 px-4 overflow-y-auto max-h-[calc(100vh-80px)]">
             <h2 className="text-2xl font-bold mb-1">Add New Admin User</h2>
             <p className="text-muted-foreground mb-6">Fill in the details below to add a new admin user to the system.</p>
             <form onSubmit={handleAddAdminSubmit} className="space-y-5">
@@ -1011,6 +1020,20 @@ export default function UsersAdminsPage() {
                   showPasswordToggle
                 />
               </div>
+              {((addAdminForm.roleName || '').toLowerCase().replace(/_/g, ' ') === 'sales admin') && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Referral Code</label>
+                  <Input
+                    type="text"
+                    placeholder="Leave empty to auto-generate"
+                    value={addAdminForm.referral_code}
+                    onChange={e => setAddAdminForm(f => ({ ...f, referral_code: e.target.value }))}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    A unique referral code for this sales admin. Leave empty to auto-generate.
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium mb-1">Status</label>
                 <Select value={addAdminForm.status} onValueChange={val => setAddAdminForm(f => ({ ...f, status: val }))}>
@@ -1113,8 +1136,8 @@ export default function UsersAdminsPage() {
       </Sheet>
 
       <Sheet open={viewDetailsOpen} onOpenChange={setViewDetailsOpen}>
-        <SheetContent side="right">
-          <div className="py-6 px-4">
+        <SheetContent side="right" className="sm:max-w-md w-full flex flex-col">
+          <div className="py-6 px-4 overflow-y-auto max-h-[calc(100vh-80px)]">
             <h2 className="text-2xl font-bold mb-1">Admin User Details</h2>
             <p className="text-muted-foreground mb-6">View all details for this admin user.</p>
             {userDetailsLoading ? (
@@ -1198,6 +1221,20 @@ export default function UsersAdminsPage() {
                     disabled
                   />
                 </div>
+                {((editUserForm.roleName || '').toLowerCase().replace(/_/g, ' ') === 'sales admin') && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Referral Code</label>
+                    <Input
+                      type="text"
+                      placeholder="Leave empty to auto-generate"
+                      value={editUserForm.referral_code}
+                      onChange={e => setEditUserForm(f => ({ ...f, referral_code: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      A unique referral code for this sales admin. Leave empty to auto-generate.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium mb-1">Status</label>
                   <Select value={editUserForm.status} onValueChange={val => setEditUserForm(f => ({ ...f, status: val }))}>

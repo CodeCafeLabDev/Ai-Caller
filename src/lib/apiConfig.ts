@@ -118,6 +118,13 @@ export const API_ENDPOINTS = {
     BASE: '/api/agents',
   },
 
+  // Sales Persons / Referrals
+  SALES_PERSONS: {
+    BASE: '/api/sales-persons',
+    ME: '/api/sales-persons/me',
+    ME_REFERRALS: '/api/sales-persons/me/referrals',
+  },
+
   // Workspace Secrets
   WORKSPACE_SECRETS: {
     LOCAL: '/api/workspace-secrets/local',
