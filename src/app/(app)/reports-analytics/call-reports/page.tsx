@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -1129,22 +1128,126 @@ export default function CallReportsPage() {
                         {/* Call status */}
                         <div>
                           <div className="font-semibold text-base mb-2">Call status</div>
-                          <div className="text-sm text-gray-700">{conversationDetails?.analysis?.call_successful || 'Unknown'}</div>
+                          <div className="text-sm">
+                            {(() => {
+                              const status = conversationDetails?.analysis?.call_successful;
+                              if (status && typeof status === "string") {
+                                if (status.toLowerCase() === "success" || status.toLowerCase() === "successful") {
+                                  return (
+                                    <span className="inline-block rounded-full bg-green-100 text-green-700 px-3 py-1 text-xs font-semibold">
+                                      Success
+                                    </span>
+                                  );
+                                } else if (status.toLowerCase() === "failure" || status.toLowerCase() === "failed") {
+                                  return (
+                                    <span className="inline-block rounded-full bg-red-100 text-red-700 px-3 py-1 text-xs font-semibold">
+                                      Failure
+                                    </span>
+                                  );
+                                } else {
+                                  return (
+                                    <span className="inline-block rounded-full bg-gray-100 text-gray-700 px-3 py-1 text-xs font-semibold">
+                                      {status}
+                                    </span>
+                                  );
+                                }
+                              }
+                              return (
+                                <span className="inline-block rounded-full bg-gray-100 text-gray-400 px-3 py-1 text-xs font-semibold">
+                                  Unknown
+                                </span>
+                              );
+                            })()}
+                          </div>
                         </div>
                         {/* User ID */}
                         <div>
                           <div className="font-semibold text-base mb-2">User ID</div>
-                          <div className="text-sm text-gray-700 font-mono">{conversationDetails?.user_id || 'Unknown'}</div>
+                          <div>
+                            <span className="inline-block rounded-full bg-gray-100 text-gray-700 px-3 py-1 text-xs font-mono font-semibold">
+                              {conversationDetails?.user_id || 'Unknown'}
+                            </span>
+                          </div>
                         </div>
+                        {/* Sentiment & Quality Analysis */}
+                        {conversationDetails?.analysis?.evaluation_criteria_results && (
+                          <div className="mb-4">
+                            <div className="font-semibold text-base mb-2">Sentiment & Quality Analysis</div>
+                            {
+                              (() => {
+                                const criteria = conversationDetails.analysis.evaluation_criteria_results;
+                                const total = Object.keys(criteria).length;
+                                const successCount = Object.values(criteria).filter(
+                                  (val: any) =>
+                                    val.result && typeof val.result === "string" && val.result.toLowerCase() === "success"
+                                ).length;
+                                const percent = total > 0 ? Math.round((successCount / total) * 100) : 0;
+                                let label = "Not Interested";
+                                let labelClass = "bg-gray-100 text-gray-700";
+                                if (percent >= 80) {
+                                  label = "Highly Interested";
+                                  labelClass = "bg-green-100 text-green-700";
+                                } else if (percent >= 60) {
+                                  label = "Likely Interested";
+                                  labelClass = "bg-blue-100 text-blue-700";
+                                } else if (percent >= 40) {
+                                  label = "Interested";
+                                  labelClass = "bg-yellow-100 text-yellow-700";
+                                } else if (percent > 0) {
+                                  label = "Slightly Interested";
+                                  labelClass = "bg-orange-100 text-orange-700";
+                                }
+                                return (
+                                  <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-base font-bold rounded-full bg-gray-100 px-3 py-1">{percent}%</span>
+                                    <span className={`text-xs font-semibold rounded-full px-3 py-1 ${labelClass}`}>
+                                      {label}
+                                    </span>
+                                  </div>
+                                );
+                              })()
+                            }
+                          </div>
+                        )}
                         {/* Criteria evaluation */}
                         {conversationDetails?.analysis?.evaluation_criteria_results && (
                           <div>
                             <div className="font-semibold text-base mb-2">Criteria evaluation</div>
-                            <div className="text-sm text-gray-600 mb-3">0 of {Object.keys(conversationDetails.analysis.evaluation_criteria_results).length} successful</div>
+                            <div className="text-sm text-gray-600 mb-3">
+                              {
+                                (() => {
+                                  const criteria = conversationDetails.analysis.evaluation_criteria_results;
+                                  const total = Object.keys(criteria).length;
+                                  const successCount = Object.values(criteria).filter(
+                                    (val: any) =>
+                                      val.result && typeof val.result === "string" && val.result.toLowerCase() === "success"
+                                  ).length;
+                                  return `${successCount} of ${total} successful`;
+                                })()
+                              }
+                            </div>
                             {Object.entries(conversationDetails.analysis.evaluation_criteria_results).map(([key, val]: [string, any]) => (
                               <div key={key} className="mb-4">
                                 <div className="font-semibold text-sm text-gray-800 mb-1">{key.replace(/_/g, ' ')}</div>
-                                <div className="text-sm text-gray-700 mb-1">{val.value ?? 'unknown'}</div>
+                                <div className="text-sm text-gray-700 mb-1">
+                                  {(val.result && val.result.toLowerCase() === "success") ? (
+                                    <span className="inline-block rounded-full bg-green-100 text-green-700 px-3 py-1 text-xs font-semibold">
+                                      Success
+                                    </span>
+                                  ) : (val.result && val.result.toLowerCase() === "failure") ? (
+                                    <span className="inline-block rounded-full bg-red-100 text-red-700 px-3 py-1 text-xs font-semibold">
+                                      Failure
+                                    </span>
+                                  ) : val.result ? (
+                                    <span className="inline-block rounded-full bg-gray-100 text-gray-700 px-3 py-1 text-xs font-semibold">
+                                      {val.result}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-block rounded-full bg-gray-100 text-gray-400 px-3 py-1 text-xs font-semibold">
+                                      Unknown
+                                    </span>
+                                  )}
+                                </div>
                                 {val.rationale && <div className="text-xs text-gray-500 leading-relaxed">{val.rationale}</div>}
                               </div>
                             ))}
@@ -1266,19 +1369,26 @@ export default function CallReportsPage() {
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Credits (call)</div>
-                  <div className="text-sm text-gray-700">{conversationDetails?.metadata?.cost || 'N/A'}</div>
+                  <div className="text-sm text-gray-700">{conversationDetails?.metadata?.charging?.call_charge || 'N/A'}</div>
                   {conversationDetails?.metadata?.charging?.dev_discount && (
                     <div className="text-xs text-gray-500">Development discount applied</div>
                   )}
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 mb-1">Credits (LLM)</div>
-                  <div className="text-sm text-gray-700">{conversationDetails?.metadata?.charging?.llm_usage?.total_tokens || 'N/A'}</div>
+                  <div className="text-sm text-gray-700">{conversationDetails?.metadata?.charging?.llm_charge || 'N/A'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-gray-500 mb-1">LLM Cost</div>
                   <div className="text-sm text-gray-700">${conversationDetails?.metadata?.charging?.llm_price || '0.0000'} / min</div>
-                  <div className="text-sm text-gray-700">Total: ${conversationDetails?.metadata?.charging?.llm_cost || '0.0000'}</div>
+                  <div className="text-sm text-gray-700">Total: ${
+    (() => {
+      const llmCost = parseFloat(conversationDetails?.metadata?.charging?.llm_price || "0");
+      const llmCredits = parseFloat(conversationDetails?.metadata?.charging?.llm_charge || "0");
+      if (isNaN(llmCost) || isNaN(llmCredits)) return "0.0000";
+      return (llmCost * llmCredits).toFixed(4);
+    })()
+  }</div>
                 </div>
               </div>
               {/* Actions */}
