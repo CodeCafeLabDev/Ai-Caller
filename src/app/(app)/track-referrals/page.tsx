@@ -56,6 +56,9 @@ export default function TrackReferralsAdminPage() {
 	const [updatingId, setUpdatingId] = useState<number | null>(null);
 	const [commissionEdits, setCommissionEdits] = useState<Record<number, { status?: string; amount?: string }>>({});
 	const { toast } = useToast();
+	const [plans, setPlans] = useState<{ id: number; name: string }[]>([]);
+	const [clients, setClients] = useState<{ id: number; companyName: string }[]>([]);
+	const [selectedClientId, setSelectedClientId] = useState<number>(0);
 
 	useEffect(() => {
 		const fetchAll = async () => {
@@ -65,16 +68,43 @@ export default function TrackReferralsAdminPage() {
 				const meJson = await meRes.json();
 				setSalesPerson(meJson.data || null);
 
+				// Load dynamic filter options
+				try {
+					const [plansRes, clientsRes] = await Promise.all([
+						fetch(`${API_BASE_URL}/api/plans`, { credentials: 'include' }),
+						fetch(`${API_BASE_URL}/api/clients`, { credentials: 'include' })
+					]);
+					if (plansRes.ok) {
+						const pl = await plansRes.json();
+						setPlans(Array.isArray(pl.data) ? pl.data.map((p: any) => ({ id: p.id, name: p.name })) : []);
+					}
+					if (clientsRes.ok) {
+						const cl = await clientsRes.json();
+						setClients(Array.isArray(cl.data) ? cl.data.map((c: any) => ({ id: c.id, companyName: c.companyName })) : []);
+					}
+				} catch {}
+
 				if (meJson.data) {
 					const params = new URLSearchParams();
 					if (search) params.set('q', search);
 					if (plan) params.set('plan', plan);
 					if (clientStatus) params.set('clientStatus', clientStatus);
 					if (commissionStatus) params.set('commissionStatus', commissionStatus);
+					if (selectedClientId) params.set('clientId', String(selectedClientId));
 					const rfRes = await fetch(`${API_BASE_URL}/api/sales-persons/me/referrals?${params.toString()}`, { credentials: 'include' });
 					if (!rfRes.ok) throw new Error('Failed to load referrals');
 					const rfJson = await rfRes.json();
-					setReferrals(rfJson.data || []);
+					let data: Referral[] = rfJson.data || [];
+					if ((!data || data.length === 0) && meJson.data?.referral_code) {
+						try {
+							const byCode = await fetch(`${API_BASE_URL}/api/referrals/by-code/${encodeURIComponent(meJson.data.referral_code)}`, { credentials: 'include' });
+							if (byCode.ok) {
+								const bc = await byCode.json();
+								if (Array.isArray(bc.data)) data = bc.data;
+							}
+						} catch {}
+					}
+					setReferrals(data);
 				}
 			} catch (e: any) {
 				toast({ title: 'Error', description: e?.message || 'Failed to load data', variant: 'destructive' });
@@ -84,7 +114,7 @@ export default function TrackReferralsAdminPage() {
 		};
 		fetchAll();
 	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [search, plan, clientStatus, commissionStatus]);
+	}, [search, plan, clientStatus, commissionStatus, selectedClientId]);
 
 	const copyReferralCode = (code: string) => {
 		navigator.clipboard.writeText(code);
@@ -124,6 +154,7 @@ export default function TrackReferralsAdminPage() {
 			if (plan) params.set('plan', plan);
 			if (clientStatus) params.set('clientStatus', clientStatus);
 			if (commissionStatus) params.set('commissionStatus', commissionStatus);
+			if (selectedClientId) params.set('clientId', String(selectedClientId));
 			const res = await fetch(`${API_BASE_URL}/api/sales-persons/me/referrals/export?${params.toString()}`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Export failed');
 			const blob = await res.blob();
@@ -160,6 +191,7 @@ export default function TrackReferralsAdminPage() {
 			if (plan) params.set('plan', plan);
 			if (clientStatus) params.set('clientStatus', clientStatus);
 			if (commissionStatus) params.set('commissionStatus', commissionStatus);
+			if (selectedClientId) params.set('clientId', String(selectedClientId));
 			const rfRes = await fetch(`${API_BASE_URL}/api/sales-persons/me/referrals?${params.toString()}`, { credentials: 'include' });
 			const rfJson = await rfRes.json();
 			setReferrals(rfJson.data || []);
@@ -270,10 +302,18 @@ export default function TrackReferralsAdminPage() {
 									<SelectTrigger className="w-[180px]"><SelectValue placeholder="Plan" /></SelectTrigger>
 									<SelectContent>
 										<SelectItem value="ALL">All Plans</SelectItem>
-										<SelectItem value="Trial">Trial</SelectItem>
-										<SelectItem value="Basic">Basic</SelectItem>
-										<SelectItem value="Premium">Premium</SelectItem>
-										<SelectItem value="Enterprise">Enterprise</SelectItem>
+										{plans.map((p) => (
+											<SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<Select value={String(selectedClientId || 'ALL')} onValueChange={(v) => setSelectedClientId(v === 'ALL' ? 0 : Number(v))}>
+									<SelectTrigger className="w-[200px]"><SelectValue placeholder="Client" /></SelectTrigger>
+									<SelectContent>
+										<SelectItem value="ALL">All Clients</SelectItem>
+										{clients.map((c) => (
+											<SelectItem key={c.id} value={String(c.id)}>{c.companyName}</SelectItem>
+										))}
 									</SelectContent>
 								</Select>
 								<Select value={clientStatus || 'ALL'} onValueChange={(v) => setClientStatus(v === 'ALL' ? '' : v)}>
@@ -303,46 +343,48 @@ export default function TrackReferralsAdminPage() {
 									<p className="text-muted-foreground">Share your referral code with potential clients to start earning referrals.</p>
 								</div>
 							) : (
-								<Table>
+								<Table className="w-full table-fixed text-sm">
 									<TableHeader>
 										<TableRow>
-											<TableHead>Referral Code</TableHead>
-											<TableHead>Client Name</TableHead>
-											<TableHead>Contact</TableHead>
-											<TableHead>Plan</TableHead>
-											<TableHead>Trial</TableHead>
-											<TableHead>Conversion</TableHead>
-											<TableHead>Signup</TableHead>
-											<TableHead>Conversion Date</TableHead>
-											<TableHead>Revenue</TableHead>
-											<TableHead>Commission</TableHead>
-											<TableHead>Commission Status</TableHead>
-											<TableHead>Actions</TableHead>
+											<TableHead className="w-[108px] px-3 py-2">Referral Code</TableHead>
+											<TableHead className="w-[136px] px-3 py-2">Client Name</TableHead>
+											<TableHead className="w-[192px] px-3 py-2">Contact</TableHead>
+											<TableHead className="w-[88px] px-3 py-2">Plan</TableHead>
+											<TableHead className="w-[68px] px-3 py-2">Trial</TableHead>
+											<TableHead className="w-[126px] px-3 py-2">Conversion</TableHead>
+											<TableHead className="w-[108px] px-3 py-2">Signup</TableHead>
+											<TableHead className="w-[128px] px-3 py-2">Conversion Date</TableHead>
+											<TableHead className="w-[96px] px-3 py-2">Revenue</TableHead>
+											<TableHead className="w-[108px] px-3 py-2">Commission</TableHead>
+											<TableHead className="w-[132px] px-3 py-2">Commission Status</TableHead>
+											<TableHead className="w-[176px] px-3 py-2">Actions</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
 										{referrals.map((ref) => (
 											<TableRow key={ref.id}>
-												<TableCell className="font-mono text-xs">{ref.referral_code}</TableCell>
-												<TableCell className="font-medium">{ref.companyName}</TableCell>
-												<TableCell>
+												<TableCell className="font-mono text-xs truncate px-3 py-2" title={ref.referral_code}>{ref.referral_code}</TableCell>
+												<TableCell className="font-medium truncate px-3 py-2" title={ref.companyName}>
+													<a href={`/clients/details-usage?clientId=${ref.client_id}`} className="underline-offset-2 hover:underline">{ref.companyName}</a>
+												</TableCell>
+												<TableCell className="whitespace-normal px-3 py-2">
 													<div className="flex flex-col">
-														<span>{ref.companyEmail}</span>
-														<span className="text-muted-foreground text-xs">{ref.phoneNumber}</span>
+														<span className="truncate" title={ref.companyEmail}>{ref.companyEmail}</span>
+														<span className="text-muted-foreground text-xs truncate" title={ref.phoneNumber}>{ref.phoneNumber}</span>
 													</div>
 												</TableCell>
-												<TableCell>{ref.plan_subscribed || '-'}</TableCell>
-												<TableCell>{(ref.is_trial ? 1 : 0) === 1 ? <Badge className="bg-yellow-500 hover:bg-yellow-600">Yes</Badge> : <Badge>No</Badge>}</TableCell>
-												<TableCell>
+												<TableCell className="px-3 py-2">{ref.plan_subscribed || '-'}</TableCell>
+												<TableCell className="px-3 py-2">{(ref.is_trial ? 1 : 0) === 1 ? <Badge className="bg-yellow-500 hover:bg-yellow-600">Yes</Badge> : <Badge>No</Badge>}</TableCell>
+												<TableCell className="px-3 py-2">
 													<Badge variant={getStatusBadgeVariant(ref.status)}>{ref.status === 'converted' ? 'Converted to Paid' : 'Still in Trial'}</Badge>
 												</TableCell>
-												<TableCell>{new Date(ref.referred_at).toLocaleDateString()}</TableCell>
-												<TableCell>{ref.conversion_date ? new Date(ref.conversion_date).toLocaleDateString() : '-'}</TableCell>
-												<TableCell>₹ {Number(ref.revenue_generated || 0).toFixed(2)}</TableCell>
-												<TableCell>₹ {Number(ref.commission_calculated || 0).toFixed(2)}</TableCell>
-												<TableCell>{getCommissionBadge(ref.commission_status)}</TableCell>
-												<TableCell>
-													<div className="flex items-center gap-2">
+												<TableCell className="px-3 py-2">{new Date(ref.referred_at).toLocaleDateString()}</TableCell>
+												<TableCell className="px-3 py-2">{ref.conversion_date ? new Date(ref.conversion_date).toLocaleDateString() : '-'}</TableCell>
+												<TableCell className="px-3 py-2">₹ {Number(ref.revenue_generated || 0).toFixed(2)}</TableCell>
+												<TableCell className="px-3 py-2">₹ {Number(ref.commission_calculated || 0).toFixed(2)}</TableCell>
+												<TableCell className="px-3 py-2">{getCommissionBadge(ref.commission_status)}</TableCell>
+												<TableCell className="px-3 py-2">
+													<div className="flex flex-wrap items-center gap-2">
 														<Select value={commissionEdits[ref.id]?.status ?? ''} onValueChange={(v) => setCommissionEdits(prev => ({ ...prev, [ref.id]: { ...(prev[ref.id]||{}), status: v } }))}>
 															<SelectTrigger className="w-[140px]"><SelectValue placeholder="Set status" /></SelectTrigger>
 															<SelectContent>

@@ -16,6 +16,8 @@ const { execFile } = require('child_process');
 console.log("🟡 Starting backend server...");
 
 const app = express();
+// Trust first proxy so secure cookies work correctly behind tunnels/proxies
+app.set('trust proxy', 1);
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -23,6 +25,7 @@ app.use(cors({
     
     const allowedOrigins = [
     'http://localhost:3000',
+    'http://127.0.0.1:3000',
     'https://aicaller.codecafelab.in',
       'https://2nq68jpg-3000.inc1.devtunnels.ms'
     ];
@@ -59,8 +62,9 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-very-secret-key'; // Use env 
 // DB config
 const db = mysql.createConnection({
   host: process.env.DB_HOST || "localhost",
-  user: process.env.DB_USER || "root"||"aiuser",
-  password: process.env.DB_PASSWORD || ""||"AiCaller@1",
+  // Use a single, sane fallback instead of chained ORs
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
   database: process.env.DB_NAME || "ai-caller",
   multipleStatements: true // Allow multiple statements
 });
@@ -3230,29 +3234,16 @@ app.post('/api/login', async (req, res) => {
           JWT_SECRET,
           { expiresIn: '1d' }
         );
-
-        // Set cookie for both same-origin and cross-origin scenarios
-        const isSecure = req.headers.origin && req.headers.origin.startsWith('https://');
-        const isLocalhost = req.headers.origin && req.headers.origin.includes('localhost');
-        
-        if (isLocalhost) {
-          // For localhost, use lax sameSite
+        const isDev = process.env.NODE_ENV !== 'production';
+        const useLax = isDev; // Always lax/ insecure in development for localhost workflows
         res.cookie('token', token, {
           httpOnly: true,
-          sameSite: 'lax',
+          sameSite: useLax ? 'lax' : 'none',
+          secure: useLax ? false : true,
+          domain: useLax ? 'localhost' : undefined,
           path: '/',
           maxAge: 24*60*60*1000
         });
-        } else {
-          // For cross-origin (ngrok, server), use none sameSite with secure
-          res.cookie('token', token, {
-            httpOnly: true,
-            sameSite: 'none',
-            secure: true,
-            path: '/',
-            maxAge: 24*60*60*1000
-          });
-        }
 
         return res.json({ 
           success: true, 
@@ -3665,26 +3656,16 @@ app.post('/api/client-admin/login', async (req, res) => {
       );
 
       // Set cookie for both same-origin and cross-origin scenarios
-      const isLocalhost = req.headers.origin && req.headers.origin.includes('localhost');
-      
-      if (isLocalhost) {
-        // For localhost, use lax sameSite
+      const isDev = process.env.NODE_ENV !== 'production';
+      const useLax = isDev; // Always lax/ insecure in development for localhost workflows
       res.cookie('token', token, {
         httpOnly: true,
-        sameSite: 'lax',
+        sameSite: useLax ? 'lax' : 'none',
+        secure: useLax ? false : true,
+        domain: useLax ? 'localhost' : undefined,
         path: '/',
         maxAge: 24*60*60*1000
       });
-      } else {
-        // For cross-origin (ngrok, server), use none sameSite with secure
-        res.cookie('token', token, {
-          httpOnly: true,
-          sameSite: 'none',
-          secure: true,
-          path: '/',
-          maxAge: 24*60*60*1000
-        });
-      }
 
       res.json({ 
         success: true, 
@@ -5202,16 +5183,24 @@ app.get('/api/sales-persons/me/referrals', authenticateJWT, (req, res) => {
 	}
 
 	const userId = req.user.id;
-	if (!userId) {
+	const userEmail = req.user.email;
+	if (!userId && !userEmail) {
 		return res.status(400).json({ success: false, message: 'Missing user ID' });
 	}
 
 	const { q, plan, clientStatus, commissionStatus } = req.query;
+	const clientIdFilter = Number(req.query.clientId || 0);
 	const commissionPercent = Number(process.env.COMMISSION_PERCENT || 10);
 
-	// Get the current user's referral code from sales_admin_referral_codes using user ID
-	const fbSql = 'SELECT sarc.referral_code FROM sales_admin_referral_codes sarc WHERE sarc.admin_user_id = ? LIMIT 1';
-	db.query(fbSql, [userId], (fbErr, fbRows) => {
+	// Get the current user's referral code. Prefer matching by email to avoid id mismatches across envs.
+	const fbSql = `
+		SELECT sarc.referral_code
+		FROM sales_admin_referral_codes sarc
+		JOIN admin_users au ON au.id = sarc.admin_user_id
+		WHERE ${userEmail ? 'au.email = ?' : 'sarc.admin_user_id = ?'}
+		LIMIT 1
+	`;
+	db.query(fbSql, [userEmail ? userEmail : userId], (fbErr, fbRows) => {
 		if (fbErr) {
 			console.error('Error fetching referral code for current admin:', fbErr);
 			return res.status(500).json({ success: false, message: 'Database error', error: fbErr.message });
@@ -5225,6 +5214,7 @@ app.get('/api/sales-persons/me/referrals', authenticateJWT, (req, res) => {
 		if (plan && plan !== 'ALL') { whereClauses.push('r.plan_subscribed = ?'); params.push(plan); }
 		if (clientStatus === 'trial') { whereClauses.push('r.is_trial = 1'); }
 		else if (clientStatus === 'paid') { whereClauses.push('r.is_trial = 0'); }
+		if (!Number.isNaN(clientIdFilter) && clientIdFilter > 0) { whereClauses.push('r.client_id = ?'); params.push(clientIdFilter); }
 		if (commissionStatus && commissionStatus !== 'ALL') { whereClauses.push('r.commission_status = ?'); params.push(commissionStatus); }
 
 		const sql = `
@@ -5232,7 +5222,7 @@ app.get('/api/sales-persons/me/referrals', authenticateJWT, (req, res) => {
 				r.*, c.companyName, c.companyEmail, c.contactPersonName, c.phoneNumber, c.created_at as client_created_at,
 				CASE WHEN r.commission_amount IS NOT NULL THEN r.commission_amount ELSE ROUND(r.revenue_generated * ${commissionPercent} / 100, 2) END AS commission_calculated
 			FROM referrals r
-			JOIN clients c ON r.client_id = c.id
+			LEFT JOIN clients c ON r.client_id = c.id
 			WHERE ${whereClauses.join(' AND ')}
 			ORDER BY r.referred_at DESC
 		`;
@@ -5242,8 +5232,9 @@ app.get('/api/sales-persons/me/referrals', authenticateJWT, (req, res) => {
 				return res.status(500).json({ success: false, message: 'Database error', error: e2.message });
 			}
 			if (String(req.query.debug || '') === '1') {
-				return res.json({ success: true, data: rs, debug: { resolvedReferralCode: code, matched: rs.length } });
+				return res.json({ success: true, data: rs, debug: { resolvedReferralCode: code, matched: rs.length, where: whereClauses, params } });
 			}
+			console.log('[GET /api/sales-persons/me/referrals]', { userId, code, matched: (rs||[]).length });
 			return res.json({ success: true, data: rs });
 		});
 	});
@@ -5348,6 +5339,29 @@ app.post('/api/referrals/backfill', authenticateJWT, (req, res) => {
       res.status(500).json({ success: false, message: 'Backfill failed', error: e.message });
     });
   });
+});
+
+// Admin-only: Normalize referrals.admin_user_id from sales_admin_referral_codes by referral_code
+app.post('/api/referrals/normalize-admin', authenticateJWT, (req, res) => {
+	if (req.user.type !== 'admin') {
+		return res.status(403).json({ success: false, message: 'Access denied' });
+	}
+
+	// Update referrals.admin_user_id to the value mapped by referral_code
+	const sql = `
+		UPDATE referrals r
+		JOIN sales_admin_referral_codes s ON s.referral_code = r.referral_code
+		SET r.admin_user_id = s.admin_user_id
+		WHERE r.admin_user_id <> s.admin_user_id
+	`;
+
+	db.query(sql, (err, result) => {
+		if (err) {
+			console.error('Normalize admin_user_id failed:', err);
+			return res.status(500).json({ success: false, message: 'Database error', error: err.message });
+		}
+		res.json({ success: true, updated: result.affectedRows });
+	});
 });
 
 // Export referrals CSV for current sales admin
