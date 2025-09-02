@@ -25,6 +25,8 @@ import {
 import { AddClientForm, type AddClientFormValues } from '@/components/clients/add-client-form';
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
+import { tokenStorage } from "@/lib/tokenStorage";
+import { api } from "@/lib/apiConfig";
 
 const notificationItems = [
   { text: "Failed call reports", icon: PhoneOff, count: 0, href: "/reports-analytics/failed-call-reports" }, // Updated Icon and added href
@@ -42,7 +44,17 @@ export function AppHeader() {
 
   const totalNotifications = notificationItems.reduce((sum, item) => sum + item.count, 0);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Call logout API
+      await api.logout();
+    } catch (error) {
+      console.warn('Logout API call failed:', error);
+    }
+    
+    // Clear the stored token
+    tokenStorage.removeToken();
+    
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",

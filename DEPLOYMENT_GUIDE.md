@@ -57,7 +57,7 @@ FRONTEND_URL=http://localhost:3000
 #### Backend Server
 ```bash
 # Start the backend server
-node server.js
+cd backend && node server.js
 ```
 
 #### Frontend Development Server

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Logo } from '@/components/logo';
 import { useToast } from "@/components/ui/use-toast";
+import { tokenStorage } from "@/lib/tokenStorage";
 import { useUser } from '@/lib/utils';
 import { api } from '@/lib/apiConfig';
 
@@ -38,12 +39,21 @@ export function ClientAdminHeader() {
   const { user, setUser } = useUser();
   const [trialBanner, setTrialBanner] = React.useState<{ message: string; critical?: boolean } | null>(null);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Call logout API
+      await api.logout();
+    } catch (error) {
+      console.warn('Logout API call failed:', error);
+    }
+    
+    // Clear the stored token
+    tokenStorage.removeToken();
+    
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-    // In a real app, this would also clear session/token
     router.push('/signin'); 
   };
 

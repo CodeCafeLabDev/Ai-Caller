@@ -1,22 +1,19 @@
 // API Configuration for AI Caller Project
 // This file centralizes all API endpoints and base URLs
 
-// Environment-based configuration
-const isDevelopment = process.env.NODE_ENV === 'development';
-const isProduction = process.env.NODE_ENV === 'production';
+// Import centralized configuration
+import { config, urls } from './config/urls';
 
-// Base URLs
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || (isDevelopment 
-  ? (typeof window !== 'undefined' && (window.location.hostname.includes('ngrok') || window.location.hostname.includes('devtunnels') || window.location.hostname.includes('tunnel'))
-     ? 'http://localhost:5000'  // Always use localhost:5000 for backend, even with ngrok frontend
-     : 'http://localhost:5000')
-  : 'https://aicaller.codecafelab.in');
-// Use NEXT_PUBLIC_API_BASE_URL if set, otherwise fallback to localhost:5000 (dev) or prod URL
-// For ngrok/tunnel development, always use localhost:5000 for backend API calls
+// Environment-based configuration
+const isDevelopment = config.env.isDevelopment;
+const isProduction = config.env.isProduction;
+
+// Base URLs from centralized config
+export const API_BASE_URL = config.backend.base;
 
 export const EXTERNAL_APIS = {
   ELEVENLABS: {
-    BASE_URL: 'https://api.elevenlabs.io/v1',
+    BASE_URL: config.elevenlabs.base,
     ENDPOINTS: {
       MODELS: '/models',
       USER_SUBSCRIPTION: '/user/subscription',
@@ -30,8 +27,8 @@ export const EXTERNAL_APIS = {
 export const API_ENDPOINTS = {
   // Authentication
   AUTH: {
-    LOGIN: '/api/login',
-    LOGOUT: '/api/logout',
+    LOGIN: '/api/auth/login',
+    LOGOUT: '/api/auth/logout',
   },
 
   // Admin Users
@@ -55,8 +52,8 @@ export const API_ENDPOINTS = {
 
   // User Roles
   USER_ROLES: {
-    BASE: '/api/user-roles',
-    BY_ID: (roleId: string) => `/api/user-roles/${roleId}`,
+    BASE: '/api/users/roles',
+    BY_ID: (roleId: string) => `/api/users/roles/${roleId}`,
   },
 
   // Client Users
@@ -147,12 +144,29 @@ export const buildExternalApiUrl = (baseUrl: string, endpoint: string): string =
   return `${baseUrl}${endpoint}`;
 };
 
+// Import token storage
+import { tokenStorage } from './tokenStorage';
+
 // Default fetch options
 export const defaultFetchOptions = {
   credentials: 'include' as const,
   headers: {
     'Content-Type': 'application/json',
   },
+};
+
+// Function to get headers with auth token
+const getAuthHeaders = () => {
+  const token = tokenStorage.getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
 };
 
 // Debug logging for API configuration
@@ -173,6 +187,7 @@ export const apiUtils = {
       ...defaultFetchOptions,
       ...options,
       method: 'GET',
+      headers: getAuthHeaders(),
     });
     return response;
   },
@@ -184,6 +199,7 @@ export const apiUtils = {
       ...defaultFetchOptions,
       ...options,
       method: 'POST',
+      headers: getAuthHeaders(),
       body: data ? JSON.stringify(data) : undefined,
     });
     return response;
@@ -196,6 +212,7 @@ export const apiUtils = {
       ...defaultFetchOptions,
       ...options,
       method: 'PUT',
+      headers: getAuthHeaders(),
       body: data ? JSON.stringify(data) : undefined,
     });
     return response;
@@ -208,6 +225,7 @@ export const apiUtils = {
       ...defaultFetchOptions,
       ...options,
       method: 'DELETE',
+      headers: getAuthHeaders(),
     });
     return response;
   },
@@ -215,14 +233,15 @@ export const apiUtils = {
   // File upload
   upload: async (endpoint: string, formData: FormData, options: RequestInit = {}) => {
     const url = buildApiUrl(endpoint);
+    const authHeaders = getAuthHeaders();
+    delete authHeaders['Content-Type']; // Remove Content-Type for FormData
+    
     const response = await fetch(url, {
       ...defaultFetchOptions,
       ...options,
       method: 'POST',
       body: formData,
-      headers: {
-        // Don't set Content-Type for FormData, let browser set it with boundary
-      },
+      headers: authHeaders,
     });
     return response;
   },
@@ -264,6 +283,7 @@ export const apiUtils = {
 export const api = {
   // Auth
   login: (data: any) => apiUtils.post(API_ENDPOINTS.AUTH.LOGIN, data),
+  logout: () => apiUtils.post(API_ENDPOINTS.AUTH.LOGOUT),
   
   // Admin Users
   getCurrentUser: () => apiUtils.get(API_ENDPOINTS.ADMIN_USERS.ME),

@@ -98,7 +98,7 @@ export default function SupportedLanguagesPage() {
   };
 
   const filtered = languages
-    .filter(lang => lang.name.toLowerCase().includes(search.toLowerCase()) || lang.code.toLowerCase().includes(search.toLowerCase()))
+    .filter(lang => lang && lang.name && lang.code && (lang.name.toLowerCase().includes(search.toLowerCase()) || lang.code.toLowerCase().includes(search.toLowerCase())))
     .sort((a, b) => {
       if (sort === "alphabetical") return a.name.localeCompare(b.name);
       return b.id - a.id; // latest by id
@@ -106,7 +106,7 @@ export default function SupportedLanguagesPage() {
 
   // Filter dropdown options by dropdownSearch
   const filteredDropdownOptions = sortedLanguagesData.filter(opt =>
-    !languages.some(l => l.code === opt.code) &&
+    !languages.some(l => l && l.code === opt.code) &&
     (opt.name.toLowerCase().includes(dropdownSearch.toLowerCase()) || opt.code.toLowerCase().includes(dropdownSearch.toLowerCase()))
   );
 

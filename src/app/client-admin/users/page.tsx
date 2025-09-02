@@ -35,6 +35,7 @@ import { AddClientUserForm, type AddClientUserFormValues } from "@/components/cl
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/apiConfig";
 import { useUser } from '@/lib/utils';
+import { tokenStorage } from '@/lib/tokenStorage';
 
 // Mock data for client users
 type ClientUser = {
@@ -75,22 +76,61 @@ export default function ClientUsersPage() {
   const [userRoles, setUserRoles] = React.useState<{ id: number; role_name: string; description: string; permissions_summary: string; status: string }[]>([]);
 
   React.useEffect(() => {
+    // Check authentication before making API call
+    const token = tokenStorage.getToken();
+    if (!token) {
+      console.warn('No authentication token found for getUserRoles');
+      return;
+    }
+
     api.getUserRoles()
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) {
+          if (res.status === 401) {
+            console.warn('Authentication failed for getUserRoles. Token may be expired.');
+            return;
+          }
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      })
       .then(data => {
-        if (data.success) setUserRoles(data.data || []);
+        if (data && data.success) setUserRoles(data.data || []);
+      })
+      .catch(error => {
+        console.error('Error fetching user roles:', error);
       });
   }, []);
 
   React.useEffect(() => {
     if (!user?.userId) return;
+    
+    // Check authentication before making API call
+    const token = tokenStorage.getToken();
+    if (!token) {
+      console.warn('No authentication token found for getClientUsers');
+      return;
+    }
+
     api.getClientUsers()
-      .then(res => res.json())
-      .then(data => {
-        console.log("Fetched users in client admin panel:", data.data);
-        setClientUsers(data.data || []);
+      .then(res => {
+        if (!res.ok) {
+          if (res.status === 401) {
+            console.warn('Authentication failed for getClientUsers. Token may be expired.');
+            return;
+          }
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
       })
-      .catch(() => {
+      .then(data => {
+        if (data) {
+          console.log("Fetched users in client admin panel:", data.data);
+          setClientUsers(data.data || []);
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching client users:', error);
         toast({ title: "Error", description: "Failed to fetch client users", variant: "destructive" });
       });
   }, [toast, user?.userId]);

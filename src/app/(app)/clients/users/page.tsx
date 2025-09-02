@@ -151,24 +151,59 @@ export default function ClientUsersPage() {
   const [resetPassword, setResetPassword] = useState("");
   const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   React.useEffect(() => {
-    // Fetch users from backend
-    api.getClientUsers()
-      .then(res => res.json())
-      .then(data => setUsers(data.data || []));
-    // Fetch user roles from backend
-    api.getUserRoles()
-      .then(res => res.json())
-      .then(data => setUserRoles(data.data || []));
-    api.getClients()
-      .then(res => res.json())
-      .then(data => setClients(data.data || []));
-    api.getPlans()
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) setPlans(data.data);
-      });
+    // Fetch data directly without authentication checks - let the global auth handle it
+    Promise.all([
+      api.getClientUsers(),
+      api.getUserRoles(),
+      api.getClients(),
+      api.getPlans()
+    ]).then(([usersRes, rolesRes, clientsRes, plansRes]) => {
+      // Handle users response
+      if (usersRes.ok) {
+        usersRes.json().then(data => {
+          if (data) setUsers(data.data || []);
+        }).catch(error => {
+          console.error('Error fetching client users:', error);
+          toast({ title: 'Error', description: 'Failed to fetch users', variant: 'destructive' });
+        });
+      }
+
+      // Handle roles response
+      if (rolesRes.ok) {
+        rolesRes.json().then(data => {
+          console.log('User roles response:', data);
+          if (data) setUserRoles(data.data || []);
+        }).catch(error => {
+          console.error('Error fetching user roles:', error);
+        });
+      }
+
+      // Handle clients response
+      if (clientsRes.ok) {
+        clientsRes.json().then(data => {
+          setClients(data.data || []);
+        }).catch(error => {
+          console.error('Error fetching clients:', error);
+        });
+      }
+
+      // Handle plans response
+      if (plansRes.ok) {
+        plansRes.json().then(data => {
+          if (data.success) setPlans(data.data);
+        }).catch(error => {
+          console.error('Error fetching plans:', error);
+        });
+      }
+
+      setIsLoading(false);
+    }).catch(error => {
+      console.error('Error in Promise.all:', error);
+      setIsLoading(false);
+    });
   }, []);
 
   const handleUserAction = async (action: string, userId: number, userName: string) => {
@@ -359,6 +394,17 @@ export default function ClientUsersPage() {
       toast({ title: "Error", description: `Error updating role status.`, variant: "destructive" });
     }
   };
+
+  // Show loading while fetching data
+  if (users.length === 0 && !isLoading) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="text-center">
+          <p>Loading client users...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 space-y-6">

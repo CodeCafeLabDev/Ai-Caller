@@ -21,6 +21,7 @@ import { api } from '@/lib/apiConfig';
 import { useRouter } from "next/navigation";
 import { Suspense } from "react";
 import { elevenLabsApi } from '@/lib/elevenlabsApi';
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // Metadata should be defined in a server component or route handler if possible.
 // For client components, the nearest server layout/page handles overall metadata.
@@ -206,9 +207,9 @@ function ClientDetailsUsagePageInner() {
     callSuccessRate: client.callSuccessRate || "N/A",
     renewalDate: client.renewalDate || new Date().toISOString(),
     billingCycle: client.billingCycle || "Monthly",
-    topCampaigns: client.topCampaigns || [],
-    internalNotes: client.internalNotes || [],
-    systemLogs: client.systemLogs || [],
+    topCampaigns: Array.isArray(client.topCampaigns) ? client.topCampaigns : [],
+    internalNotes: Array.isArray(client.internalNotes) ? client.internalNotes : [],
+    systemLogs: Array.isArray(client.systemLogs) ? client.systemLogs : [],
   };
 
   return (
@@ -314,10 +315,12 @@ function ClientDetailsUsagePageInner() {
           <Card>
             <CardHeader><CardTitle>Agent Analytics (last 30 days)</CardTitle></CardHeader>
             <CardContent>
-              <AgentAnalytics
-                clientId={String(displayClient.clientId)}
-                onTotalsChange={handleTotalsChange}
-              />
+              <ErrorBoundary>
+                <AgentAnalytics
+                  clientId={String(displayClient.clientId)}
+                  onTotalsChange={handleTotalsChange}
+                />
+              </ErrorBoundary>
             </CardContent>
           </Card>
         </TabsContent>
@@ -331,11 +334,11 @@ function ClientDetailsUsagePageInner() {
             <CardContent className="space-y-4">
               {assignedPlans.length > 0 ? (
                 <div className="space-y-3">
-                  {assignedPlans.map((ap: any) => {
+                  {assignedPlans.map((ap: any, index: number) => {
                     const isEnabled = ap.isEnabled === 1 || ap.isEnabled === true;
                     const isActive = ap.isActive === 1 || ap.isActive === true;
                     return (
-                      <div key={ap.assignmentId} className="flex items-center justify-between p-3 border rounded-md">
+                      <div key={ap.assignmentId || `plan-${index}`} className="flex items-center justify-between p-3 border rounded-md">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{ap.planName}</span>
@@ -403,22 +406,26 @@ function ClientDetailsUsagePageInner() {
               />
               <Button onClick={handleSaveNote} className="mt-3">Save Note</Button>
               <div className="mt-4 space-y-3">
-                {displayClient.internalNotes.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((note: any) => (
-                  <div key={note.id} className="p-3 border rounded-md bg-muted/50">
-                    <p className="text-sm">{note.text}</p>
-                    <p className="text-xs text-muted-foreground mt-1">By {note.user} on {new Date(note.date).toLocaleDateString()}</p>
-                  </div>
-                ))}
+                {Array.isArray(displayClient.internalNotes) && displayClient.internalNotes.length > 0 ? (
+                  (Array.isArray(displayClient.internalNotes) ? displayClient.internalNotes : []).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((note: any, index: number) => (
+                    <div key={note.id || `note-${index}`} className="p-3 border rounded-md bg-muted/50">
+                      <p className="text-sm">{note.text}</p>
+                      <p className="text-xs text-muted-foreground mt-1">By {note.user} on {new Date(note.date).toLocaleDateString()}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground">No internal notes available for this client.</p>
+                )}
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle>System Logs</CardTitle></CardHeader>
             <CardContent>
-              {displayClient.systemLogs.length > 0 ? (
+              {Array.isArray(displayClient.systemLogs) && displayClient.systemLogs.length > 0 ? (
                 <ul className="space-y-2 text-sm">
-                  {displayClient.systemLogs.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log: any) => (
-                    <li key={log.id} className="p-2 border rounded-md">
+                  {displayClient.systemLogs.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log: any, index: number) => (
+                    <li key={log.id || `log-${index}`} className="p-2 border rounded-md">
                       <span className="font-medium">{new Date(log.date).toLocaleString()}:</span> {log.event}
                     </li>
                   ))}
@@ -454,13 +461,27 @@ function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTota
       setLoading(true);
       try {
         const res = await api.getAgentsAnalytics(clientId, 30);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
         const j = await res.json();
         if (mounted) {
-          if (j?.success) setData(j.data);
-          else setError(j?.message || 'Failed to fetch');
+          if (j?.success && j.data) {
+            // Ensure the data structure is properly initialized
+            const safeData = {
+              agents: Array.isArray(j.data.agents) ? j.data.agents : [],
+              totals: j.data.totals || { totalCalls: 0, successCount: 0, successRate: 0, totalDurationSecs: 0 }
+            };
+            setData(safeData);
+          } else {
+            setError(j?.message || 'Failed to fetch analytics data');
+          }
         }
       } catch (e: any) {
-        if (mounted) setError(String(e?.message || e));
+        if (mounted) {
+          console.error('Error loading agents analytics:', e);
+          setError(String(e?.message || e || 'Failed to load analytics'));
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -536,19 +557,37 @@ function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTota
         // even if backend has data, ensure zero-activity agents are present
         try {
           const agentIdSet = new Set((data.agents || []).map((a: any) => String(a.agentId || a.agent_id)));
-          const missing = allClientAgents.filter((a: any) => !agentIdSet.has(String(a.agent_id))).map((a: any) => ({ agentId: String(a.agent_id), agentName: a.name || a.agent_name || String(a.agent_id), totalCalls: 0, successCount: 0, successRate: 0, totalDurationSecs: 0, avgDurationSecs: 0 }));
+          const missing = allClientAgents.filter((a: any) => !agentIdSet.has(String(a.agent_id))).map((a: any) => ({ 
+          agentId: String(a.agent_id), 
+          agentName: a.name || a.agent_name || String(a.agent_id), 
+          totalCalls: 0, 
+          successCount: 0, 
+          successRate: 0, 
+          totalDurationSecs: 0, 
+          avgDurationSecs: 0 
+        }));
           if (missing.length > 0) {
             const mergedAgents = [...(data.agents || []), ...missing];
-            const totals = mergedAgents.reduce((acc: any, x: any) => { acc.totalCalls += x.totalCalls || 0; acc.successCount += x.successCount || 0; acc.totalDurationSecs += x.totalDurationSecs || 0; return acc; }, { totalCalls: 0, successCount: 0, totalDurationSecs: 0 });
-            totals.successRate = totals.totalCalls > 0 ? Math.round((totals.successCount / totals.totalCalls) * 100) : 0;
+                    const totals = mergedAgents.reduce((acc: any, x: any) => { 
+          acc.totalCalls += (x.totalCalls || 0); 
+          acc.successCount += (x.successCount || 0); 
+          acc.totalDurationSecs += (x.totalDurationSecs || 0); 
+          return acc; 
+        }, { totalCalls: 0, successCount: 0, totalDurationSecs: 0 });
+        totals.successRate = (totals.totalCalls || 0) > 0 ? Math.round(((totals.successCount || 0) / (totals.totalCalls || 0)) * 100) : 0;
             const usedAgents = mergedAgents.filter((a: any) => (a.totalCalls || 0) > 0).length;
             setData({ agents: mergedAgents, totals });
             onTotalsChange?.({ ...totals, usedAgents }, mergedAgents.length);
           } else {
-            const usedAgents = (data.agents || []).filter((a: any) => (a.totalCalls || 0) > 0).length;
-            onTotalsChange?.({ ...(data.totals || { totalCalls: 0, successRate: 0, totalDurationSecs: 0 }), usedAgents }, (data.agents || []).length);
+                    const usedAgents = (data.agents || []).filter((a: any) => (a.totalCalls || 0) > 0).length;
+        onTotalsChange?.({ 
+          ...(data.totals || { totalCalls: 0, successRate: 0, totalDurationSecs: 0 }), 
+          usedAgents 
+        }, (data.agents || []).length);
           }
-        } catch {}
+        } catch (error) {
+          console.warn('Error processing existing analytics data:', error);
+        }
         return;
       }
       try {
@@ -581,42 +620,64 @@ function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTota
         for (const c of filtered) {
           const id = String(c.agent_id || c.agent?.id || c.agentId);
           const name = c.agent_name || c.agent?.name || id;
-          const e = perAgentMap.get(id) || { agentId: id, agentName: name, totalCalls: 0, successCount: 0, totalDurationSecs: 0 };
-          e.totalCalls += 1;
-          // Normalize success using Reports page mapping
-          const candidates = [c.call_successful, c.status, c.call_status, c.analysis?.call_successful, c.metadata?.call_successful].filter(Boolean);
-          const normalized = String((candidates.length ? candidates[0] : 'unknown')).toLowerCase().trim();
-          const successValues = ['successful', 'success', 'true', '1', 'completed'];
-          if (successValues.includes(normalized)) e.successCount += 1;
-          e.totalDurationSecs += (c.call_duration_secs || 0);
+                  const e = perAgentMap.get(id) || { agentId: id, agentName: name, totalCalls: 0, successCount: 0, totalDurationSecs: 0 };
+        e.totalCalls = (e.totalCalls || 0) + 1;
+        // Normalize success using Reports page mapping
+        const candidates = [c.call_successful, c.status, c.call_status, c.analysis?.call_successful, c.metadata?.call_successful].filter(Boolean);
+        const normalized = String((candidates.length ? candidates[0] : 'unknown')).toLowerCase().trim();
+        const successValues = ['successful', 'success', 'true', '1', 'completed'];
+        if (successValues.includes(normalized)) e.successCount = (e.successCount || 0) + 1;
+        e.totalDurationSecs = (e.totalDurationSecs || 0) + (c.call_duration_secs || 0);
           perAgentMap.set(id, e);
         }
         // Ensure zero-activity agents are present
         for (const a of clientAgents) {
           const id = String(a.agent_id || a.id);
           if (!perAgentMap.has(id)) {
-            perAgentMap.set(id, { agentId: id, agentName: a.name || a.agent_name || id, totalCalls: 0, successCount: 0, totalDurationSecs: 0 });
+            perAgentMap.set(id, { 
+              agentId: id, 
+              agentName: a.name || a.agent_name || id, 
+              totalCalls: 0, 
+              successCount: 0, 
+              totalDurationSecs: 0 
+            });
           }
         }
-        const perAgent = Array.from(perAgentMap.values()).map(a => ({ ...a, successRate: a.totalCalls > 0 ? Math.round((a.successCount / a.totalCalls) * 100) : 0, avgDurationSecs: a.totalCalls > 0 ? Math.round(a.totalDurationSecs / a.totalCalls) : 0 }));
-        const totals = perAgent.reduce((acc: any, x: any) => { acc.totalCalls += x.totalCalls; acc.successCount += x.successCount; acc.totalDurationSecs += x.totalDurationSecs; return acc; }, { totalCalls: 0, successCount: 0, totalDurationSecs: 0 });
-        totals.successRate = totals.totalCalls > 0 ? Math.round((totals.successCount / totals.totalCalls) * 100) : 0;
+        const perAgent = Array.from(perAgentMap.values()).map(a => ({ 
+          ...a, 
+          successRate: (a.totalCalls || 0) > 0 ? Math.round(((a.successCount || 0) / (a.totalCalls || 0)) * 100) : 0, 
+          avgDurationSecs: (a.totalCalls || 0) > 0 ? Math.round((a.totalDurationSecs || 0) / (a.totalCalls || 0)) : 0 
+        }));
+        const totals = perAgent.reduce((acc: any, x: any) => { 
+          acc.totalCalls += (x.totalCalls || 0); 
+          acc.successCount += (x.successCount || 0); 
+          acc.totalDurationSecs += (x.totalDurationSecs || 0); 
+          return acc; 
+        }, { totalCalls: 0, successCount: 0, totalDurationSecs: 0 });
+        totals.successRate = (totals.totalCalls || 0) > 0 ? Math.round(((totals.successCount || 0) / (totals.totalCalls || 0)) * 100) : 0;
         const usedAgents = perAgent.filter((a: any) => (a.totalCalls || 0) > 0).length;
         setData({ agents: perAgent, totals });
         onTotalsChange?.({ ...totals, usedAgents }, perAgent.length);
-      } catch {}
+      } catch (error) {
+        console.error('Error in fallback analytics processing:', error);
+        // Set minimal data to prevent crashes
+        setData({
+          agents: [],
+          totals: { totalCalls: 0, successCount: 0, successRate: 0, totalDurationSecs: 0 }
+        });
+      }
     }
     fallbackIfEmpty();
   }, [clientId, data, allClientAgents, onTotalsChange]);
 
   if (loading) return <div className="text-sm text-muted-foreground">Loading analytics…</div>;
   if (error) return <div className="text-sm text-red-600">{error}</div>;
-  if (!data) return null;
+  if (!data || !data.totals || !data.agents) return <div className="text-sm text-muted-foreground">No analytics data available</div>;
 
   return (
     <div className="space-y-4">
       <div className="text-sm text-muted-foreground">
-        Total Calls: <strong>{data.totals.totalCalls}</strong> • Success Rate: <strong>{data.totals.successRate}%</strong> • Total Duration: <strong>{Math.round((data.totals.totalDurationSecs||0)/60)} min</strong>
+        Total Calls: <strong>{data.totals?.totalCalls || 0}</strong> • Success Rate: <strong>{data.totals?.successRate || 0}%</strong> • Total Duration: <strong>{Math.round((data.totals?.totalDurationSecs || 0)/60)} min</strong>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -630,13 +691,13 @@ function AgentAnalytics({ clientId, onTotalsChange }: { clientId: string; onTota
             </tr>
           </thead>
           <tbody>
-            {data.agents.map((a) => (
-              <tr key={a.agentId} className="border-b last:border-0">
-                <td className="py-2 pr-4">{a.agentName}</td>
-                <td className="py-2 pr-4">{a.totalCalls}</td>
-                <td className="py-2 pr-4">{a.successCount}</td>
-                <td className="py-2 pr-4">{typeof a.successRate === 'number' ? a.successRate : (a.totalCalls > 0 ? Math.round(((a.successCount || 0) / a.totalCalls) * 100) : 0)}%</td>
-                <td className="py-2 pr-4">{Math.round(((typeof a.avgDurationSecs === 'number' ? a.avgDurationSecs : (a.totalCalls > 0 ? Math.round((a.totalDurationSecs || 0) / a.totalCalls) : 0)) || 0)/60)} min</td>
+            {(data.agents || []).map((a, index) => (
+              <tr key={a.agentId || `agent-${index}`} className="border-b last:border-0">
+                <td className="py-2 pr-4">{a.agentName || 'Unknown'}</td>
+                <td className="py-2 pr-4">{a.totalCalls || 0}</td>
+                <td className="py-2 pr-4">{a.successCount || 0}</td>
+                <td className="py-2 pr-4">{typeof a.successRate === 'number' ? a.successRate : ((a.totalCalls || 0) > 0 ? Math.round(((a.successCount || 0) / (a.totalCalls || 0)) * 100) : 0)}%</td>
+                <td className="py-2 pr-4">{Math.round(((typeof a.avgDurationSecs === 'number' ? a.avgDurationSecs : ((a.totalCalls || 0) > 0 ? Math.round((a.totalDurationSecs || 0) / (a.totalCalls || 0)) : 0)) || 0)/60)} min</td>
               </tr>
             ))}
           </tbody>

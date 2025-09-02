@@ -52,10 +52,22 @@ export default function ProfilePictureUploader({ value, onChange, onDelete, onUp
     } else {
       const formData = new FormData();
       formData.append("profile_picture", file);
-      const res = await api.uploadFile(formData);
-      const data = await res.json();
-      if (data.success) {
-        onChange(data.avatar_url);
+      
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000'}/api/admin_users/me/avatar_url`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+        
+        const data = await res.json();
+        if (data.success) {
+          onChange(data.avatar_url);
+        } else {
+          console.error('Failed to upload profile picture:', data.message);
+        }
+      } catch (error) {
+        console.error('Error uploading profile picture:', error);
       }
     }
     setShowCrop(false);

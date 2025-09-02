@@ -2,6 +2,7 @@
 import React from "react";
 import { useUser } from "@/lib/utils";
 import { api } from "@/lib/apiConfig";
+import { tokenStorage } from "@/lib/tokenStorage";
 
 export { useUser } from "@/lib/utils";
 
@@ -40,6 +41,8 @@ export function UserHydrator({ children }: { children: React.ReactNode }) {
       })
       .catch(error => {
         console.warn('Backend server not available, using cached user data:', error.message);
+        // Clear token if authentication fails
+        tokenStorage.removeToken();
         // Continue with cached data if available
       });
   }, [setUser]);

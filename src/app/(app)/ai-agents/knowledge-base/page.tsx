@@ -129,24 +129,41 @@ export default function KnowledgeBasePage() {
   // Helper to add a knowledge base item to ElevenLabs and local DB
   async function addKnowledgeBaseItem(type: 'url' | 'text' | 'file', payload: any, apiKey: string, localDbPayload: any) {
     let endpoint = '';
-    if (type === 'url') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/url';
-    if (type === 'text') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/text';
-    if (type === 'file') endpoint = 'https://api.elevenlabs.io/v1/convai/knowledge-base/file';
+    if (type === 'url') endpoint = '/api/elevenlabs/knowledge-base/url';
+    if (type === 'text') endpoint = '/api/elevenlabs/knowledge-base/text';
+    if (type === 'file') endpoint = '/api/elevenlabs/knowledge-base/file';
 
-    // Only send required fields to ElevenLabs
-    let elevenLabsPayload = {};
-    if (type === 'url') elevenLabsPayload = { url: payload.url, name: payload.name };
-    if (type === 'text') elevenLabsPayload = { name: payload.name, text: payload.text_content || payload.text };
-    if (type === 'file') elevenLabsPayload = { name: payload.name };
+    // Prepare payload for backend proxy
+    let backendPayload: any;
+    let body: BodyInit;
+    
+    if (type === 'url') {
+      backendPayload = { url: payload.url, name: payload.name };
+      body = JSON.stringify(backendPayload);
+    } else if (type === 'text') {
+      backendPayload = { name: payload.name, text: payload.text_content || payload.text };
+      body = JSON.stringify(backendPayload);
+    } else if (type === 'file') {
+      // For files, we need to create FormData
+      const formData = new FormData();
+      formData.append('file', payload.file);
+      formData.append('name', payload.name);
+      body = formData;
+    } else {
+      throw new Error(`Unknown type: ${type}`);
+    }
 
-    // 1. Post to ElevenLabs
+    // 1. Post to backend proxy (which will forward to ElevenLabs)
+    const headers: HeadersInit = {};
+    if (type !== 'file') {
+      headers['Content-Type'] = 'application/json';
+    }
+    // Note: Don't set Content-Type for FormData, let the browser set it with boundary
+
     const elevenRes = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'xi-api-key': apiKey,
-        'Content-Type': 'application/json',
-      } as HeadersInit,
-      body: JSON.stringify(elevenLabsPayload),
+      headers,
+      body,
     });
     const elevenData = await elevenRes.json();
     console.log('ElevenLabs response:', elevenData);
@@ -311,7 +328,8 @@ export default function KnowledgeBasePage() {
         size: `${(file.size / 1024).toFixed(1)} kB`,
         created_by: createdBy,
       };
-      await addKnowledgeBaseItem('file', { name: file.name }, ELEVENLABS_API_KEY, localDbPayload);
+
+      await addKnowledgeBaseItem('file', { name: file.name, file: file }, ELEVENLABS_API_KEY, localDbPayload);
       setFile(null);
       setOpenDialog(null);
       const docs = await fetchElevenLabsKnowledgeBase();

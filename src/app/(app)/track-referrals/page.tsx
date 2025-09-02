@@ -155,7 +155,16 @@ export default function TrackReferralsAdminPage() {
 			if (clientStatus) params.set('clientStatus', clientStatus);
 			if (commissionStatus) params.set('commissionStatus', commissionStatus);
 			if (selectedClientId) params.set('clientId', String(selectedClientId));
-			const res = await fetch(`${API_BASE_URL}/api/sales-persons/me/referrals/export?${params.toString()}`, { credentials: 'include' });
+			
+			// Try sales-persons/me/referrals/export first, then fallback to referrals
+			let res;
+			if (salesPerson) {
+				res = await fetch(`${API_BASE_URL}/api/sales-persons/me/referrals/export?${params.toString()}`, { credentials: 'include' });
+			} else {
+				// Fallback to all referrals export
+				res = await fetch(`${API_BASE_URL}/api/referrals/export?${params.toString()}`, { credentials: 'include' });
+			}
+			
 			if (!res.ok) throw new Error('Export failed');
 			const blob = await res.blob();
 			const url = window.URL.createObjectURL(blob);
@@ -217,16 +226,17 @@ export default function TrackReferralsAdminPage() {
 				<p className="text-muted-foreground">Monitor your own referrals and performance</p>
 			</div>
 
-			{!salesPerson ? (
-				<Card>
+			{!salesPerson && (
+				<Card className="mb-6">
 					<CardHeader>
-						<CardTitle>No Sales Profile Found</CardTitle>
+						<CardTitle>Admin Referral Tracking</CardTitle>
 						<CardDescription>
-							Your admin account email is not associated with any sales profile. Please contact an administrator.
+							You are viewing all referrals in the system. To track your own referrals, you need a sales profile.
 						</CardDescription>
 					</CardHeader>
 				</Card>
-			) : (
+			)}
+			{(
 				<>
 					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
 						<Card>
@@ -273,27 +283,45 @@ export default function TrackReferralsAdminPage() {
 							</CardContent>
 						</Card>
 
-						<Card>
-							<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-								<CardTitle className="text-sm font-medium">Your Referral Code</CardTitle>
-								<Copy className="h-4 w-4 text-muted-foreground" />
-							</CardHeader>
-							<CardContent>
-								<div className="flex items-center gap-2">
-									<code className="bg-muted px-2 py-1 rounded text-sm font-mono">{salesPerson.referral_code}</code>
-									<button onClick={() => copyReferralCode(salesPerson.referral_code)} className="text-muted-foreground hover:text-foreground">
-										<Copy className="h-4 w-4" />
-									</button>
-								</div>
-								<p className="text-xs text-muted-foreground mt-1">Share this code with potential clients</p>
-							</CardContent>
-						</Card>
+						{salesPerson ? (
+							<Card>
+								<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+									<CardTitle className="text-sm font-medium">Your Referral Code</CardTitle>
+									<Copy className="h-4 w-4 text-muted-foreground" />
+								</CardHeader>
+								<CardContent>
+									<div className="flex items-center gap-2">
+										<code className="bg-muted px-2 py-1 rounded text-sm font-mono">{salesPerson.referral_code}</code>
+										<button onClick={() => copyReferralCode(salesPerson.referral_code)} className="text-muted-foreground hover:text-foreground">
+											<Copy className="h-4 w-4" />
+										</button>
+									</div>
+									<p className="text-xs text-muted-foreground mt-1">Share this code with potential clients</p>
+								</CardContent>
+							</Card>
+						) : (
+							<Card>
+								<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+									<CardTitle className="text-sm font-medium">System Referrals</CardTitle>
+									<Copy className="h-4 w-4 text-muted-foreground" />
+								</CardHeader>
+								<CardContent>
+									<div className="text-2xl font-bold">All</div>
+									<p className="text-xs text-muted-foreground">Viewing all system referrals</p>
+								</CardContent>
+							</Card>
+						)}
 					</div>
 
 					<Card>
 						<CardHeader>
-							<CardTitle>Referred Clients</CardTitle>
-							<CardDescription>All clients who registered using your referral code</CardDescription>
+							<CardTitle>{salesPerson ? 'Referred Clients' : 'All Referrals'}</CardTitle>
+							<CardDescription>
+								{salesPerson 
+									? 'All clients who registered using your referral code' 
+									: 'All referrals in the system'
+								}
+							</CardDescription>
 						</CardHeader>
 						<CardContent>
 							<div className="flex flex-col md:flex-row gap-2 md:items-end mb-4">

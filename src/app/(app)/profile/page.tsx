@@ -24,6 +24,7 @@ import React from "react";
 import { useUser } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/apiConfig';
+import { tokenStorage } from '@/lib/tokenStorage';
 
 // export const metadata: Metadata = {
 //   title: 'User Profile - AI Caller',
@@ -83,10 +84,12 @@ export default function ProfilePage() {
           });
           setLoading(false);
         } else {
+          tokenStorage.removeToken();
           router.push('/signin');
         }
       })
       .catch(() => {
+        tokenStorage.removeToken();
         router.push('/signin');
       });
   }, [router, setUser]);
@@ -101,24 +104,63 @@ export default function ProfilePage() {
 
   const handleDeletePicture = async () => {
     if (!user) return;
-    await api.deleteAdminUser(user.userId);
-    setProfile({ ...profile, avatar_url: "" });
+    
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000'}/api/admin_users/me/avatar_url`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      
+      if (res.ok) {
+        setProfile({ ...profile, avatar_url: "" });
+        toast({ title: "Profile picture deleted" });
+      } else {
+        toast({ title: "Error deleting profile picture", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error deleting profile picture", variant: "destructive" });
+    }
   };
 
   const handleSave = async () => {
     if (!user) return;
     setSaving(true);
-    const res = await api.updateAdminUser(user.userId, {
-      name: profile.name,
-      avatar_url: profile.avatar_url,
-      bio: profile.bio,
-    });
-    setSaving(false);
-    if (res.ok) {
-      toast({ title: "Profile updated!" });
-      setUser({ ...user, fullName: profile.name });
-    } else {
-      toast({ title: "Error updating profile", variant: "destructive" });
+    
+    try {
+      // Use the /me endpoint for profile updates
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000'}/api/admin_users/me`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: profile.name,
+          avatar_url: profile.avatar_url,
+          bio: profile.bio,
+        }),
+      });
+      
+      setSaving(false);
+      
+      if (res.ok) {
+        toast({ title: "Profile updated!" });
+        setUser({ ...user, fullName: profile.name });
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        toast({ 
+          title: "Error updating profile", 
+          description: errorData.message || "Failed to update profile",
+          variant: "destructive" 
+        });
+      }
+    } catch (error) {
+      setSaving(false);
+      toast({ 
+        title: "Error updating profile", 
+        description: "Network error occurred",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -136,12 +178,37 @@ export default function ProfilePage() {
       toast({ title: 'Password Mismatch', description: 'New passwords do not match.', variant: 'destructive' });
       return;
     }
-    const res = await api.resetAdminUserPassword(user.userId, data.newPassword);
-    if (res.ok) {
-      toast({ title: 'Password Reset', description: 'Password was reset successfully.' });
-      passwordForm.reset();
-    } else {
-      toast({ title: 'Reset Failed', description: 'Could not reset password. Please check the old password.', variant: 'destructive' });
+    
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000'}/api/admin_users/${user.userId}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          oldPassword: data.currentPassword,
+          password: data.newPassword,
+        }),
+      });
+      
+      if (res.ok) {
+        toast({ title: 'Password Updated', description: 'Password was updated successfully.' });
+        passwordForm.reset();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        toast({ 
+          title: 'Password Update Failed', 
+          description: errorData.message || 'Could not update password. Please check your current password.',
+          variant: 'destructive' 
+        });
+      }
+    } catch (error) {
+      toast({ 
+        title: 'Password Update Failed', 
+        description: 'Network error occurred',
+        variant: 'destructive' 
+      });
     }
   };
 

@@ -23,7 +23,7 @@ npm run setup:server
 taskkill /f /im node.exe
 
 # Start backend server
-node server.js
+cd backend && node server.js
 
 # Start frontend (in new terminal)
 npm run dev
@@ -81,7 +81,7 @@ npm run dev
    taskkill /f /im node.exe
    
    # Start backend
-   node server.js
+cd backend && node server.js
    
    # Start frontend (new terminal)
    npm run dev
@@ -142,7 +142,7 @@ npm run dev
 ### 2. Check Backend Logs
 ```bash
 # Look for CORS and authentication logs
-node server.js
+cd backend && node server.js
 ```
 
 ### 3. Test API Endpoints

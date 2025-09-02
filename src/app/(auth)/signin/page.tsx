@@ -21,6 +21,7 @@ import { signInUserAction } from '@/actions/auth';
 import { useState, useTransition } from 'react';
 import { useUser } from '@/lib/utils';
 import { api } from '@/lib/apiConfig';
+import { tokenStorage } from '@/lib/tokenStorage';
 
 // For this temporary bypass, the user can enter any non-empty string
 // into the "Email" field (acting as a User ID) and any non-empty string for "Password".
@@ -66,7 +67,13 @@ export default function SignInPage() {
         }
 
         if (loginData.success) {
-          // Fetch user profile using cookie
+          // Store the token if it exists in the response
+          if (loginData.token) {
+            tokenStorage.setToken(loginData.token);
+            console.log('Token stored successfully');
+          }
+          
+          // Fetch user profile using token
           const profileRes = await api.getCurrentUser();
           const profileData = await profileRes.json();
           console.log('Profile data:', profileData);

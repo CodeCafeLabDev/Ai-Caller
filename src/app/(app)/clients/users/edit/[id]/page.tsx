@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { api } from '@/lib/apiConfig';
+import { tokenStorage } from '@/lib/tokenStorage';
 
 const statusOptions = ["Active", "Suspended", "Pending"];
 
@@ -30,11 +31,38 @@ export default function EditClientUserPage() {
       setLoading(false);
       return;
     }
+
+    // No need to check authentication here - let the global auth handle it
+
     setLoading(true);
     Promise.all([
-      api.getClientUser(userId).then(res => res.json()),
-      api.getUserRoles().then(res => res.json()),
-      api.getClients().then(res => res.json()),
+      api.getClientUser(userId).then(res => {
+        if (!res.ok) {
+          if (res.status === 401) {
+            throw new Error('Authentication failed. Please log in again.');
+          }
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      }),
+      api.getUserRoles().then(res => {
+        if (!res.ok) {
+          if (res.status === 401) {
+            throw new Error('Authentication failed. Please log in again.');
+          }
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      }),
+      api.getClients().then(res => {
+        if (!res.ok) {
+          if (res.status === 401) {
+            throw new Error('Authentication failed. Please log in again.');
+          }
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      }),
     ]).then(([userRes, rolesRes, clientsRes]) => {
       if (userRes.success) {
         setForm(userRes.data);
@@ -45,8 +73,9 @@ export default function EditClientUserPage() {
       setUserRoles(rolesRes.data || []);
       setClients(clientsRes.data || []);
       setLoading(false);
-    }).catch(() => {
-      setError("Error fetching user data.");
+    }).catch((error) => {
+      console.error('Error fetching user data:', error);
+      setError(error.message || "Error fetching user data.");
       setLoading(false);
     });
   }, [userId]);

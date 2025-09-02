@@ -2074,6 +2074,9 @@ export default function AgentDetailsPage() {
     fetch(`/api/agents/${agentId}/analysis`)
       .then(res => res.json())
       .then(data => {
+        console.log('[Frontend] Analysis API response:', data);
+        console.log('[Frontend] Criteria count:', data.criteria?.length || 0);
+        console.log('[Frontend] Data collection count:', data.data_collection?.length || 0);
         setCriteriaList((data.criteria || []).map((c: any) => ({ name: c.name, prompt: c.prompt })));
         setDataItemList((data.data_collection || []).map((d: any) => ({ type: d.data_type, identifier: d.identifier, description: d.description })));
       })
@@ -2086,6 +2089,11 @@ export default function AgentDetailsPage() {
         setDataItemLoading(false);
       });
   }, [activeTab, agentId]);
+
+  // Debug: Log criteriaList changes
+  useEffect(() => {
+    console.log('[Frontend] criteriaList state changed:', criteriaList);
+  }, [criteriaList]);
 
   // Add criteria
   async function handleAddCriteriaSubmit() {
@@ -4395,7 +4403,7 @@ export default function AgentDetailsPage() {
               </div>
               <div className="flex flex-col gap-3 mt-2">
                 {criteriaLoading ? <div>Loading...</div> : criteriaList.length === 0 ? (
-                  <div className="text-gray-400 text-sm">No criteria yet.</div>
+                  <div className="text-gray-400 text-sm">No criteria yet. (Debug: criteriaList length = {criteriaList.length})</div>
                 ) : (
                   criteriaList.map((c, i) => (
                     <div key={c.name} className="flex items-center bg-gray-50 rounded-xl px-4 py-3 gap-4 border border-gray-100">

@@ -28,6 +28,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/components/ui/use-toast';
+import { tokenStorage } from '@/lib/tokenStorage';
+import { api } from '@/lib/apiConfig';
 import React, { useState } from 'react';
 import { useUser } from '@/lib/utils';
 
@@ -173,7 +175,17 @@ export function SideNavigation() {
     setOpenSubmenus(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Call logout API
+      await api.logout();
+    } catch (error) {
+      console.warn('Logout API call failed:', error);
+    }
+    
+    // Clear the stored token
+    tokenStorage.removeToken();
+    
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
