@@ -564,6 +564,103 @@ function initializeTables() {
       console.log("✅ Agent advanced settings table ready");
     }
   });
+
+  // Create campaigns table (batch calling mirror)
+  const createCampaignsTable = `
+    CREATE TABLE IF NOT EXISTS campaigns (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      external_id VARCHAR(255) NULL,
+      name VARCHAR(255) NOT NULL,
+      clientName VARCHAR(255) NOT NULL,
+      agentName VARCHAR(255) NULL,
+      type VARCHAR(100) NOT NULL,
+      callsAttempted INT NOT NULL DEFAULT 0,
+      callsTargeted INT NOT NULL DEFAULT 0,
+      startDate DATETIME NULL,
+      endDate DATETIME NULL,
+      status ENUM('Active','Paused','Completed') NOT NULL DEFAULT 'Active',
+      successRate DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_external (external_id),
+      INDEX idx_status (status),
+      INDEX idx_dates (startDate, endDate)
+    );
+  `;
+
+  db.query(createCampaignsTable, (err) => {
+    if (err) {
+      console.error('Failed to create campaigns table:', err);
+    } else {
+      console.log('✅ Campaigns table ready');
+      
+      // Add external_id column if it doesn't exist (migration)
+      db.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS external_id VARCHAR(255) NULL`, (alterErr) => {
+        if (alterErr && !alterErr.message.includes('Duplicate column name')) {
+          console.error('Failed to add external_id column:', alterErr);
+        } else {
+          console.log('✅ Campaigns table external_id column ensured');
+        }
+      });
+      
+      // Add agentName column if it doesn't exist (migration)
+      db.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS agentName VARCHAR(255) NULL`, (alterErr2) => {
+        if (alterErr2 && !alterErr2.message.includes('Duplicate column name')) {
+          console.error('Failed to add agentName column:', alterErr2);
+        } else {
+          console.log('✅ Campaigns table agentName column ensured');
+        }
+      });
+    }
+  });
+
+  // Create calls table
+  const createCallsTable = `
+    CREATE TABLE IF NOT EXISTS calls (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      campaignId INT NOT NULL,
+      callerId VARCHAR(255) NOT NULL,
+      status VARCHAR(50) NOT NULL,
+      duration INT NULL,
+      agent VARCHAR(255) NULL,
+      transcriptionSnippet TEXT NULL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_calls_campaign FOREIGN KEY (campaignId) REFERENCES campaigns(id) ON DELETE CASCADE,
+      INDEX idx_campaign_status (campaignId, status),
+      INDEX idx_timestamp (timestamp)
+    );
+  `;
+
+  db.query(createCallsTable, (err) => {
+    if (err) {
+      console.error('Failed to create calls table:', err);
+    } else {
+      console.log('✅ Calls table ready');
+    }
+  });
+
+  // Indices for performance on campaigns
+  db.query(`CREATE INDEX IF NOT EXISTS idx_campaigns_updatedAt ON campaigns(updatedAt)`, () => {});
+
+  // Create agents_calls table (live agents status for monitoring)
+  const createAgentsCallsTable = `
+    CREATE TABLE IF NOT EXISTS agents_calls (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      status ENUM('Available','Busy','Offline') NOT NULL DEFAULT 'Available',
+      activeCalls INT NOT NULL DEFAULT 0,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_agent_status (status)
+    );
+  `;
+
+  db.query(createAgentsCallsTable, (err) => {
+    if (err) {
+      console.error('Failed to create agents_calls table:', err);
+    } else {
+      console.log('✅ Agents_calls table ready');
+    }
+  });
 }
 
 module.exports = db;

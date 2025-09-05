@@ -37,16 +37,24 @@ router.post('/login', async (req, res) => {
           JWT_SECRET,
           { expiresIn: '1d' }
         );
-        const isDev = process.env.NODE_ENV !== 'production';
-        const useLax = isDev; // Always lax/ insecure in development for localhost workflows
-        res.cookie('token', token, {
+        
+        // Set cookie with proper configuration for production
+        const cookieOptions = {
           httpOnly: true,
-          sameSite: useLax ? 'lax' : 'none',
-          secure: useLax ? false : true,
-          domain: useLax ? 'localhost' : undefined,
           path: '/',
-          maxAge: 24*60*60*1000
-        });
+          maxAge: 24*60*60*1000 // 24 hours
+        };
+        
+        // Configure for production vs development
+        if (process.env.NODE_ENV === 'production') {
+          cookieOptions.sameSite = 'none';
+          cookieOptions.secure = true;
+        } else {
+          cookieOptions.sameSite = 'lax';
+          cookieOptions.secure = false;
+        }
+        
+        res.cookie('token', token, cookieOptions);
 
         return res.json({ 
           success: true, 
@@ -155,27 +163,23 @@ router.post('/login', async (req, res) => {
           { expiresIn: '1d' }
         );
 
-        // Set cookie for both same-origin and cross-origin scenarios
-        const isLocalhost = req.headers.origin && req.headers.origin.includes('localhost');
-        
-        if (isLocalhost) {
-          // For localhost, use lax sameSite
-        res.cookie('token', token, {
+        // Set cookie with proper configuration for production
+        const cookieOptions = {
           httpOnly: true,
-          sameSite: 'lax',
           path: '/',
-          maxAge: 24*60*60*1000
-        });
+          maxAge: 24*60*60*1000 // 24 hours
+        };
+        
+        // Configure for production vs development
+        if (process.env.NODE_ENV === 'production') {
+          cookieOptions.sameSite = 'none';
+          cookieOptions.secure = true;
         } else {
-          // For cross-origin (ngrok, server), use none sameSite with secure
-          res.cookie('token', token, {
-            httpOnly: true,
-            sameSite: 'none',
-            secure: true,
-            path: '/',
-            maxAge: 24*60*60*1000
-          });
+          cookieOptions.sameSite = 'lax';
+          cookieOptions.secure = false;
         }
+        
+        res.cookie('token', token, cookieOptions);
 
         return res.json({ 
           success: true, 
@@ -249,17 +253,23 @@ router.post('/client-admin/login', async (req, res) => {
         { expiresIn: '1d' }
       );
 
-      // Set cookie for both same-origin and cross-origin scenarios
-      const isDev = process.env.NODE_ENV !== 'production';
-      const useLax = isDev; // Always lax/ insecure in development for localhost workflows
-      res.cookie('token', token, {
+      // Set cookie with proper configuration for production
+      const cookieOptions = {
         httpOnly: true,
-        sameSite: useLax ? 'lax' : 'none',
-        secure: useLax ? false : true,
-        domain: useLax ? 'localhost' : undefined,
         path: '/',
-        maxAge: 24*60*60*1000
-      });
+        maxAge: 24*60*60*1000 // 24 hours
+      };
+      
+      // Configure for production vs development
+      if (process.env.NODE_ENV === 'production') {
+        cookieOptions.sameSite = 'none';
+        cookieOptions.secure = true;
+      } else {
+        cookieOptions.sameSite = 'lax';
+        cookieOptions.secure = false;
+      }
+      
+      res.cookie('token', token, cookieOptions);
 
       res.json({ 
         success: true, 
@@ -279,10 +289,21 @@ router.post('/client-admin/login', async (req, res) => {
 
 // Logout endpoint
 router.post('/logout', (req, res) => {
-  res.clearCookie('token', {
+  const cookieOptions = {
     httpOnly: true,
     path: '/'
-  });
+  };
+  
+  // Configure for production vs development
+  if (process.env.NODE_ENV === 'production') {
+    cookieOptions.sameSite = 'none';
+    cookieOptions.secure = true;
+  } else {
+    cookieOptions.sameSite = 'lax';
+    cookieOptions.secure = false;
+  }
+  
+  res.clearCookie('token', cookieOptions);
   res.json({ success: true, message: 'Logged out successfully' });
 });
 

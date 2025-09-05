@@ -20,6 +20,7 @@ const uploadRoutes = require('./routes/upload');
 const salesRoutes = require('./routes/sales');
 const knowledgeBaseRoutes = require('./routes/knowledgeBase');
 const languagesRoutes = require('./routes/languages');
+const campaignsRoutes = require('./routes/campaigns');
 const adminRoutes = require('./routes/admin');
 const adminRolesRoutes = require('./routes/adminRoles');
 const clientUsersRoutes = require('./routes/clientUsers');
@@ -73,7 +74,8 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Set-Cookie']
+  exposedHeaders: ['Set-Cookie'],
+  optionsSuccessStatus: 200 // For legacy browser support
 }));
 
 app.use(express.json());
@@ -106,6 +108,22 @@ app.use('/api/debug', debugRoutes);
 app.use('/api/sales-persons', salesRoutes);
 app.use('/api/workspace-secrets', secretsRoutes);
 app.use('/api/mcp-servers', mcpRoutes);
+app.use('/api/campaigns', campaignsRoutes);
+
+// Fallback direct route for agents under campaigns (ensures availability even if sub-router order changes)
+app.get('/api/campaigns/agents', (req, res) => {
+  try {
+    const clientId = req.query.client_id;
+    // Select agent_id (ElevenLabs ID) instead of local id
+    const sql = clientId ? 'SELECT agent_id as id, name, client_id FROM agents WHERE client_id = ?' : 'SELECT agent_id as id, name, client_id FROM agents';
+    db.query(sql, clientId ? [clientId] : [], (err, rows) => {
+      if (err) return res.status(500).json({ success: false, message: 'Failed to fetch agents', error: err.message });
+      res.json({ success: true, data: rows });
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Failed to fetch agents', error: e.message });
+  }
+});
 
 // ElevenLabs Voices Proxy Endpoint
 app.get('/api/voices', async (req, res) => {

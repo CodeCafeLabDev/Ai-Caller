@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Megaphone, Users, CreditCard, UserCircle, ChevronDown, ChevronRight, ClipboardList, Bot, History, Languages, Volume2, BookOpen, Import, UserPlus, BarChart2, AlertTriangle, FileText, TrendingUp, FileDown } from 'lucide-react';
+import { LayoutDashboard, Megaphone, Users, CreditCard, UserCircle, ChevronDown, ChevronRight, ClipboardList, Bot, History, Languages, Volume2, BookOpen, Import, UserPlus, BarChart2, AlertTriangle, FileText, TrendingUp, FileDown, ListFilter, PhoneCall, Award } from 'lucide-react';
 import {
   Sidebar,
   SidebarHeader,
@@ -40,7 +40,9 @@ const clientAdminNavItems: ClientAdminNavItem[] = [
     basePath: '/client-admin/campaigns',
     subItems: [
       { href: '/client-admin/campaigns', label: 'Manage Campaigns', icon: Megaphone },
-      { href: '/client-admin/campaigns/call-history', label: 'Call History', icon: ClipboardList },
+      { href: '/client-admin/campaigns/active-paused', label: 'Active & Paused', icon: ListFilter },
+      { href: '/client-admin/campaigns/monitor-live', label: 'Monitor Live Calls', icon: PhoneCall },
+      { href: '/client-admin/campaigns/top-performing', label: 'Top Performing', icon: Award },
     ]
   },
   // --- AI Agents Section Start ---

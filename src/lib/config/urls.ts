@@ -3,6 +3,10 @@
  * All base URLs and API endpoints are maintained here
  */
 
+const rawBackendBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
+const normalizedBackendBase = rawBackendBase.replace(/\/$/, '');
+const normalizedBackendApi = normalizedBackendBase.endsWith('/api') ? normalizedBackendBase : `${normalizedBackendBase}/api`;
+
 export const config = {
   // ElevenLabs API Configuration
   elevenlabs: {
@@ -26,8 +30,8 @@ export const config = {
 
   // Backend Configuration
   backend: {
-    base: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000',
-    api: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api'
+    base: normalizedBackendBase,
+    api: normalizedBackendApi
   },
 
   // Frontend Configuration
@@ -72,7 +76,27 @@ export const urls = {
   backend: {
     api: (endpoint: string) => `${config.backend.api}${endpoint}`,
     health: () => `${config.backend.base}/api/health`,
-    voices: () => `${config.backend.base}/api/voices`
+    voices: () => `${config.backend.base}/api/voices`,
+    campaigns: {
+      submit: () => `${config.backend.api}/campaigns`,
+      list: () => `${config.backend.api}/campaigns`,
+      listForClient: (clientId: string) => `${config.backend.api}/campaigns/client/${encodeURIComponent(clientId)}`,
+      details: (id: string) => `${config.backend.api}/campaigns/${encodeURIComponent(id)}`,
+          localDetails: (id: string) => `${config.backend.api}/campaigns/${encodeURIComponent(id)}/local`,
+    recipients: (id: string) => `${config.backend.api}/campaigns/${encodeURIComponent(id)}/recipients`,
+    testBatch: (id: string) => `${config.backend.api}/campaigns/test-batch/${encodeURIComponent(id)}`,
+    cancel: (id: string) => `${config.backend.api}/campaigns/${encodeURIComponent(id)}/cancel`,
+    retry: (id: string) => `${config.backend.api}/campaigns/${encodeURIComponent(id)}/retry`,
+    liveCalls: () => `${config.backend.api}/campaigns/live-calls`,
+    flagMisuse: () => `${config.backend.api}/campaigns/flag-misuse`,
+    flaggedCalls: () => `${config.backend.api}/campaigns/flagged-calls`,
+      pause: (id: string) => `${config.backend.api}/campaigns/${encodeURIComponent(id)}/pause`,
+      resume: (id: string) => `${config.backend.api}/campaigns/${encodeURIComponent(id)}/resume`,
+      patch: (id: string) => `${config.backend.api}/campaigns/${encodeURIComponent(id)}`,
+      delete: (id: string) => `${config.backend.api}/campaigns/${encodeURIComponent(id)}`,
+      phoneNumbers: () => `${config.backend.api}/campaigns/phone-numbers`,
+      agents: (clientId?: string) => clientId ? `${config.backend.api}/campaigns/agents?client_id=${encodeURIComponent(clientId)}` : `${config.backend.api}/campaigns/agents`
+    }
   }
 };
 
