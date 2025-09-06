@@ -47,8 +47,10 @@ export function ClientAdminHeader() {
       console.warn('Logout API call failed:', error);
     }
     
-    // Clear the stored token
+    // Clear the stored token and user data
     tokenStorage.removeToken();
+    localStorage.removeItem("user");
+    setUser(null);
     
     toast({
       title: "Logged Out",

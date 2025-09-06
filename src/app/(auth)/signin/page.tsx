@@ -22,6 +22,7 @@ import { useState, useTransition } from 'react';
 import { useUser } from '@/lib/utils';
 import { api } from '@/lib/apiConfig';
 import { tokenStorage } from '@/lib/tokenStorage';
+import { useAuthRedirect } from '@/hooks/useAuthRedirect';
 
 // For this temporary bypass, the user can enter any non-empty string
 // into the "Email" field (acting as a User ID) and any non-empty string for "Password".
@@ -35,6 +36,9 @@ export default function SignInPage() {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const { setUser } = useUser();
+  
+  // Prevent logged-in users from accessing signin page
+  useAuthRedirect();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -88,6 +92,7 @@ export default function SignInPage() {
               type: loginData.user.type,
               avatarUrl: profileData.data.avatar_url,
               companyName: loginData.user.companyName,
+              bio: profileData.data.bio || '',
             };
             console.log('Setting user data:', userData);
             setUser(userData);
@@ -97,14 +102,19 @@ export default function SignInPage() {
               description: `Welcome, ${profileData.data.name || profileData.data.companyName}!`,
             });
 
+            // Check for redirect destination first
+            const redirectAfterLogin = sessionStorage.getItem('redirectAfterLogin');
+            if (redirectAfterLogin) {
+              sessionStorage.removeItem('redirectAfterLogin');
+              router.push(redirectAfterLogin);
+              return;
+            }
+
             // Redirect based on user type
             if (loginData.user.type === 'admin') {
               console.log('Admin user, redirecting based on role:', loginData.user.role);
-              if (loginData.user.role === 'admin_users') {
-                router.push("/admin_users/dashboard");
-              } else {
-                router.push("/dashboard");
-              }
+              // All admin users go to the main dashboard
+              router.push("/dashboard");
             } else if (loginData.user.type === 'client') {
               console.log('Client user, redirecting to client dashboard');
               router.push("/client-admin/dashboard");

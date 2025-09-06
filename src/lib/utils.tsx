@@ -14,7 +14,8 @@ export type AuthUser = {
   type?: 'admin' | 'client';
   avatarUrl?: string;
   companyName?: string;
-  clientId?: string; // <-- Add this line
+  clientId?: string;
+  bio?: string;
   permissions?: string[];
 };
 

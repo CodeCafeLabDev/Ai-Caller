@@ -183,8 +183,10 @@ export function SideNavigation() {
       console.warn('Logout API call failed:', error);
     }
     
-    // Clear the stored token
+    // Clear the stored token and user data
     tokenStorage.removeToken();
+    localStorage.removeItem("user");
+    setUser(null);
     
     toast({
       title: "Logged Out",
@@ -193,7 +195,7 @@ export function SideNavigation() {
     router.push('/signin');
   };
 
-  const { user } = useUser();
+  const { user, setUser } = useUser();
 
   const hasPerm = React.useCallback((perm: string) => {
     if (!perm) return true;

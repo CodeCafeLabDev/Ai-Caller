@@ -62,19 +62,38 @@ export default function ProfilePage() {
   const [saving, setSaving] = React.useState(false);
 
   React.useEffect(() => {
+    // If user is already in context, use that data
+    if (user) {
+      setProfile({
+        id: user.userId || '',
+        name: user.name || user.fullName || '',
+        email: user.email || '',
+        avatar_url: user.avatarUrl || '',
+        bio: user.bio || '',
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Otherwise, try to fetch from API
     api.getCurrentUser()
       .then((res) => res.json())
       .then((data: any) => {
         if (data.success) {
-          setUser({
+          const userData = {
             userId: data.data.id ? data.data.id.toString() : '',
             email: data.data.email,
-            name: data.data.name, // add name
-            avatarUrl: data.data.avatar_url, // add avatarUrl
+            name: data.data.name,
+            avatarUrl: data.data.avatar_url,
             fullName: data.data.name,
             role: data.data.roleName,
-          });
-          console.log('Fetched profile:', data.data);
+            type: data.data.type,
+            companyName: data.data.companyName,
+            bio: data.data.bio || '',
+          };
+          setUser(userData);
+          localStorage.setItem("user", JSON.stringify(userData));
+          
           setProfile({
             id: data.data.id ? data.data.id.toString() : '',
             name: data.data.name || '',
@@ -84,15 +103,17 @@ export default function ProfilePage() {
           });
           setLoading(false);
         } else {
-          tokenStorage.removeToken();
-          router.push('/signin');
+          // Don't redirect to signin, just show error
+          console.warn('Failed to fetch profile data');
+          setLoading(false);
         }
       })
-      .catch(() => {
-        tokenStorage.removeToken();
-        router.push('/signin');
+      .catch((error) => {
+        console.warn('Error fetching profile:', error);
+        // Don't redirect to signin, just show error
+        setLoading(false);
       });
-  }, [router, setUser]);
+  }, [router, setUser, user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setProfile({ ...profile, [e.target.name]: e.target.value });
@@ -145,7 +166,15 @@ export default function ProfilePage() {
       
       if (res.ok) {
         toast({ title: "Profile updated!" });
-        setUser({ ...user, fullName: profile.name });
+        const updatedUser = { 
+          ...user, 
+          fullName: profile.name,
+          name: profile.name,
+          bio: profile.bio,
+          avatarUrl: profile.avatar_url
+        };
+        setUser(updatedUser);
+        localStorage.setItem("user", JSON.stringify(updatedUser));
       } else {
         const errorData = await res.json().catch(() => ({}));
         toast({ 

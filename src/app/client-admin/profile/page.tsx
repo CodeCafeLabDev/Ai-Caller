@@ -56,16 +56,33 @@ export default function ClientAdminProfilePage() {
   const [assignedPlans, setAssignedPlans] = React.useState<any[]>([]);
 
   React.useEffect(() => {
+    // If user is already in context, use that data
+    if (user) {
+      setProfile({
+        id: user.userId || '',
+        name: user.name || user.fullName || '',
+        email: user.email || '',
+        avatar_url: user.avatarUrl || '',
+        bio: user.bio || '',
+        companyName: user.companyName || '',
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Otherwise, try to fetch from API
     api.getCurrentUser()
       .then((res) => res.json())
       .then((data: any) => {
         if (data.success) {
           // Only allow client admins
           if (data.data.type !== 'client' || data.data.role !== 'client_admin') {
-            router.push('/signin');
+            console.warn('User is not a client admin');
+            setLoading(false);
             return;
           }
-          setUser({
+          
+          const userData = {
             userId: data.data.id ? data.data.id.toString() : '',
             email: data.data.email,
             name: data.data.name,
@@ -74,8 +91,12 @@ export default function ClientAdminProfilePage() {
             role: data.data.role,
             type: data.data.type,
             companyName: data.data.companyName,
-            clientId: data.data.id ? data.data.id.toString() : '', // <-- Add this line
-          });
+            clientId: data.data.id ? data.data.id.toString() : '',
+            bio: data.data.bio || '',
+          };
+          setUser(userData);
+          localStorage.setItem("user", JSON.stringify(userData));
+          
           setProfile({
             id: data.data.id ? data.data.id.toString() : '',
             name: data.data.name || '',
@@ -86,13 +107,17 @@ export default function ClientAdminProfilePage() {
           });
           setLoading(false);
         } else {
-          router.push('/signin');
+          // Don't redirect to signin, just show error
+          console.warn('Failed to fetch profile data');
+          setLoading(false);
         }
       })
-      .catch(() => {
-        router.push('/signin');
+      .catch((error) => {
+        console.warn('Error fetching profile:', error);
+        // Don't redirect to signin, just show error
+        setLoading(false);
       });
-  }, [router, setUser]);
+  }, [router, setUser, user]);
 
   // Fetch assigned plans for this client
   const fetchAssignedPlans = React.useCallback(async (clientId: string) => {
@@ -171,7 +196,15 @@ export default function ClientAdminProfilePage() {
       });
       if (res.ok) {
         toast({ title: 'Profile updated!' });
-        setUser({ ...user, fullName: profile.name });
+        const updatedUser = { 
+          ...user, 
+          fullName: profile.name,
+          name: profile.name,
+          bio: profile.bio,
+          avatarUrl: profile.avatar_url
+        };
+        setUser(updatedUser);
+        localStorage.setItem("user", JSON.stringify(updatedUser));
       } else {
         toast({ title: 'Error updating profile', variant: 'destructive' });
       }

@@ -1,16 +1,15 @@
 
+"use client";
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo'; // Assuming logo component will be created
-import type { Metadata } from 'next';
-
-export const metadata: Metadata = {
-  title: 'AI Caller - Omni-Channel Communication Management',
-  description: 'Welcome to AI Caller, the next generation platform for seamless voice integration and omni-channel communication management.',
-  keywords: ['voice integration', 'omni-channel', 'communication', 'ai calling', 'platform'],
-};
+import { useAuthRedirect } from '@/hooks/useAuthRedirect';
 
 export default function HomePage() {
+  // Prevent logged-in users from accessing home page
+  useAuthRedirect();
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-6">
       <div className="text-center space-y-6">
