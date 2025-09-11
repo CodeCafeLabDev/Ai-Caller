@@ -66,7 +66,6 @@ const clientAdminNavItems: ClientAdminNavItem[] = [
     basePath: '/client-admin/reports-analytics',
     subItems: [
       { href: '/client-admin/reports-analytics/call-reports', label: 'Call Reports', icon: FileText },
-      { href: '/client-admin/reports-analytics/system-usage-trends', label: 'System Usage Trends', icon: TrendingUp },
       { href: '/client-admin/reports-analytics/error-logs', label: 'Error & System Logs', icon: AlertTriangle },
       { href: '/client-admin/reports-analytics/failed-call-reports', label: 'Failed Call Reports', icon: FileText },
       { href: '/client-admin/reports-analytics/export-data', label: 'Export Data', icon: FileDown },

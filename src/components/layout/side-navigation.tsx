@@ -101,7 +101,6 @@ const initialNavItems: NavItemType[] = [
     basePath: '/reports-analytics',
     subItems: [
       { href: '/reports-analytics/call-reports', label: 'Call Reports', icon: CalendarClock },
-      { href: '/reports-analytics/system-usage-trends', label: 'System Usage Trends', icon: TrendingUp },
       { href: '/reports-analytics/error-logs', label: 'Error & System Logs', icon: AlertTriangle }, // Renamed
       { href: '/reports-analytics/failed-call-reports', label: 'Failed Call Reports', icon: PhoneOff }, // New
       { href: '/reports-analytics/export-data', label: 'Export Data', icon: FileDown },

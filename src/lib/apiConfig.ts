@@ -61,6 +61,7 @@ export const API_ENDPOINTS = {
     BASE: '/api/client-users',
     BY_ID: (userId: string) => `/api/client-users/${userId}`,
     RESET_PASSWORD: (userId: string) => `/api/client-users/${userId}/reset-password`,
+    LIST_FOR_CLIENT: (clientId: string) => `/api/client-users/client/${clientId}`,
   },
 
   // Clients
@@ -115,6 +116,20 @@ export const API_ENDPOINTS = {
     BASE: '/api/agents',
   },
 
+  // Campaigns
+  CAMPAIGNS: {
+    BASE: '/api/campaigns',
+    LIST: '/api/campaigns',
+    LIST_FOR_CLIENT: (clientId: string) => `/api/campaigns/client/${clientId}`,
+    LIVE_CALLS: '/api/campaigns/live-calls',
+    BY_ID: (id: string) => `/api/campaigns/${id}`,
+  },
+
+  // Analytics
+  ANALYTICS: {
+    AGENTS_ANALYTICS: (clientId: string, days?: number) => `/api/clients/${clientId}/agents-analytics${days ? `?days=${days}` : ''}`,
+  },
+
   // Sales Persons / Referrals
   SALES_PERSONS: {
     BASE: '/api/sales-persons',
@@ -157,11 +172,12 @@ export const defaultFetchOptions = {
 
 // Function to get headers with auth token
 const getAuthHeaders = () => {
-  const token = tokenStorage.getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   
+  // Try to get token from localStorage as fallback
+  const token = tokenStorage.getToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -314,6 +330,7 @@ export const api = {
   // Client Users
   getClientUsers: () => apiUtils.get(API_ENDPOINTS.CLIENT_USERS.BASE),
   getClientUser: (userId: string) => apiUtils.get(API_ENDPOINTS.CLIENT_USERS.BY_ID(userId)),
+  getClientUsersForClient: (clientId: string) => apiUtils.get(API_ENDPOINTS.CLIENT_USERS.LIST_FOR_CLIENT(clientId)),
   createClientUser: (data: any) => apiUtils.post(API_ENDPOINTS.CLIENT_USERS.BASE, data),
   updateClientUser: (userId: string, data: any) => apiUtils.put(API_ENDPOINTS.CLIENT_USERS.BY_ID(userId), data),
   deleteClientUser: (userId: string) => apiUtils.delete(API_ENDPOINTS.CLIENT_USERS.BY_ID(userId)),
@@ -363,6 +380,13 @@ export const api = {
 
   // Agents
   getAgents: () => apiUtils.get(API_ENDPOINTS.AGENTS.BASE),
+
+  // Campaigns
+  getCampaigns: () => apiUtils.get(API_ENDPOINTS.CAMPAIGNS.LIST),
+  getCampaignsForClient: (clientId: string) => apiUtils.get(API_ENDPOINTS.CAMPAIGNS.LIST_FOR_CLIENT(clientId)),
+  getLiveCalls: () => apiUtils.get(API_ENDPOINTS.CAMPAIGNS.LIVE_CALLS),
+  getCampaign: (id: string) => apiUtils.get(API_ENDPOINTS.CAMPAIGNS.BY_ID(id)),
+
 
   // Workspace Secrets
   getWorkspaceSecretsLocal: () => apiUtils.get(API_ENDPOINTS.WORKSPACE_SECRETS.LOCAL),

@@ -19,12 +19,6 @@ const reportSections = [
     icon: CalendarClock,
   },
   {
-    title: "System Usage Trends",
-    description: "Monitor overall system performance, resource utilization, call volumes, and AI model costs.",
-    href: "/reports-analytics/system-usage-trends",
-    icon: TrendingUp,
-  },
-  {
     title: "Error & Failed Call Logs",
     description: "Investigate system errors, failed calls, and manage resolutions with detailed logs.",
     href: "/reports-analytics/error-logs",

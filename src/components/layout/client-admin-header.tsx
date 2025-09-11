@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -41,15 +40,15 @@ export function ClientAdminHeader() {
 
   const handleLogout = async () => {
     try {
-      // Call logout API
+      // Call logout API (this will clear the HTTP-only cookie)
       await api.logout();
     } catch (error) {
       console.warn('Logout API call failed:', error);
     }
     
-    // Clear the stored token and user data
-    tokenStorage.removeToken();
+    // Clear the stored user data and token
     localStorage.removeItem("user");
+    tokenStorage.removeToken();
     setUser(null);
     
     toast({
@@ -239,3 +238,4 @@ export function ClientAdminHeader() {
     </header>
   );
 }
+

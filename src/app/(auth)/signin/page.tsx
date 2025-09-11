@@ -71,10 +71,15 @@ export default function SignInPage() {
         }
 
         if (loginData.success) {
-          // Store the token if it exists in the response
+          console.log('[SignIn] Login response:', loginData);
+          // Token is automatically stored as HTTP-only cookie by backend
+          // Also store in localStorage as fallback for reliability
           if (loginData.token) {
             tokenStorage.setToken(loginData.token);
-            console.log('Token stored successfully');
+            console.log('[SignIn] Token stored in localStorage:', loginData.token.substring(0, 20) + '...');
+            console.log('[SignIn] Login successful, token stored in both cookie and localStorage');
+          } else {
+            console.log('[SignIn] No token in response, only HTTP-only cookie set');
           }
           
           // Fetch user profile using token
@@ -95,6 +100,9 @@ export default function SignInPage() {
               bio: profileData.data.bio || '',
             };
             console.log('Setting user data:', userData);
+            // Store user data in localStorage for persistence
+            localStorage.setItem("user", JSON.stringify(userData));
+            console.log('[SignIn] User data stored in localStorage:', userData);
             setUser(userData);
 
             toast({
@@ -199,3 +207,4 @@ export default function SignInPage() {
     </Card>
   );
 }
+

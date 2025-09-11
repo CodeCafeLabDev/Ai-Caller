@@ -1,3 +1,4 @@
+
 // backend/routes/auth.js
 const express = require('express');
 const router = express.Router();
@@ -34,15 +35,15 @@ router.post('/login', async (req, res) => {
 
         const token = jwt.sign(
           { id: user.id, name: user.name, email: user.email, role: user.roleName, type: 'admin' },
-          JWT_SECRET,
-          { expiresIn: '1d' }
+          JWT_SECRET
+          // No expiresIn - token will not expire until manual logout
         );
         
         // Set cookie with proper configuration for production
         const cookieOptions = {
           httpOnly: true,
           path: '/',
-          maxAge: 24*60*60*1000 // 24 hours
+          // No maxAge - cookie will persist until manual logout
         };
         
         // Configure for production vs development
@@ -52,12 +53,16 @@ router.post('/login', async (req, res) => {
         } else {
           cookieOptions.sameSite = 'lax';
           cookieOptions.secure = false;
+          // Don't set domain for localhost - let browser handle it
         }
         
         res.cookie('token', token, cookieOptions);
+        console.log('Cookie set with options:', cookieOptions);
+        console.log('Token set in cookie:', token.substring(0, 20) + '...');
 
         return res.json({ 
           success: true, 
+          token: token, // Include token in response for localStorage fallback
           user: { 
             id: user.id, 
             name: user.name, 
@@ -159,15 +164,15 @@ router.post('/login', async (req, res) => {
             type: 'client',
             companyName: client.companyName 
           },
-          JWT_SECRET,
-          { expiresIn: '1d' }
+          JWT_SECRET
+          // No expiresIn - token will not expire until manual logout
         );
 
         // Set cookie with proper configuration for production
         const cookieOptions = {
           httpOnly: true,
           path: '/',
-          maxAge: 24*60*60*1000 // 24 hours
+          // No maxAge - cookie will persist until manual logout
         };
         
         // Configure for production vs development
@@ -177,12 +182,14 @@ router.post('/login', async (req, res) => {
         } else {
           cookieOptions.sameSite = 'lax';
           cookieOptions.secure = false;
+          // Don't set domain for localhost - let browser handle it
         }
         
         res.cookie('token', token, cookieOptions);
 
         return res.json({ 
           success: true, 
+          token: token, // Include token in response for localStorage fallback
           user: { 
             id: client.id, 
             email: client.companyEmail, 
@@ -249,8 +256,8 @@ router.post('/client-admin/login', async (req, res) => {
           role: 'client_admin',
           companyName: client.companyName 
         },
-        JWT_SECRET,
-        { expiresIn: '1d' }
+        JWT_SECRET
+        // No expiresIn - token will not expire until manual logout
       );
 
       // Set cookie with proper configuration for production
@@ -273,6 +280,7 @@ router.post('/client-admin/login', async (req, res) => {
 
       res.json({ 
         success: true, 
+        token: token, // Include token in response for localStorage fallback
         user: { 
           id: client.id, 
           email: client.companyEmail, 
@@ -308,3 +316,4 @@ router.post('/logout', (req, res) => {
 });
 
 module.exports = router;
+

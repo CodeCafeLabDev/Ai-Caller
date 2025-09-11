@@ -27,31 +27,51 @@ export function AuthGuard({
   useEffect(() => {
     const checkAuthentication = async () => {
       try {
+        console.log('[AuthGuard] Starting authentication check...');
+        console.log('[AuthGuard] Current localStorage contents:', {
+          user: localStorage.getItem("user"),
+          token: tokenStorage.getToken(),
+          allKeys: Object.keys(localStorage)
+        });
+        
         // Check if user is already in context
         if (user) {
+          console.log('[AuthGuard] User already in context:', user);
           setIsAuthenticated(true);
           setIsLoading(false);
           return;
         }
 
-        // Check if token exists
-        const token = tokenStorage.getToken();
-        if (!token) {
-          if (requireAuth) {
-            // Store the intended destination
-            sessionStorage.setItem('redirectAfterLogin', pathname);
-            router.push('/signin');
+        // Check if we have user data in localStorage (from previous session)
+        const storedUser = localStorage.getItem("user");
+        const storedToken = tokenStorage.getToken();
+        console.log('[AuthGuard] Stored user data:', storedUser ? 'exists' : 'not found');
+        console.log('[AuthGuard] Stored token:', storedToken ? 'exists' : 'not found');
+        
+        if (storedUser && storedToken) {
+          try {
+            const userData = JSON.parse(storedUser);
+            console.log('[AuthGuard] Parsed user data:', userData);
+            setUser(userData);
+            setIsAuthenticated(true);
+            setIsLoading(false);
+            console.log('[AuthGuard] User restored from localStorage, authentication complete');
             return;
+          } catch (error) {
+            console.warn('[AuthGuard] Failed to parse stored user data:', error);
+            localStorage.removeItem("user");
+            tokenStorage.removeToken();
           }
-          setIsAuthenticated(false);
-          setIsLoading(false);
-          return;
         }
 
         // Try to fetch current user from API
+        console.log('[AuthGuard] No cached user data, attempting API call...');
         try {
           const response = await api.getCurrentUser();
+          console.log('[AuthGuard] API response status:', response.status);
+          console.log('[AuthGuard] API response headers:', Object.fromEntries(response.headers.entries()));
           const data = await response.json();
+          console.log('[AuthGuard] API response data:', data);
           
           if (data.success && data.data) {
             const userData = {
@@ -71,27 +91,42 @@ export function AuthGuard({
             localStorage.setItem("user", JSON.stringify(userData));
             setIsAuthenticated(true);
           } else {
-            // Token is invalid, clear it
-            tokenStorage.removeToken();
-            localStorage.removeItem("user");
-            if (requireAuth) {
+            // API returned failure - check if it's an authentication error
+            if (response.status === 401 || response.status === 403) {
+              // Token is invalid, clear it
+              tokenStorage.removeToken();
+              localStorage.removeItem("user");
+              if (requireAuth) {
+                sessionStorage.setItem('redirectAfterLogin', pathname);
+                router.push('/signin');
+                return;
+              }
+              setIsAuthenticated(false);
+            } else {
+              // Other API errors - keep user logged in with cached data
+              console.warn('API error but keeping user logged in:', data);
+              setIsAuthenticated(true);
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to verify token:', error);
+          // Network errors - keep user logged in with cached data
+          // Only clear token if we're sure it's an authentication issue
+          if (requireAuth) {
+            // Check if we have cached user data
+            const cachedUser = localStorage.getItem("user");
+            if (cachedUser) {
+              console.log('Network error but keeping cached user data');
+              setIsAuthenticated(true);
+            } else {
+              // No cached data and network error - redirect to login
               sessionStorage.setItem('redirectAfterLogin', pathname);
               router.push('/signin');
               return;
             }
+          } else {
             setIsAuthenticated(false);
           }
-        } catch (error) {
-          console.warn('Failed to verify token:', error);
-          // Clear invalid token
-          tokenStorage.removeToken();
-          localStorage.removeItem("user");
-          if (requireAuth) {
-            sessionStorage.setItem('redirectAfterLogin', pathname);
-            router.push('/signin');
-            return;
-          }
-          setIsAuthenticated(false);
         }
       } catch (error) {
         console.error('Authentication check failed:', error);
@@ -146,3 +181,4 @@ export function AuthGuard({
   // If authentication is not required or user is authenticated, render children
   return <>{children}</>;
 }
+

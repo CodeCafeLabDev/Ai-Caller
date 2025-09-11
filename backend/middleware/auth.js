@@ -10,6 +10,7 @@ if (!JWT_SECRET) {
 
 // JWT middleware
 function authenticateJWT(req, res, next) {
+  console.log('Auth middleware - cookies received:', req.cookies);
   const token = req.cookies.token;
   
   if (!token) {
@@ -28,3 +29,4 @@ function authenticateJWT(req, res, next) {
 }
 
 module.exports = { authenticateJWT, JWT_SECRET };
+
