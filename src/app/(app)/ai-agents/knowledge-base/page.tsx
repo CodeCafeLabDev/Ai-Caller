@@ -25,6 +25,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sheet, SheetHeader, SheetTitle, SheetFooter, SheetClose, SheetContent } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { api, API_BASE_URL } from "@/lib/apiConfig";
@@ -32,6 +33,7 @@ import { api, API_BASE_URL } from "@/lib/apiConfig";
 
 export default function KnowledgeBasePage() {
   const { toast } = useToast();
+  const router = useRouter();
   // Article type
   type KnowledgeBaseArticle = {
     id: string;
@@ -168,8 +170,12 @@ export default function KnowledgeBasePage() {
     const elevenData = await elevenRes.json();
     console.log('ElevenLabs response:', elevenData);
 
-    // 2. Save to your local DB
-    await api.createKnowledgeBaseItem(localDbPayload);
+    // 2. Save to your local DB with ElevenLabs document ID
+    const payloadWithElevenLabsId = {
+      ...localDbPayload,
+      elevenlabs_id: elevenData.id || elevenData.document_id || null
+    };
+    await api.createKnowledgeBaseItem(payloadWithElevenLabsId);
 
     return elevenData;
   }
@@ -393,12 +399,25 @@ export default function KnowledgeBasePage() {
     }
   };
 
-  // Update delete handler to use ElevenLabs API and then local DB
+  // Update delete handler: if connected to agents, navigate to agent details to remove first
   const handleDelete = async () => {
     if (!documentToDelete) return;
     
     setDeleteLoading(true);
     try {
+      if (Array.isArray(dependentAgents) && dependentAgents.length > 0) {
+        const first = dependentAgents[0];
+        const agentId = String(first.agent_id || first.id || '');
+        setDeleteLoading(false);
+        setDeleteDialogOpen(false);
+        try { localStorage.setItem('kb_remove_doc_id', String(documentToDelete.id || documentToDelete.document_id || '')); } catch {}
+        if (agentId) {
+          router.push(`/ai-agents/create/details/${agentId}?kbFocus=1`);
+          return;
+        }
+        toast({ title: 'Open agent details', description: 'Remove this document from the agent’s knowledge base first.' });
+        return;
+      }
       const id = documentToDelete.id || documentToDelete.document_id || documentToDelete.documentation_id;
       const documentName = documentToDelete.name || documentToDelete.title || 'Document';
       
@@ -1112,16 +1131,31 @@ export default function KnowledgeBasePage() {
                     <h4 className="text-sm font-medium text-yellow-800 mb-2">
                       This document is connected to {dependentAgents.length} agent(s):
                     </h4>
+                    <div className="text-xs text-gray-700 mb-1">Agent name</div>
                     <ul className="text-sm text-yellow-700 space-y-1">
-                      {dependentAgents.map((agent, index) => (
-                        <li key={index} className="flex items-center gap-2">
-                          <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
-                          <span className="font-mono text-xs">{agent.agent_id || agent.id || agent.name || `Agent ${index + 1}`}</span>
-                          {agent.name && agent.name !== (agent.agent_id || agent.id) && (
-                            <span className="text-gray-600">({agent.name})</span>
-                          )}
-                        </li>
-                      ))}
+                      {dependentAgents.map((agent, index) => {
+                        const agentId = String(agent.agent_id || agent.id || '');
+                        const agentLabel = agent.name || agentId || `Agent ${index + 1}`;
+                        return (
+                          <li key={index} className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                              <span className="font-mono text-xs break-all">{agentLabel}</span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setDeleteDialogOpen(false);
+                                try { localStorage.setItem('kb_remove_doc_id', String(documentToDelete?.id || documentToDelete?.document_id || '')); } catch {}
+                                if (agentId) router.push(`/ai-agents/create/details/${agentId}?kbFocus=1`);
+                              }}
+                            >
+                              Open
+                            </Button>
+                          </li>
+                        );
+                      })}
                     </ul>
                     <p className="text-xs text-yellow-600 mt-2">
                       Deleting this document will remove it from all connected agents' knowledge bases.
@@ -1151,7 +1185,7 @@ export default function KnowledgeBasePage() {
             <Button
               variant="destructive"
               onClick={handleDelete}
-              disabled={deleteLoading}
+              disabled={deleteLoading || (Array.isArray(dependentAgents) && dependentAgents.length > 0)}
             >
               {deleteLoading ? "Deleting..." : "Delete Document"}
             </Button>

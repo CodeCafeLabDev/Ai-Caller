@@ -31,6 +31,22 @@ router.get("/", authenticateJWT, (req, res) => {
   }
 });
 
+// Get client users for a specific client (by clientId)
+router.get("/client/:clientId", authenticateJWT, (req, res) => {
+  const clientId = req.params.clientId;
+  db.query(
+    `SELECT cu.*, ur.role_name 
+     FROM client_users cu 
+     LEFT JOIN user_roles ur ON cu.role_id = ur.id
+     WHERE cu.client_id = ?`,
+    [clientId],
+    (err, results) => {
+      if (err) return res.status(500).json({ success: false, error: err });
+      res.json({ success: true, data: results });
+    }
+  );
+});
+
 // Get a single client user
 router.get("/:id", (req, res) => {
   db.query(
@@ -48,27 +64,40 @@ router.get("/:id", (req, res) => {
 });
 
 // Create a new client user
-router.post("/", (req, res) => {
-  const { full_name, email, phone, role_id, status, last_login, client_id } = req.body;
-  const payload = { ...req.body, client_id: Number(client_id) };
-  db.query(
-    "INSERT INTO client_users (full_name, email, phone, role_id, status, last_login, client_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [full_name, email, phone, role_id, status, last_login, client_id],
-    (err, result) => {
-      if (err) return res.status(500).json({ success: false, error: err });
-      db.query(
-        `SELECT cu.*, ur.role_name 
-         FROM client_users cu 
-         LEFT JOIN user_roles ur ON cu.role_id = ur.id
-         WHERE cu.id = ?`,
-        [result.insertId],
-        (err, results) => {
-          if (err) return res.status(500).json({ success: false, error: err });
-          res.status(201).json({ success: true, data: results[0] });
-        }
-      );
+router.post("/", async (req, res) => {
+  const { full_name, email, phone, role_id, status, last_login, client_id, password } = req.body;
+  
+  try {
+    // Hash the password if provided
+    let hashedPassword = null;
+    if (password) {
+      const bcrypt = require('bcryptjs');
+      hashedPassword = await bcrypt.hash(password, 10);
     }
-  );
+    
+    const payload = { ...req.body, client_id: Number(client_id) };
+    db.query(
+      "INSERT INTO client_users (full_name, email, phone, role_id, status, last_login, client_id, password) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [full_name, email, phone, role_id, status, last_login, client_id, hashedPassword],
+      (err, result) => {
+        if (err) return res.status(500).json({ success: false, error: err });
+        db.query(
+          `SELECT cu.*, ur.role_name 
+           FROM client_users cu 
+           LEFT JOIN user_roles ur ON cu.role_id = ur.id
+           WHERE cu.id = ?`,
+          [result.insertId],
+          (err, results) => {
+            if (err) return res.status(500).json({ success: false, error: err });
+            res.status(201).json({ success: true, data: results[0] });
+          }
+        );
+      }
+    );
+  } catch (error) {
+    console.error('Error creating client user:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // Update a client user
@@ -104,38 +133,63 @@ router.delete("/:id", (req, res) => {
 });
 
 // Reset a client user's password
-router.post("/:id/reset-password", (req, res) => {
+router.post("/:id/reset-password", async (req, res) => {
   const userId = req.params.id;
-  const { oldPassword, password } = req.body;
+  const { oldPassword, password, newPassword } = req.body;
+  const bcrypt = require('bcryptjs');
 
-  if (!password) {
+  console.log('Reset password request for user:', userId);
+  console.log('Request body:', req.body);
+
+  // Use newPassword if provided, otherwise use password
+  const finalPassword = newPassword || password;
+
+  if (!finalPassword) {
+    console.log('No password provided in request');
     return res.status(400).json({ success: false, message: 'New password is required' });
   }
 
-  db.query('SELECT password FROM client_users WHERE id = ?', [userId], async (err, results) => {
-    if (err || results.length === 0) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-    const hashedPassword = results[0].password;
-
-    // Only check oldPassword if both oldPassword and hashedPassword are present and non-empty
-    if (oldPassword && hashedPassword) {
-      const match = await bcrypt.compare(oldPassword, hashedPassword);
-      if (!match) {
-        return res.status(400).json({ success: false, message: 'Old password is incorrect' });
+  try {
+    db.query('SELECT password FROM client_users WHERE id = ?', [userId], async (err, results) => {
+      if (err) {
+        console.error('Database error:', err);
+        return res.status(500).json({ success: false, message: 'Database error' });
       }
-    } else if (oldPassword && !hashedPassword) {
-      return res.status(400).json({ success: false, message: 'No password set for user' });
-    }
-
-    const newHashedPassword = await bcrypt.hash(password, 10);
-    db.query('UPDATE client_users SET password = ? WHERE id = ?', [newHashedPassword, userId], (err2) => {
-      if (err2) {
-        return res.status(500).json({ success: false, message: 'Failed to update password' });
+      
+      if (results.length === 0) {
+        console.log('User not found with id:', userId);
+        return res.status(404).json({ success: false, message: 'User not found' });
       }
-      res.json({ success: true, message: 'Password updated successfully' });
+      
+      console.log('User found, current password hash exists:', !!results[0].password);
+      const hashedPassword = results[0].password;
+
+      // Only check oldPassword if both oldPassword and hashedPassword are present and non-empty
+      if (oldPassword && hashedPassword) {
+        const match = await bcrypt.compare(oldPassword, hashedPassword);
+        if (!match) {
+          return res.status(400).json({ success: false, message: 'Old password is incorrect' });
+        }
+      } else if (oldPassword && !hashedPassword) {
+        return res.status(400).json({ success: false, message: 'No password set for user' });
+      }
+
+      console.log('Hashing new password...');
+      const newHashedPassword = await bcrypt.hash(finalPassword, 10);
+      
+      db.query('UPDATE client_users SET password = ? WHERE id = ?', [newHashedPassword, userId], (err2) => {
+        if (err2) {
+          console.error('Error updating password:', err2);
+          return res.status(500).json({ success: false, message: 'Failed to update password' });
+        }
+        console.log('Password updated successfully for user:', userId);
+        res.json({ success: true, message: 'Password updated successfully' });
+      });
     });
-  });
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
 });
 
 // Activate or deactivate a client user (only updates status)

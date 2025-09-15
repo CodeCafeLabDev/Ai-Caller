@@ -12,9 +12,9 @@ export function useAuthRedirect() {
   useEffect(() => {
     // If user is logged in and trying to access signin page or home page, redirect to appropriate dashboard
     if (user && (pathname === '/signin' || pathname === '/')) {
-      if (user.type === 'admin') {
+      if (user.role === 'admin') {
         router.replace('/dashboard');
-      } else if (user.type === 'client') {
+      } else if (user.role === 'client_admin' || user.role === 'client_user') {
         router.replace('/client-admin/dashboard');
       }
     }
@@ -25,9 +25,9 @@ export function useAuthRedirect() {
     const handlePopState = (event: PopStateEvent) => {
       // If user is logged in and browser tries to go to signin or home page, redirect to dashboard
       if (user && (window.location.pathname === '/signin' || window.location.pathname === '/')) {
-        if (user.type === 'admin') {
+        if (user.role === 'admin') {
           router.replace('/dashboard');
-        } else if (user.type === 'client') {
+        } else if (user.role === 'client_admin' || user.role === 'client_user') {
           router.replace('/client-admin/dashboard');
         }
       }

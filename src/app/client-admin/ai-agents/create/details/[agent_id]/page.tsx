@@ -721,9 +721,13 @@ async function addKnowledgeBaseItem(type: 'url' | 'text' | 'file', payload: any,
   });
   const elevenData = await elevenRes.json();
 
-  // 2. Save to your local DB (use your actual API call)
+  // 2. Save to your local DB with ElevenLabs document ID
   if (typeof api !== 'undefined' && api.createKnowledgeBaseItem) {
-    await api.createKnowledgeBaseItem(localDbPayload);
+    const payloadWithElevenLabsId = {
+      ...localDbPayload,
+      elevenlabs_id: elevenData.id || elevenData.document_id || null
+    };
+    await api.createKnowledgeBaseItem(payloadWithElevenLabsId);
   }
 
   return elevenData;
@@ -1573,14 +1577,89 @@ export default function AgentDetailsPage() {
   const [openDialog, setOpenDialog] = useState<null | 'url' | 'files' | 'text'>(null);
   const docPickerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch documents from local knowledge base API for the current client admin
-  useEffect(() => {
-    api.getKnowledgeBase()
-      .then(res => res.json())
-      .then(data => {
-        // Only show docs for the current client admin
-        setAvailableDocs((data.data || []).filter((doc: any) => String(doc.client_id || "") === String(user?.userId || "")));
+  // Enrich local knowledge base docs with ElevenLabs IDs for legacy rows
+  async function enrichDocsWithElevenLabsIds(localDocs: any[]): Promise<any[]> {
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '';
+      if (!apiKey) return localDocs;
+      const res = await fetch('https://api.elevenlabs.io/v1/convai/knowledge-base', {
+        headers: {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
       });
+      const data = await res.json();
+      const remoteDocs: any[] = Array.isArray(data?.knowledge_bases)
+        ? data.knowledge_bases
+        : Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data?.documents)
+        ? data.documents
+        : Array.isArray(data?.data)
+        ? data.data
+        : Array.isArray(data)
+        ? data
+        : [];
+
+      // Build lookup by url and name
+      const byUrl = new Map<string, any>();
+      const byName = new Map<string, any>();
+      for (const rd of remoteDocs) {
+        const rid = rd?.id || rd?.document_id;
+        if (!rid) continue;
+        if (rd?.url) byUrl.set(String(rd.url).trim(), rd);
+        if (rd?.name) byName.set(String(rd.name).trim().toLowerCase(), rd);
+      }
+
+      return localDocs.map(ld => {
+        if (ld?.elevenlabs_id) return ld;
+        const urlKey = ld?.url ? String(ld.url).trim() : '';
+        const nameKey = ld?.name ? String(ld.name).trim().toLowerCase() : '';
+        const match = (urlKey && byUrl.get(urlKey)) || (nameKey && byName.get(nameKey));
+        if (match) {
+          const rid = match?.id || match?.document_id;
+          if (rid) return { ...ld, elevenlabs_id: rid };
+        }
+        return ld;
+      });
+    } catch {
+      return localDocs;
+    }
+  }
+
+  // Fetch ElevenLabs docs and filter by local client association (hide deleted/unlinked)
+  useEffect(() => {
+    if (!user?.userId) return;
+    (async () => {
+      try {
+        // Pull remote list
+        const apiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '';
+        const res = await fetch('https://api.elevenlabs.io/v1/convai/knowledge-base', {
+          headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+        });
+        const r = await res.json();
+        const remote: any[] = Array.isArray(r?.knowledge_bases) ? r.knowledge_bases : Array.isArray(r?.items) ? r.items : Array.isArray(r?.documents) ? r.documents : Array.isArray(r?.data) ? r.data : Array.isArray(r) ? r : [];
+
+        // Build local meta map
+        const metaRes = await api.getKnowledgeBase();
+        const metaJson = await metaRes.json();
+        const map: Record<string, any> = {};
+        (metaJson?.data || []).forEach((item: any) => {
+          if (item?.url) map[item.url] = item; else if (item?.name) map[item.name] = item;
+        });
+
+        const clientId = String(user.userId);
+        const filtered = remote.filter((doc: any) => {
+          const meta = (doc?.url ? map[doc.url] : undefined) || (doc?.name ? map[doc.name] : undefined) || null;
+          return meta && String(meta.client_id) === clientId;
+        });
+
+        const normalized = filtered.map(d => ({ ...d, id: String(d.id || d.document_id || ''), elevenlabs_id: String(d.id || d.document_id || '') }));
+        setAvailableDocs(normalized);
+      } catch {
+        // fallback: keep previous
+      }
+    })();
   }, [user?.userId]);
 
   // Add document dialog handlers (use local DB and set client_id)
@@ -1657,7 +1736,7 @@ export default function AgentDetailsPage() {
         body: JSON.stringify({ url: addUrlInput, name: addUrlInput }),
       });
       const elevenDoc = await elevenRes.json();
-      // 2. Add to local DB
+      // 2. Add to local DB with ElevenLabs document ID
       const localDbPayload = {
         client_id: user?.userId || null,
         type: "url",
@@ -1667,8 +1746,18 @@ export default function AgentDetailsPage() {
         text_content: null,
         size: null,
         created_by: "user@example.com", // replace with actual user email if available
+        elevenlabs_id: elevenDoc.id || elevenDoc.document_id || null
       };
-      await api.createKnowledgeBaseItem(localDbPayload);
+      const createdRes = await api.createKnowledgeBaseItem(localDbPayload);
+      const createdJson = await createdRes.json().catch(() => null);
+      const createdId = createdJson?.id;
+
+      // Auto-select newly added doc for this agent
+      const newDoc = { ...localDbPayload, id: createdId } as any;
+      setSelectedDocs(prev => {
+        const next = [...prev, newDoc];
+        return next;
+      });
       setAddUrlInput("");
       setOpenDialog(null);
       // Refresh availableDocs
@@ -1676,13 +1765,13 @@ export default function AgentDetailsPage() {
       const data = await res.json();
       const docs = (data.data || []).filter((doc: any) => String(doc.client_id || "") === String(user?.userId || ""));
       setAvailableDocs(docs);
-      // Update agent knowledge base in ElevenLabs
-      await updateAgentKnowledgeBaseInElevenLabs(
-        String(agentId),
-        docs
-          .map((doc: any) => typeof doc?.id === 'string' ? doc.id : undefined)
-          .filter((id: unknown): id is string => !!id)
-      );
+
+      // Update agent knowledge base in ElevenLabs using selected docs + new
+      const selectedIds = [...selectedDocs, newDoc]
+        .map(d => (typeof d?.elevenlabs_id === 'string' ? d.elevenlabs_id : undefined))
+        .filter((id: unknown): id is string => !!id);
+      const uniqueSelectedIds = Array.from(new Set(selectedIds));
+      await updateAgentKnowledgeBaseInElevenLabs(String(agentId), uniqueSelectedIds);
     } finally {
       setAddDocLoading(false);
     }
@@ -1700,7 +1789,7 @@ export default function AgentDetailsPage() {
         body: JSON.stringify({ name: addTextName, text: addTextContent }),
       });
       const elevenDoc = await elevenRes.json();
-      // 2. Add to local DB
+      // 2. Add to local DB with ElevenLabs document ID
       const localDbPayload = {
         client_id: user?.userId || null,
         type: "text",
@@ -1710,8 +1799,14 @@ export default function AgentDetailsPage() {
         text_content: addTextContent,
         size: `${addTextContent.length} chars`,
         created_by: "user@example.com", // replace with actual user email if available
+        elevenlabs_id: elevenDoc.id || elevenDoc.document_id || null
       };
-      await api.createKnowledgeBaseItem(localDbPayload);
+      const createdRes = await api.createKnowledgeBaseItem(localDbPayload);
+      const createdJson = await createdRes.json().catch(() => null);
+      const createdId = createdJson?.id;
+
+      const newDoc = { ...localDbPayload, id: createdId } as any;
+      setSelectedDocs(prev => [...prev, newDoc]);
       setAddTextName("");
       setAddTextContent("");
       setOpenDialog(null);
@@ -1720,13 +1815,12 @@ export default function AgentDetailsPage() {
       const data = await res.json();
       const docs = (data.data || []).filter((doc: any) => String(doc.client_id || "") === String(user?.userId || ""));
       setAvailableDocs(docs);
-      // Update agent knowledge base in ElevenLabs
-      await updateAgentKnowledgeBaseInElevenLabs(
-        String(agentId),
-        docs
-          .map((doc: any) => typeof doc?.id === 'string' ? doc.id : undefined)
-          .filter((id: unknown): id is string => !!id)
-      );
+
+      const selectedIds = [...selectedDocs, newDoc]
+        .map(d => (typeof d?.elevenlabs_id === 'string' ? d.elevenlabs_id : undefined))
+        .filter((id: unknown): id is string => !!id);
+      const uniqueSelectedIds = Array.from(new Set(selectedIds));
+      await updateAgentKnowledgeBaseInElevenLabs(String(agentId), uniqueSelectedIds);
     } finally {
       setAddDocLoading(false);
     }
@@ -1747,7 +1841,7 @@ export default function AgentDetailsPage() {
         body: formData,
       });
       const elevenDoc = await elevenRes.json();
-      // 2. Add to local DB
+      // 2. Add to local DB with ElevenLabs document ID
       const localDbPayload = {
         client_id: user?.userId || null,
         type: "file",
@@ -1757,8 +1851,14 @@ export default function AgentDetailsPage() {
         text_content: null,
         size: `${(addFile.size / 1024).toFixed(1)} kB`,
         created_by: "user@example.com", // replace with actual user email if available
+        elevenlabs_id: elevenDoc.id || elevenDoc.document_id || null
       };
-      await api.createKnowledgeBaseItem(localDbPayload);
+      const createdRes = await api.createKnowledgeBaseItem(localDbPayload);
+      const createdJson = await createdRes.json().catch(() => null);
+      const createdId = createdJson?.id;
+
+      const newDoc = { ...localDbPayload, id: createdId } as any;
+      setSelectedDocs(prev => [...prev, newDoc]);
       setAddFile(null);
       setOpenDialog(null);
       // Refresh availableDocs
@@ -1766,13 +1866,12 @@ export default function AgentDetailsPage() {
       const data = await res.json();
       const docs = (data.data || []).filter((doc: any) => String(doc.client_id || "") === String(user?.userId || ""));
       setAvailableDocs(docs);
-      // Update agent knowledge base in ElevenLabs
-      await updateAgentKnowledgeBaseInElevenLabs(
-        String(agentId),
-        docs
-          .map((doc: any) => typeof doc?.id === 'string' ? doc.id : undefined)
-          .filter((id: unknown): id is string => !!id)
-      );
+
+      const selectedIds = [...selectedDocs, newDoc]
+        .map(d => (typeof d?.elevenlabs_id === 'string' ? d.elevenlabs_id : undefined))
+        .filter((id: unknown): id is string => !!id);
+      const uniqueSelectedIds = Array.from(new Set(selectedIds));
+      await updateAgentKnowledgeBaseInElevenLabs(String(agentId), uniqueSelectedIds);
     } finally {
       setAddDocLoading(false);
     }
@@ -3393,7 +3492,7 @@ export default function AgentDetailsPage() {
                         <div key={doc.id} className="flex items-center gap-2 border-b py-2">
                           <span>{doc.icon || (doc.type === 'web' ? '🌐' : doc.type === 'text' ? '📝' : '📄')}</span>
                           <span className="font-medium">{doc.name || doc.title || doc.id}</span>
-                          <span className="text-xs text-gray-500">{doc.id}</span>
+                          <span className="text-xs text-gray-500">{doc.elevenlabs_id || doc.id}</span>
                           <button
                             type="button"
                             className="ml-auto text-red-500 hover:text-red-700 text-sm"
@@ -3449,7 +3548,17 @@ export default function AgentDetailsPage() {
                           )}
                         </div>
                       </div>
-                      <div className="max-h-48 overflow-y-auto">
+                      {Object.values(docTypeFilter).some(Boolean) && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="bg-black text-white rounded-full px-2.5 py-0.5 text-xs font-medium">× Type</span>
+                          {(['file','url','text'] as const).filter(t => docTypeFilter[t]).map(t => (
+                            <span key={t} className="bg-black text-white rounded-full px-2.5 py-0.5 text-xs font-medium">
+                              {t.toUpperCase()}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="max-h-56 overflow-y-auto">
                         {Array.isArray(availableDocs) && availableDocs
                           .filter(doc => {
                             const types = Object.entries(docTypeFilter).filter(([k, v]) => v).map(([k]) => k);
@@ -3458,15 +3567,17 @@ export default function AgentDetailsPage() {
                           .map(doc => (
                             <div
                               key={doc.id}
-                              className="flex items-center gap-2 px-2 py-2 hover:bg-gray-100 cursor-pointer rounded"
+                              className="flex items-start gap-2 px-2 py-2 hover:bg-gray-100 cursor-pointer rounded"
                               onClick={() => {
                                 setSelectedDocs(prev => [...prev, doc]);
                                 setShowDocPicker(false);
                               }}
                             >
-                              <span className="text-lg">{doc.icon || (doc.type === 'web' ? '🌐' : doc.type === 'text' ? '📝' : '📄')}</span>
-                              <span className="font-medium">{doc.name || doc.title || doc.id}</span>
-                              <span className="text-xs text-gray-500 ml-auto">{doc.id}</span>
+                              <span className="text-lg mt-0.5">{doc.icon || (doc.type === 'web' ? '🌐' : doc.type === 'text' ? '📝' : '📄')}</span>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-sm truncate">{doc.name || doc.title || (doc.elevenlabs_id || doc.id)}</div>
+                                <div className="text-xs text-gray-500 font-mono truncate">{doc.elevenlabs_id || doc.id}</div>
+                              </div>
                             </div>
                           ))}
                       </div>

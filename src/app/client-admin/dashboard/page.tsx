@@ -104,9 +104,11 @@ export default function ClientAdminDashboardPage() {
       const usageData = await usageRes.json();
       const usageInfo = usageData.success ? usageData.data : usage;
 
-      // Process users data
+      // Process users data (count only Active users)
       const usersData = await usersRes.json();
-      const usersCount = usersData.success ? usersData.data.length : 0;
+      const usersCount = usersData.success
+        ? (usersData.data || []).filter((u: any) => String(u.status || '').toLowerCase() === 'active').length
+        : 0;
 
       // Process assigned plans data
       const assignedPlansData = await assignedPlansRes.json();

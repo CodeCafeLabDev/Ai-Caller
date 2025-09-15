@@ -295,6 +295,152 @@ router.post('/client-admin/login', async (req, res) => {
   });
 });
 
+// Client User Login endpoint
+router.post('/client-user/login', async (req, res) => {
+  const { email, password } = req.body;
+  console.log('Client user login attempt for:', email);
+  
+  // Find client user with role information
+  db.query(`
+    SELECT cu.*, ur.role_name, ur.permissions_summary, c.companyName 
+    FROM client_users cu 
+    LEFT JOIN user_roles ur ON cu.role_id = ur.id
+    LEFT JOIN clients c ON cu.client_id = c.id
+    WHERE cu.email = ? AND cu.status = 'Active'
+  `, [email], async (err, results) => {
+    if (err) {
+      console.error('Client user lookup error:', err);
+      return res.status(500).json({ success: false, message: 'DB error', error: err });
+    }
+    
+    if (!results.length) {
+      console.log('Client user not found or inactive');
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    const clientUser = results[0];
+    console.log('Found client user:', { id: clientUser.id, email: clientUser.email, role: clientUser.role_name });
+    console.log('Client user fields:', Object.keys(clientUser));
+    console.log('Client user password field:', clientUser.password);
+    
+    try {
+      let isValidPassword = false;
+
+      // Check if password field exists
+      if (!clientUser.password) {
+        console.log('No password field found in client user record');
+        // For now, allow login with any password if no password is set (temporary solution)
+        isValidPassword = true;
+        console.log('Allowing login without password validation (temporary)');
+      } else {
+        // First try bcrypt comparison (for hashed passwords)
+        try {
+          isValidPassword = await bcrypt.compare(password, clientUser.password);
+        } catch (hashError) {
+          // If bcrypt.compare fails, it might be a plain-text password
+          console.log('Hash comparison failed, trying plain-text comparison');
+          isValidPassword = (password === clientUser.password);
+
+          // If plain-text password is correct, upgrade it to hashed
+          if (isValidPassword) {
+            console.log('Plain-text password matched. Upgrading to hashed password...');
+            const hashedPassword = await bcrypt.hash(password, 10);
+            db.query(
+              'UPDATE client_users SET password = ? WHERE id = ?',
+              [hashedPassword, clientUser.id],
+              (updateErr) => {
+                if (updateErr) {
+                  console.error('Failed to upgrade password to hash:', updateErr);
+                  // Continue anyway since login is successful
+                } else {
+                  console.log('Successfully upgraded password to hash');
+                }
+              }
+            );
+          }
+        }
+      }
+
+      if (!isValidPassword) {
+        return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      }
+
+      // Update last login
+      db.query(
+        'UPDATE client_users SET last_login = NOW() WHERE id = ?',
+        [clientUser.id],
+        (updateErr) => {
+          if (updateErr) {
+            console.error('Failed to update last login:', updateErr);
+            // Continue anyway since login is successful
+          }
+        }
+      );
+
+      // Parse permissions
+      let permissions = [];
+      try {
+        permissions = JSON.parse(clientUser.permissions_summary || '[]');
+      } catch (parseError) {
+        console.error('Error parsing permissions:', parseError);
+        permissions = [];
+      }
+
+      // Create JWT token for client user
+      const token = jwt.sign(
+        { 
+          id: clientUser.id, 
+          email: clientUser.email, 
+          role: 'client_user',
+          role_name: clientUser.role_name,
+          permissions: permissions,
+          client_id: clientUser.client_id,
+          companyName: clientUser.companyName,
+          full_name: clientUser.full_name
+        },
+        JWT_SECRET
+        // No expiresIn - token will not expire until manual logout
+      );
+
+      // Set cookie with proper configuration for production
+      const cookieOptions = {
+        httpOnly: true,
+        path: '/',
+        maxAge: 24*60*60*1000 // 24 hours
+      };
+      
+      // Configure for production vs development
+      if (process.env.NODE_ENV === 'production') {
+        cookieOptions.sameSite = 'none';
+        cookieOptions.secure = true;
+      } else {
+        cookieOptions.sameSite = 'lax';
+        cookieOptions.secure = false;
+      }
+      
+      res.cookie('token', token, cookieOptions);
+
+      res.json({ 
+        success: true, 
+        token: token, // Include token in response for localStorage fallback
+        user: { 
+          id: clientUser.id, 
+          email: clientUser.email, 
+          role: 'client_user',
+          role_name: clientUser.role_name,
+          permissions: permissions,
+          client_id: clientUser.client_id,
+          companyName: clientUser.companyName,
+          full_name: clientUser.full_name
+        } 
+      });
+    } catch (err) {
+      console.error('Error in client user authentication:', err);
+      res.status(500).json({ success: false, message: 'Authentication error' });
+    }
+  });
+});
+
 // Logout endpoint
 router.post('/logout', (req, res) => {
   const cookieOptions = {

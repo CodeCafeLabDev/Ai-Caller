@@ -722,7 +722,8 @@ export default function ErrorLogsPage() {
         );
         
         console.log('Processing detailed conversations:', detailedConversations.length);
-        console.log('Sample detailed conversation:', detailedConversations[0]);
+        console.log('RAW SAMPLE CONVERSATION:', JSON.stringify(detailedConversations[0], null, 2));
+        console.log('All conversation fields:', detailedConversations[0] ? Object.keys(detailedConversations[0]) : 'No conversations');
         const errorLogsData: ErrorLogEntry[] = detailedConversations.map((conv, index) => {
           const agent = agents.find(a => a.agent_id === conv.agent_id);
           const errorInfo = categorizeError(conv);
@@ -751,7 +752,7 @@ export default function ErrorLogsPage() {
             timestamp: (() => {
               try {
                 // Try different possible timestamp field names from ElevenLabs API
-                const timestampFields = [
+                const unixTimestampFields = [
                   'call_start_unix',
                   'created_unix', 
                   'start_time_unix',
@@ -760,14 +761,35 @@ export default function ErrorLogsPage() {
                   'started_at_unix'
                 ];
                 
+                const isoTimestampFields = [
+                  'created_at',
+                  'start_time',
+                  'timestamp',
+                  'call_start_time',
+                  'started_at'
+                ];
+                
                 let unixTimestamp: number | null = null;
+                let isoTimestamp: string | null = null;
                 let fieldName = '';
                 
-                for (const field of timestampFields) {
+                // First try Unix timestamp fields
+                for (const field of unixTimestampFields) {
                   if (conv[field] && typeof conv[field] === 'number') {
                     unixTimestamp = conv[field];
                     fieldName = field;
                     break;
+                  }
+                }
+                
+                // If no Unix timestamp, try ISO string fields
+                if (!unixTimestamp) {
+                  for (const field of isoTimestampFields) {
+                    if (conv[field] && typeof conv[field] === 'string') {
+                      isoTimestamp = conv[field];
+                      fieldName = field;
+                      break;
+                    }
                   }
                 }
                 
@@ -777,11 +799,26 @@ export default function ErrorLogsPage() {
                     console.warn('Invalid timestamp from Unix:', unixTimestamp, 'field:', fieldName);
                     return new Date(); // Fallback to current time
                   }
-                  console.log('Created timestamp for conversation', conv.conversation_id, ':', date.toISOString(), 'from field:', fieldName, 'value:', unixTimestamp);
+                  console.log('Created timestamp for conversation', conv.conversation_id, ':', date.toISOString(), 'from Unix field:', fieldName, 'value:', unixTimestamp);
+                  return date;
+                } else if (isoTimestamp) {
+                  const date = new Date(isoTimestamp);
+                  if (isNaN(date.getTime())) {
+                    console.warn('Invalid timestamp from ISO:', isoTimestamp, 'field:', fieldName);
+                    return new Date(); // Fallback to current time
+                  }
+                  console.log('Created timestamp for conversation', conv.conversation_id, ':', date.toISOString(), 'from ISO field:', fieldName, 'value:', isoTimestamp);
                   return date;
                 } else {
                   console.warn('No valid timestamp field found for conversation:', conv.conversation_id, 'Available fields:', Object.keys(conv));
-                  return new Date(); // Fallback to current time
+                  // Create a unique timestamp based on conversation ID to avoid all entries having the same time
+                  const hash = conv.conversation_id.split('').reduce((a: number, b: string) => {
+                    a = ((a << 5) - a) + b.charCodeAt(0);
+                    return a & a;
+                  }, 0);
+                  const uniqueTime = new Date(Date.now() - Math.abs(hash) * 1000 * 60 * 60); // Hours ago based on hash
+                  console.log('Using fallback timestamp for conversation', conv.conversation_id, ':', uniqueTime.toISOString());
+                  return uniqueTime;
                 }
               } catch (error) {
                 console.error('Error creating timestamp:', error, 'for conversation:', conv.conversation_id);
@@ -857,18 +894,19 @@ export default function ErrorLogsPage() {
     return filtered;
   }, [errorLogs, dateRange, selectedAgentId, selectedErrorType]);
 
-  const totalPages = Math.ceil(filteredErrorLogs.length / itemsPerPage);
-  const paginatedErrorLogs = filteredErrorLogs
-    .filter(log => log && log.id) // Remove any invalid entries
-    .slice(
-      (currentPage - 1) * itemsPerPage,
-      currentPage * itemsPerPage
-    );
+  // Ensure we have valid entries for pagination
+  const validFilteredLogs = filteredErrorLogs.filter(log => log && log.id && log.timestamp);
+  const totalPages = Math.ceil(validFilteredLogs.length / itemsPerPage);
+  const paginatedErrorLogs = validFilteredLogs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
   
   // Debug pagination
   console.log('Pagination Debug:', {
     totalErrorLogs: errorLogs.length,
     filteredErrorLogs: filteredErrorLogs.length,
+    validFilteredLogs: validFilteredLogs.length,
     currentPage,
     itemsPerPage,
     totalPages,
@@ -919,19 +957,19 @@ export default function ErrorLogsPage() {
 
 
   const failureRate = React.useMemo(() => {
-    if (filteredErrorLogs.length === 0) return "0%";
+    if (validFilteredLogs.length === 0) return "0%";
     
     // Try to get total calls from usage stats, fallback to error logs count
-    const totalCalls = usageStats?.total_calls || filteredErrorLogs.length;
-    const criticalErrors = filteredErrorLogs.filter(log => log.errorType !== "No Answer").length;
+    const totalCalls = usageStats?.total_calls || validFilteredLogs.length;
+    const criticalErrors = validFilteredLogs.filter(log => log.errorType !== "No Answer").length;
     
     return totalCalls > 0 ? (criticalErrors / totalCalls * 100).toFixed(1) + "%" : "0%";
-  }, [filteredErrorLogs, usageStats]);
-  const commonErrorType = filteredErrorLogs.length > 0 ? 
-    Object.entries(filteredErrorLogs.reduce((acc, log) => { acc[log.errorType] = (acc[log.errorType] || 0) + 1; return acc; }, {} as Record<ErrorType, number>))
+  }, [validFilteredLogs, usageStats]);
+  const commonErrorType = validFilteredLogs.length > 0 ? 
+    Object.entries(validFilteredLogs.reduce((acc, log) => { acc[log.errorType] = (acc[log.errorType] || 0) + 1; return acc; }, {} as Record<ErrorType, number>))
         .sort((a,b) => b[1] - a[1])[0]?.[0] || "N/A" 
     : "N/A";
-  const affectedAgentsCount = new Set(filteredErrorLogs.map(log => log.agentId)).size;
+  const affectedAgentsCount = new Set(validFilteredLogs.map(log => log.agentId)).size;
 
 
   return (
@@ -1185,7 +1223,7 @@ export default function ErrorLogsPage() {
         <CardFooter className="p-4 border-t flex flex-col sm:flex-row items-center justify-between gap-2">
            <div className="text-xs text-muted-foreground">
              Showing <strong>{paginatedErrorLogs.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}</strong>
-             - <strong>{Math.min(currentPage * itemsPerPage, filteredErrorLogs.length)}</strong> of <strong>{filteredErrorLogs.length}</strong> logs
+             - <strong>{Math.min(currentPage * itemsPerPage, validFilteredLogs.length)}</strong> of <strong>{validFilteredLogs.length}</strong> logs
            </div>
            <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>

@@ -729,12 +729,44 @@ async function addKnowledgeBaseItem(type: 'url' | 'text' | 'file', payload: any,
   });
   const elevenData = await elevenRes.json();
 
-  // 2. Save to your local DB (use your actual API call)
+  // 2. Save to your local DB including ElevenLabs document ID
   if (typeof api !== 'undefined' && api.createKnowledgeBaseItem) {
-    await api.createKnowledgeBaseItem(localDbPayload);
+    const payloadWithElevenId = {
+      ...localDbPayload,
+      elevenlabs_id: elevenData?.id || elevenData?.document_id || null,
+    };
+    await api.createKnowledgeBaseItem(payloadWithElevenId);
   }
 
   return elevenData;
+}
+
+// Helper: resolve ElevenLabs document id reliably using response or by fetching list
+async function resolveElevenLabsDocId(apiKey: string, fallback: { name?: string; url?: string }, responseData: any): Promise<string | null> {
+  // 1) Try common fields on response
+  const direct = responseData?.id || responseData?.document_id || responseData?.data?.id || responseData?.document?.id;
+  if (typeof direct === 'string') return direct;
+
+  // 2) Fallback: fetch list and match by url or name
+  try {
+    const res = await fetch('https://api.elevenlabs.io/v1/convai/knowledge-base', {
+      headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    const list: any[] = Array.isArray(data?.knowledge_bases) ? data.knowledge_bases
+      : Array.isArray(data?.items) ? data.items
+      : Array.isArray(data?.documents) ? data.documents
+      : Array.isArray(data?.data) ? data.data
+      : Array.isArray(data) ? data : [];
+    const match = list.find(d => (
+      (fallback.url && String(d?.url || '').trim() === String(fallback.url).trim()) ||
+      (fallback.name && String(d?.name || '').trim().toLowerCase() === String(fallback.name).trim().toLowerCase())
+    ));
+    const id = match?.id || match?.document_id || match?.data?.id;
+    return typeof id === 'string' ? id : null;
+  } catch {
+    return null;
+  }
 }
 
 function getFlagUrl(code: string) {
@@ -1761,16 +1793,35 @@ export default function AgentDetailsPage() {
     setAddDocLoading(true);
     try {
       const localDbPayload = {
-        client_id: null, // client_id can be nullable
+        client_id: localAgent?.client_id ?? (selectedClientId ? parseInt(String(selectedClientId)) : null),
         type: "url",
         name: addUrlInput,
         url: addUrlInput,
         file_path: null,
         text_content: null,
         size: null,
-        created_by: "user@example.com", // replace with actual user email
+        created_by: (localStorage.getItem('user') ? (() => { try { return JSON.parse(localStorage.getItem('user') || '{}')?.full_name || JSON.parse(localStorage.getItem('user') || '{}')?.name || JSON.parse(localStorage.getItem('user') || '{}')?.email; } catch { return 'Admin User'; } })() : 'Admin User'),
       };
-      await addKnowledgeBaseItem('url', { url: addUrlInput, name: addUrlInput }, apiKey, localDbPayload);
+      const eleven = await addKnowledgeBaseItem('url', { url: addUrlInput, name: addUrlInput }, apiKey, localDbPayload);
+      // Resolve ElevenLabs id robustly
+      const resolvedId = await resolveElevenLabsDocId(apiKey, { url: addUrlInput, name: addUrlInput }, eleven);
+      // Auto-select and update agent KB
+      const newDoc = { ...localDbPayload, elevenlabs_id: resolvedId, id: resolvedId } as any;
+      const nextSelected = [...selectedDocs];
+      nextSelected.push(newDoc);
+      setSelectedDocs(nextSelected);
+      const selectedIds = nextSelected
+        .map(d => (typeof d?.elevenlabs_id === 'string' ? d.elevenlabs_id : undefined))
+        .filter((id: unknown): id is string => !!id);
+      const uniqueSelectedIds = Array.from(new Set(selectedIds));
+      await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ knowledge_base: uniqueSelectedIds }),
+      });
       setAddUrlInput("");
       setOpenDialog(null);
       // Optionally refresh availableDocs here
@@ -1782,16 +1833,33 @@ export default function AgentDetailsPage() {
     setAddDocLoading(true);
     try {
       const localDbPayload = {
-        client_id: null, // client_id can be nullable
+        client_id: localAgent?.client_id ?? (selectedClientId ? parseInt(String(selectedClientId)) : null),
         type: "text",
         name: addTextName,
         url: null,
         file_path: null,
         text_content: addTextContent,
         size: `${addTextContent.length} chars`,
-        created_by: "user@example.com", // replace with actual user email
+        created_by: (localStorage.getItem('user') ? (() => { try { return JSON.parse(localStorage.getItem('user') || '{}')?.full_name || JSON.parse(localStorage.getItem('user') || '{}')?.name || JSON.parse(localStorage.getItem('user') || '{}')?.email; } catch { return 'Admin User'; } })() : 'Admin User'),
       };
-      await addKnowledgeBaseItem('text', { name: addTextName, text: addTextContent }, apiKey, localDbPayload);
+      const eleven = await addKnowledgeBaseItem('text', { name: addTextName, text: addTextContent }, apiKey, localDbPayload);
+      const resolvedId = await resolveElevenLabsDocId(apiKey, { name: addTextName }, eleven);
+      const newDoc = { ...localDbPayload, elevenlabs_id: resolvedId, id: resolvedId } as any;
+      const nextSelected = [...selectedDocs];
+      nextSelected.push(newDoc);
+      setSelectedDocs(nextSelected);
+      const selectedIds = nextSelected
+        .map(d => (typeof d?.elevenlabs_id === 'string' ? d.elevenlabs_id : undefined))
+        .filter((id: unknown): id is string => !!id);
+      const uniqueSelectedIds = Array.from(new Set(selectedIds));
+      await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ knowledge_base: uniqueSelectedIds }),
+      });
       setAddTextName("");
       setAddTextContent("");
       setOpenDialog(null);
@@ -1805,16 +1873,33 @@ export default function AgentDetailsPage() {
     setAddDocLoading(true);
     try {
       const localDbPayload = {
-        client_id: null, // client_id can be nullable
+        client_id: localAgent?.client_id ?? (selectedClientId ? parseInt(String(selectedClientId)) : null),
         type: "file",
         name: addFile.name,
         url: null,
         file_path: "/uploads/" + addFile.name, // replace with actual upload logic
         text_content: null,
         size: `${(addFile.size / 1024).toFixed(1)} kB`,
-        created_by: "user@example.com", // replace with actual user email
+        created_by: (localStorage.getItem('user') ? (() => { try { return JSON.parse(localStorage.getItem('user') || '{}')?.full_name || JSON.parse(localStorage.getItem('user') || '{}')?.name || JSON.parse(localStorage.getItem('user') || '{}')?.email; } catch { return 'Admin User'; } })() : 'Admin User'),
       };
-      await addKnowledgeBaseItem('file', { name: addFile.name }, apiKey, localDbPayload);
+      const eleven = await addKnowledgeBaseItem('file', { name: addFile.name }, apiKey, localDbPayload);
+      const resolvedId = await resolveElevenLabsDocId(apiKey, { name: addFile.name }, eleven);
+      const newDoc = { ...localDbPayload, elevenlabs_id: resolvedId, id: resolvedId } as any;
+      const nextSelected = [...selectedDocs];
+      nextSelected.push(newDoc);
+      setSelectedDocs(nextSelected);
+      const selectedIds = nextSelected
+        .map(d => (typeof d?.elevenlabs_id === 'string' ? d.elevenlabs_id : undefined))
+        .filter((id: unknown): id is string => !!id);
+      const uniqueSelectedIds = Array.from(new Set(selectedIds));
+      await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: {
+          'xi-api-key': process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ knowledge_base: uniqueSelectedIds }),
+      });
       setAddFile(null);
       setOpenDialog(null);
       // Optionally refresh availableDocs here
@@ -3313,7 +3398,18 @@ export default function AgentDetailsPage() {
                           )}
                         </div>
                       </div>
-                      <div className="max-h-48 overflow-y-auto">
+                      {/* Active type filter chips */}
+                      {Object.values(docTypeFilter).some(Boolean) && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="bg-black text-white rounded-full px-2.5 py-0.5 text-xs font-medium">× Type</span>
+                          {(['file','url','text'] as const).filter(t => docTypeFilter[t]).map(t => (
+                            <span key={t} className="bg-black text-white rounded-full px-2.5 py-0.5 text-xs font-medium">
+                              {t.toUpperCase()}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="max-h-56 overflow-y-auto">
                         {Array.isArray(availableDocs) && availableDocs
                           .filter(doc => {
                             const types = Object.entries(docTypeFilter).filter(([k, v]) => v).map(([k]) => k);
@@ -3322,15 +3418,17 @@ export default function AgentDetailsPage() {
                           .map(doc => (
                             <div
                               key={doc.id}
-                              className="flex items-center gap-2 px-2 py-2 hover:bg-gray-100 cursor-pointer rounded"
+                              className="flex items-start gap-2 px-2 py-2 hover:bg-gray-100 cursor-pointer rounded"
                               onClick={() => {
                                 setSelectedDocs(prev => [...prev, doc]);
                                 setShowDocPicker(false);
                               }}
                             >
-                              <span className="text-lg">{doc.icon || (doc.type === 'web' ? '🌐' : doc.type === 'text' ? '📝' : '📄')}</span>
-                              <span className="font-medium">{doc.name || doc.title || doc.id}</span>
-                              <span className="text-xs text-gray-500 ml-auto">{doc.id}</span>
+                              <span className="text-lg mt-0.5">{doc.icon || (doc.type === 'web' ? '🌐' : doc.type === 'text' ? '📝' : '📄')}</span>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-sm truncate">{doc.name || doc.title || (doc.elevenlabs_id || doc.id)}</div>
+                                <div className="text-xs text-gray-500 font-mono truncate">{doc.elevenlabs_id || doc.id}</div>
+                              </div>
                             </div>
                           ))}
                       </div>

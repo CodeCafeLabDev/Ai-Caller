@@ -19,16 +19,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/components/ui/use-toast";
 import { signInUserAction } from '@/actions/auth'; 
 import { useState, useTransition } from 'react';
-import { useUser } from '@/lib/utils';
+import { useUser, type AuthUser } from '@/lib/utils';
 import { api } from '@/lib/apiConfig';
 import { tokenStorage } from '@/lib/tokenStorage';
 import { useAuthRedirect } from '@/hooks/useAuthRedirect';
 
-// For this temporary bypass, the user can enter any non-empty string
-// into the "Email" field (acting as a User ID) and any non-empty string for "Password".
 const formSchema = z.object({
-  email: z.string().min(1, { message: "Please enter any text for User ID." }),
-  password: z.string().min(1, { message: "Please enter any text for Password." }),
+  email: z.string().email({ message: "Enter a valid email address." }),
+  password: z.string().min(1, { message: "Password is required." }),
 });
 
 export default function SignInPage() {
@@ -51,101 +49,103 @@ export default function SignInPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     startTransition(async () => {
       try {
-        console.log('Attempting login with:', values.email);
-        // Call backend login endpoint
-        const loginRes = await api.login(values);
+        console.log('Attempting unified login with:', values.email);
         
-        // Check if the response is ok
-        if (!loginRes.ok) {
-          console.error('Login API error:', loginRes.status, loginRes.statusText);
-          throw new Error(`Server error: ${loginRes.status} ${loginRes.statusText}`);
-        }
+        // First try admin login
+        let loginRes = await api.login(values);
+        let loginData = null;
+        let isClientUser = false;
         
-        const loginData = await loginRes.json();
-        console.log('Login response:', loginData);
-        
-        // Check if loginData is empty or invalid
-        if (!loginData || typeof loginData !== 'object') {
-          console.error('Invalid login response:', loginData);
-          throw new Error('Invalid response from server');
-        }
-
-        if (loginData.success) {
-          console.log('[SignIn] Login response:', loginData);
-          // Token is automatically stored as HTTP-only cookie by backend
-          // Also store in localStorage as fallback for reliability
-          if (loginData.token) {
-            tokenStorage.setToken(loginData.token);
-            console.log('[SignIn] Token stored in localStorage:', loginData.token.substring(0, 20) + '...');
-            console.log('[SignIn] Login successful, token stored in both cookie and localStorage');
-          } else {
-            console.log('[SignIn] No token in response, only HTTP-only cookie set');
-          }
-          
-          // Fetch user profile using token
-          const profileRes = await api.getCurrentUser();
-          const profileData = await profileRes.json();
-          console.log('Profile data:', profileData);
-
-          if (profileData.success) {
-            const userData = {
-              userId: profileData.data.id ? profileData.data.id.toString() : '',
-              email: profileData.data.email,
-              name: profileData.data.name || profileData.data.companyName,
-              fullName: profileData.data.name || profileData.data.companyName,
-              role: loginData.user.role,
-              type: loginData.user.type,
-              avatarUrl: profileData.data.avatar_url,
-              companyName: loginData.user.companyName,
-              bio: profileData.data.bio || '',
-            };
-            console.log('Setting user data:', userData);
-            // Store user data in localStorage for persistence
-            localStorage.setItem("user", JSON.stringify(userData));
-            console.log('[SignIn] User data stored in localStorage:', userData);
-            setUser(userData);
-
-            toast({
-              title: "Sign In Successful",
-              description: `Welcome, ${profileData.data.name || profileData.data.companyName}!`,
-            });
-
-            // Check for redirect destination first
-            const redirectAfterLogin = sessionStorage.getItem('redirectAfterLogin');
-            if (redirectAfterLogin) {
-              sessionStorage.removeItem('redirectAfterLogin');
-              router.push(redirectAfterLogin);
-              return;
-            }
-
-            // Redirect based on user type
-            if (loginData.user.type === 'admin') {
-              console.log('Admin user, redirecting based on role:', loginData.user.role);
-              // All admin users go to the main dashboard
-              router.push("/dashboard");
-            } else if (loginData.user.type === 'client') {
-              console.log('Client user, redirecting to client dashboard');
-              router.push("/client-admin/dashboard");
-            } else {
-              console.log('Unknown user type:', loginData.user.type);
-              router.push("/dashboard");
-            }
-          } else {
-            console.error('Failed to fetch profile:', profileData);
-            toast({ 
-              title: "Failed to fetch profile", 
-              description: profileData.message || "Could not load user profile",
-              variant: "destructive" 
-            });
+        if (loginRes.ok) {
+          loginData = await loginRes.json();
+          if (loginData.success) {
+            console.log('Admin login successful');
           }
         } else {
-          console.error('Login failed:', loginData);
-          toast({
-            title: "Sign In Failed",
-            description: loginData?.message || "Invalid credentials or server error",
-            variant: "destructive",
-          });
+          console.log('Admin login failed, trying client user login');
+          // Try client user login
+          loginRes = await api.clientUserLogin(values);
+          if (loginRes.ok) {
+            loginData = await loginRes.json();
+            if (loginData.success) {
+              console.log('Client user login successful');
+              isClientUser = true;
+            }
+          }
         }
+        
+        if (!loginRes.ok || !loginData?.success) {
+          const errorData = await loginRes.json().catch(() => ({}));
+          throw new Error(errorData.message || `Server error: ${loginRes.status} ${loginRes.statusText}`);
+        }
+
+        console.log('[SignIn] Login response:', loginData);
+        
+        // Store token
+        if (loginData.token) {
+          tokenStorage.setToken(loginData.token);
+          console.log('[SignIn] Token stored in localStorage');
+        }
+        
+        // Prepare user data based on login type
+        let userData: AuthUser;
+        if (isClientUser) {
+          // Client user data structure
+          userData = {
+            userId: loginData.user.id ? loginData.user.id.toString() : '',
+            email: loginData.user.email,
+            name: loginData.user.full_name || loginData.user.email,
+            fullName: loginData.user.full_name || loginData.user.email,
+            role: loginData.user.role,
+            type: 'client',
+            avatarUrl: loginData.user.avatar_url,
+            companyName: loginData.user.companyName,
+            bio: '',
+            permissions: loginData.user.permissions || [],
+            role_name: loginData.user.role_name,
+            client_id: loginData.user.client_id,
+          };
+        } else {
+          // Admin user data structure
+          userData = {
+            userId: loginData.user.id ? loginData.user.id.toString() : '',
+            email: loginData.user.email,
+            name: loginData.user.name || loginData.user.companyName,
+            fullName: loginData.user.name || loginData.user.companyName,
+            role: loginData.user.role,
+            type: loginData.user.type,
+            avatarUrl: loginData.user.avatar_url,
+            companyName: loginData.user.companyName,
+            bio: loginData.user.bio || '',
+          };
+        }
+        
+        console.log('Setting user data:', userData);
+        localStorage.setItem("user", JSON.stringify(userData));
+        setUser(userData);
+
+        toast({
+          title: "Sign In Successful",
+          description: `Welcome, ${userData.fullName}!`,
+        });
+
+        // Check for redirect destination first
+        const redirectAfterLogin = sessionStorage.getItem('redirectAfterLogin');
+        if (redirectAfterLogin) {
+          sessionStorage.removeItem('redirectAfterLogin');
+          router.push(redirectAfterLogin);
+          return;
+        }
+
+        // Redirect based on user type
+        if (isClientUser || userData.role === 'client_admin' || userData.role === 'client_user') {
+          console.log('Client user, redirecting to client dashboard');
+          router.push("/client-admin/dashboard");
+        } else {
+          console.log('Admin user, redirecting to admin dashboard');
+          router.push("/dashboard");
+        }
+        
       } catch (error) {
         console.error('Error during login:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -161,9 +161,9 @@ export default function SignInPage() {
   return (
     <Card className="w-full max-w-md shadow-xl mx-auto">
       <CardHeader>
-        <CardTitle className="text-3xl font-headline text-center">Sign In (Test Mode)</CardTitle>
+        <CardTitle className="text-3xl font-headline text-center">Sign In</CardTitle>
         <CardDescription className="text-center">
-          Enter any non-empty User ID (in Email field) and Password. Use "clientadmin" in User ID for client panel.
+          Enter your email and password to access your account.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -174,9 +174,9 @@ export default function SignInPage() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>User ID (Enter any text)</FormLabel>
+                  <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="text" placeholder="e.g., admin or clientadmin" {...field} disabled={isPending} />
+                    <Input type="email" placeholder="m@example.com" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -187,21 +187,21 @@ export default function SignInPage() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password (Enter any text)</FormLabel>
+                  <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="Enter any password" {...field} disabled={isPending} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? "Signing In..." : "Sign In (Bypass)"}
+              {isPending ? "Signing In..." : "Sign In"}
             </Button>
           </form>
         </Form>
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          This is a temporary bypass mode. No actual authentication is performed.
+          You will be redirected to the appropriate dashboard based on your account type.
         </p>
       </CardContent>
     </Card>

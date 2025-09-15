@@ -226,8 +226,12 @@ export default function KnowledgeBasePage() {
     const elevenData = await elevenRes.json();
     console.log('ElevenLabs response:', elevenData);
 
-    // 2. Save to your local DB
-    await api.createKnowledgeBaseItem(localDbPayload);
+    // 2. Save to your local DB with ElevenLabs document ID
+    const payloadWithElevenLabsId = {
+      ...localDbPayload,
+      elevenlabs_id: elevenData.id || elevenData.document_id || null
+    };
+    await api.createKnowledgeBaseItem(payloadWithElevenLabsId);
 
     return elevenData;
   }

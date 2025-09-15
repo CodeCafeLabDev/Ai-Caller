@@ -64,6 +64,12 @@ export const API_ENDPOINTS = {
     LIST_FOR_CLIENT: (clientId: string) => `/api/client-users/client/${clientId}`,
   },
 
+  // Client Roles
+  CLIENT_ROLES: {
+    BASE: '/api/client-roles',
+    BY_ID: (roleId: string) => `/api/client-roles/${roleId}`,
+  },
+
   // Clients
   CLIENTS: {
     BASE: '/api/clients',
@@ -299,6 +305,7 @@ export const apiUtils = {
 export const api = {
   // Auth
   login: (data: any) => apiUtils.post(API_ENDPOINTS.AUTH.LOGIN, data),
+  clientUserLogin: (data: any) => apiUtils.post('/api/auth/client-user/login', data),
   logout: () => apiUtils.post(API_ENDPOINTS.AUTH.LOGOUT),
   
   // Admin Users
@@ -334,7 +341,14 @@ export const api = {
   createClientUser: (data: any) => apiUtils.post(API_ENDPOINTS.CLIENT_USERS.BASE, data),
   updateClientUser: (userId: string, data: any) => apiUtils.put(API_ENDPOINTS.CLIENT_USERS.BY_ID(userId), data),
   deleteClientUser: (userId: string) => apiUtils.delete(API_ENDPOINTS.CLIENT_USERS.BY_ID(userId)),
-  resetClientUserPassword: (userId: string) => apiUtils.post(API_ENDPOINTS.CLIENT_USERS.RESET_PASSWORD(userId)),
+  resetClientUserPassword: (userId: string, data: any) => apiUtils.post(API_ENDPOINTS.CLIENT_USERS.RESET_PASSWORD(userId), data),
+
+  // Client Roles
+  getClientRoles: () => apiUtils.get(API_ENDPOINTS.CLIENT_ROLES.BASE),
+  getClientRole: (roleId: string) => apiUtils.get(API_ENDPOINTS.CLIENT_ROLES.BY_ID(roleId)),
+  createClientRole: (data: any) => apiUtils.post(API_ENDPOINTS.CLIENT_ROLES.BASE, data),
+  updateClientRole: (roleId: string, data: any) => apiUtils.put(API_ENDPOINTS.CLIENT_ROLES.BY_ID(roleId), data),
+  deleteClientRole: (roleId: string) => apiUtils.delete(API_ENDPOINTS.CLIENT_ROLES.BY_ID(roleId)),
   
   // Clients
   getClients: () => apiUtils.get(API_ENDPOINTS.CLIENTS.BASE),
