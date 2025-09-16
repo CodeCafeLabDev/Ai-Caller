@@ -920,6 +920,32 @@ export default function AgentDetailsPage() {
       },
     },
   });
+
+  // Recompute additional languages after languages list or ElevenLabs agent changes
+  useEffect(() => {
+    try {
+      const el: any = elevenLabsAgent || {};
+      const presets = el?.conversation_config?.language_presets || {};
+      const fromPresets: string[] = Object.keys(presets || {});
+      const explicit = el?.conversation_config?.agent?.additional_languages || el?.conversation_config?.agent?.prompt?.additional_languages || [];
+      const combined = Array.from(new Set([
+        ...fromPresets,
+        ...explicit.map((x: any) => (typeof x === 'string' ? x : (x?.code || x?.lang || '')))
+      ].filter(Boolean)));
+      if (!combined.length) return;
+      const mapped = combined.map(code => {
+        const base = String(code).split('-')[0].toLowerCase();
+        const match = languages.find(l => l.code.toLowerCase() === String(code).toLowerCase() || l.code.split('-')[0].toLowerCase() === base);
+        return match ? match.code : String(code);
+      });
+      setAgentSettings((prev: any) => {
+        const prevArr = Array.isArray(prev.additional_languages) ? prev.additional_languages : [];
+        const same = prevArr.length === mapped.length && prevArr.every((v: string, i: number) => v === mapped[i]);
+        if (same) return prev;
+        return { ...prev, additional_languages: mapped };
+      });
+    } catch {}
+  }, [languages, elevenLabsAgent]);
   const [widgetConfig, setWidgetConfig] = useState({
     voice: "Eric",
     multi_voice: false,
@@ -1132,15 +1158,26 @@ export default function AgentDetailsPage() {
         const call_limits = (el.platform_settings && el.platform_settings.call_limits) || {};
         const auth = (el.platform_settings && el.platform_settings.auth) || {};
         const evaluation = (el.platform_settings && el.platform_settings.evaluation) || {};
-        // Parse language_presets from ElevenLabs to get additional languages
-        const language_presets = data.elevenlabs.conversation_config?.language_presets || {};
-        console.log('[DEBUG] Language presets from ElevenLabs:', language_presets);
-        const additional_languages = Object.keys(language_presets).map(langCode => {
-          // Find the full language code by matching first two letters (only if languages are loaded)
-          const fullLang = languages.length > 0 ? 
-            languages.find(l => l.code.substring(0, 2).toLowerCase() === langCode.toLowerCase()) : 
-            null;
-          return fullLang ? fullLang.code : langCode;
+        // Parse additional languages from ElevenLabs (support both language_presets and arrays)
+        const language_presets = data.elevenlabs?.conversation_config?.language_presets || {};
+        const additionalLanguagesFromPresets = Object.keys(language_presets || {});
+        // Some responses may include an explicit array on agent or prompt
+        const explicitAdditional = (
+          data.elevenlabs?.conversation_config?.agent?.additional_languages ||
+          data.elevenlabs?.conversation_config?.agent?.prompt?.additional_languages ||
+          []
+        );
+        const combinedLanguageCodes = Array.from(new Set([
+          ...additionalLanguagesFromPresets,
+          ...explicitAdditional.map((x: any) => (typeof x === 'string' ? x : x?.code || x?.lang || ''))
+        ].filter(Boolean)));
+        // Map codes to full codes in our list (preserve full code when possible)
+        const additional_languages = combinedLanguageCodes.map((code: string) => {
+          const normalized = code.split('-')[0].toLowerCase();
+          const fullLang = languages.length > 0
+            ? languages.find(l => l.code.toLowerCase() === code.toLowerCase() || l.code.split('-')[0].toLowerCase() === normalized)
+            : null;
+          return fullLang ? fullLang.code : code;
         });
         console.log('[DEBUG] Parsed additional languages:', additional_languages);
         
@@ -1156,7 +1193,16 @@ export default function AgentDetailsPage() {
         setAgentSettings(prev => ({
           ...prev,
           language: data?.local?.language_code || prev.language || 'en-US',
-          additional_languages: additional_languages.length > 0 ? additional_languages : (data?.local?.additional_languages || prev.additional_languages || []),
+          additional_languages: (() => {
+            // Prefer explicit additional_languages on agent if present
+            const explicit = data.elevenlabs?.conversation_config?.agent?.additional_languages || data.elevenlabs?.conversation_config?.agent?.prompt?.additional_languages;
+            if (Array.isArray(explicit) && explicit.length) {
+              const mapped = explicit.map((x: any) => typeof x === 'string' ? x : (x?.code || x?.lang || '')).filter(Boolean);
+              if (mapped.length) return mapped;
+            }
+            if (additional_languages.length > 0) return additional_languages;
+            return (data?.local?.additional_languages || prev.additional_languages || []);
+          })(),
           llm: data.elevenlabs.conversation_config?.agent?.prompt?.llm || data?.local?.llm || prev.llm || '',
           temperature: (typeof data.elevenlabs.conversation_config?.agent?.prompt?.temperature === 'number' ? data.elevenlabs.conversation_config.agent.prompt.temperature : undefined)
             ?? (typeof data?.local?.temperature === 'number' ? data.local.temperature : undefined)
